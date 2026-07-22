@@ -1499,7 +1499,7 @@ function restoreExternalProgress(data,namespace=activeSaveKey()){
   for(const name of Object.keys(keys)){
     const raw=data[name];if(typeof raw!=="string"||raw.length===0||new Blob([raw]).size>300000)continue;
     try{
-      if(name==="match3")localStorage.setItem(keys[name],String(clamp(Math.floor(Number(raw)||1),1,20)));
+      if(name==="match3")localStorage.setItem(keys[name],typeof raw==="string"?raw:JSON.stringify(raw));
       else{const parsed=JSON.parse(raw);if(parsed&&typeof parsed==="object"&&!Array.isArray(parsed))localStorage.setItem(keys[name],JSON.stringify(parsed));}
     }catch(err){console.warn("[ExternalProgress] ignored invalid",name,err);}
   }
@@ -1525,7 +1525,7 @@ try{
     localStorage.setItem(GUEST_SAVE_KEY, localStorage.getItem(LEGACY_SAVE_KEY));
   }
 }catch(e){}
-const SAVE_VERSION = 55;
+const SAVE_VERSION = 56;
 const SAVE_BACKUP_SUFFIX = "_backup_";
 const SAVE_TEMP_SUFFIX = "_writing";
 let saveCooldown = 0;
@@ -2565,7 +2565,7 @@ function resetRuntimeDefaults(){
   stylishScore = 0;
 
   // Starter roster: Kane, Ailo, Nox and the protagonist. Flora remains locked.
-  owned = [true,true,true,false,true];
+  owned = [true,true,true,false,true,false];
   cleared = {};
   charData = roles.map((r,i)=>({
     level:1,
@@ -2609,6 +2609,7 @@ function resetRuntimeDefaults(){
   lastLoginClaimDate = "";
   loginClaimIndex = 0;
   monthlyLoginCheckin = {month:"", dates:[], totalDates:[], milestones:{}};
+  versionLoginCheckin = {build:"2026072205", claimedDays:[], lastClaimDate:""};
   monthlyCheckinMsg = "";
   warehouseMsg = msg("warehouseDefault");
   loginDay = 1;
@@ -2619,7 +2620,7 @@ function resetRuntimeDefaults(){
   weaponOre = 5;
   skillBooks = 6;
   skillMaterials = {normal:6,skill:4,ultimate:2};
-  owned = [true,true,true,false,true];
+  owned = [true,true,true,false,true,false];
   charData = roles.map((r,i)=>({level:1,skillPoints:0,normal:1,skill:1,ultimate:1,weaponLevel:1,weapon:["烈阳之刃","风语法典","终夜双刃","霜月长枪"][i]}));
   cleared = {};
   achievements = {};
@@ -2801,7 +2802,7 @@ function saveGame(){
       updatedAt:now,
       accountUid:(!guestMode && cloudUser) ? cloudUser.uid : "",
       crystals, gold, expBooks, weaponOre, skillBooks, skillMaterials, playerLevel, playerExp, playerExpNeed, protagonistStoryLevel, playerName, playerUID, hasCreatedProfile, profileAvatarRole, profileAvatarFrame, profileShowcase,
-      owned, cleared, projectAreaCleared, charData, lobbyExecutor, lobbyBackgroundTheme, team, teamPresets, teamPresetNames, renderQuality, targetFPS, monthlyOwned, monthlyClaimed, monthlyClaimDate, mailClaimed, mailDeleted, eventClaimed, lastLoginClaimDate, loginClaimIndex, monthlyLoginCheckin,
+      owned, cleared, projectAreaCleared, charData, lobbyExecutor, lobbyBackgroundTheme, team, teamPresets, teamPresetNames, renderQuality, targetFPS, monthlyOwned, monthlyClaimed, monthlyClaimDate, mailClaimed, mailDeleted, eventClaimed, lastLoginClaimDate, loginClaimIndex, monthlyLoginCheckin, versionLoginCheckin,
       loginRewards, levelRewards, boughtPacks, ownedWeapons, weaponInventory, crystalExchangePurchases, dungeonStamina, dungeonWeeklyCrystalLeft, dungeonCrystalWeekKey, dungeonLastStaminaDate, dungeonCandy, dungeonStimulant, dungeonCandyMonthKey, dungeonCandyDailyUsed, dungeonCandyDailyKey, dungeonRewardMultiplier, materialDungeonDifficulty, materialDungeonDifficulties, materialDungeonSelected, moduleDungeonTarget, audioMuted, bgmVolume, sfxVolume, particlesEnabled, damageTextEnabled, tutorialCompleted, tutorialInProgress, tutorialResumeMode, language, prologueDone, lobbyGuideDone, lobbyGuideStep, achievements, totalKills, totalParries, totalChains, totalBossKills, totalGoldEarned, totalCrystalsEarned, growthGuidePage, growthGuidePageClaimed, growthGuideTaskClaimed, bossMultiplier, bossKrosWeeklyKey, dragonClaw, uiGuideSeen, uiNewSeen, actionRecordLevel, actionRecordExp, actionRecordExpNeed, actionRecordPage, actionRecordAdvanced, actionRecordUltimate, actionRecordClaimed, actionRecordWeaponChoice, actionRecordTab, actionRecordTaskTab, actionRecordTaskClaimed, battleManualDailyClaimed,
       battleResume:captureBattleResumeSnapshot()
     };
@@ -2838,6 +2839,7 @@ function migrateSaveData(d){
   if(!Array.isArray(d.loginRewards)){ d.loginRewards = null; changed = true; }
   if(!Array.isArray(d.levelRewards)){ d.levelRewards = null; changed = true; }
   addMissing("monthlyLoginCheckin", {month:"",dates:[],totalDates:[],milestones:{}});
+  addMissing("versionLoginCheckin", {build:"2026072205",claimedDays:[],lastClaimDate:""});
   addMissing("uiGuideSeen", {});
   addMissing("lobbyGuideStep", 0);
   addMissing("uiNewSeen", {});
@@ -2861,8 +2863,8 @@ function migrateSaveData(d){
   // V54 repairs profiles created by builds that accidentally omitted Ailo or
   // Nox from the starter roster. This changes ownership only; progression and
   // upgrade data remain untouched.
-  if(!Array.isArray(d.owned)){ d.owned=[true,true,true,false,true]; changed=true; }
-  while(d.owned.length<5){ d.owned.push(false); changed=true; }
+  if(!Array.isArray(d.owned)){ d.owned=[true,true,true,false,true,false]; changed=true; }
+  while(d.owned.length<6){ d.owned.push(false); changed=true; }
   for(const roleId of [0,1,2,PROTAGONIST_ROLE]){
     if(d.owned[roleId]!==true){ d.owned[roleId]=true; changed=true; }
   }
@@ -2977,7 +2979,15 @@ function loadGame(){
       totalDates:Array.isArray(d.monthlyLoginCheckin.totalDates) ? d.monthlyLoginCheckin.totalDates.filter(v=>typeof v==="string").slice(0,2000) : (Array.isArray(d.monthlyLoginCheckin.dates) ? d.monthlyLoginCheckin.dates.filter(v=>typeof v==="string").slice(0,30) : []),
       milestones:d.monthlyLoginCheckin.milestones && typeof d.monthlyLoginCheckin.milestones === "object" ? Object.assign({},d.monthlyLoginCheckin.milestones) : {}
     };
-    if(Array.isArray(d.loginRewards)) loginRewards = d.loginRewards;
+    if(d.versionLoginCheckin && typeof d.versionLoginCheckin==="object") versionLoginCheckin={
+      build:"2026072205",
+      claimedDays:Array.isArray(d.versionLoginCheckin.claimedDays)?d.versionLoginCheckin.claimedDays.map(Number).filter(v=>v>=0&&v<7):[],
+      lastClaimDate:typeof d.versionLoginCheckin.lastClaimDate==="string"?d.versionLoginCheckin.lastClaimDate:""
+    };
+    if(Array.isArray(d.loginRewards)){
+      const old=d.loginRewards;
+      loginRewards=loginRewards.map((base,i)=>Object.assign({},base,{claimed:!!(old[i]&&old[i].claimed)}));
+    }
     if(Array.isArray(d.levelRewards)) levelRewards = d.levelRewards;
     if(d.boughtPacks) boughtPacks = d.boughtPacks;
     if(d.crystalExchangePurchases && typeof d.crystalExchangePurchases==="object") crystalExchangePurchases=Object.assign({},d.crystalExchangePurchases);
@@ -2991,6 +3001,8 @@ function loadGame(){
           owned:item.owned !== false
         }));
     }
+    if(loginClaimIndex>=3){ while(owned.length<roles.length)owned.push(false); owned[5]=true; }
+    if(loginClaimIndex>=6){ ensureWeaponBag(); const lw=weaponInventory.find(x=>x.id==="lavender"); if(lw)lw.owned=true; }
     if(typeof d.dungeonStamina === "number") dungeonStamina = clamp(d.dungeonStamina,0,9999);
     if(typeof d.dungeonWeeklyCrystalLeft === "number") dungeonWeeklyCrystalLeft = clamp(d.dungeonWeeklyCrystalLeft,0,3);
     if(typeof d.dungeonCrystalWeekKey === "string") dungeonCrystalWeekKey = d.dungeonCrystalWeekKey;
@@ -3531,16 +3543,16 @@ function protagonistInfoLine(){
 function roleName(i){
   if(isProtagonist(i)) return protagonistName();
   const names = {
-    zh:["凯恩","艾洛","诺克斯","芙洛拉","主角"],
-    en:["Kane","Ailo","Nox","Flora","Protagonist"]
+    zh:["凯恩","艾洛","诺克斯","芙洛拉","主角","丽莎"],
+    en:["Kane","Ailo","Nox","Flora","Protagonist","Lisa"]
   };
   return (names[currentLang()] || names.zh)[i] || "";
 }
 function roleStyle(i){
   if(isProtagonist(i)) return language==="en" ? "S · High HP / Single Target" : "S级 · 高生命 / 单体";
   const styles = {
-    zh:["物理剑卫","风系辅助","暗系击破","冰系法术","单体输出"],
-    en:["Physical Sword Guard","Wind Support","Dark Breaker","Ice Caster","Single Target"]
+    zh:["物理剑卫","风系辅助","暗系击破","冰系法术","单体输出","风系辅助"],
+    en:["Physical Sword Guard","Wind Support","Dark Breaker","Ice Caster","Single Target","Wind Support"]
   };
   return (styles[currentLang()] || styles.zh)[i] || "";
 }
@@ -3619,9 +3631,10 @@ const roles = [
   {name:"艾洛", element:"wind", color:"#74ffb7", sub:"#7cc7ff", atk:[8,11,22], skill:52, speed:3.4, style:"风系辅助", line:"风会记住这一击。"},
   {name:"诺克斯", element:"dark", color:"#b47cff", sub:"#ffffff", atk:[28,38,68], skill:92, speed:2.45, style:"暗系重炮", line:"无名之刃，撕裂终局。"},
   {name:"芙洛拉", element:"ice", color:"#88d8ff", sub:"#ffffff", atk:[16,20,42], skill:78, speed:3.0, style:"冰系法术", line:"霜影落下，万物静止。"},
-  {name:"主角", element:"monochrome", color:"#dfe6ef", sub:"#313846", atk:[15,20,38], skill:72, speed:3.05, style:"单体输出", line:"灰白之间，斩开前路。"}
+  {name:"主角", element:"monochrome", color:"#dfe6ef", sub:"#313846", atk:[15,20,38], skill:72, speed:3.05, style:"单体输出", line:"灰白之间，斩开前路。"},
+  {name:"丽莎", element:"wind", color:"#bda7ff", sub:"#78f0c3", atk:[9,12,20], skill:58, speed:3.15, style:"风系辅助", line:"听见了吗？风正在回应。"}
 ];
-let owned = [true,true,true,false,true];
+let owned = [true,true,true,false,true,false];
 let charData = roles.map((r,i)=>({
   level:1,
   skillPoints:0,
@@ -3629,7 +3642,7 @@ let charData = roles.map((r,i)=>({
   skill:1,
   ultimate:1,
   weaponLevel:1,
-  weapon:["烈阳之刃","风语法典","终夜双刃","霜月长枪"][i]
+  weapon:["烈阳之刃","风语法典","终夜双刃","霜月长枪","灰核之刃","拉文德"][i] || "训练武器"
 }));
 let shopMsg = msg("shopDefault");
 let shopTab = "recommend";
@@ -3820,6 +3833,7 @@ let eventTab = "login";
 let lastLoginClaimDate = "";
 let loginClaimIndex = 0;
 let monthlyLoginCheckin = {month:"", dates:[], totalDates:[], milestones:{}};
+let versionLoginCheckin = {build:"2026072205", claimedDays:[], lastClaimDate:""};
 let monthlyCheckinMsg = "";
 let warehouseMsg = msg("warehouseDefault");
 let warehouseTab = "all";
@@ -3831,10 +3845,10 @@ let loginDay = 1;
 let loginRewards = [
   {name:"Day 1", crystals:300, gold:1000, expBooks:3, ore:0, claimed:false},
   {name:"Day 2", crystals:0, gold:2000, expBooks:5, ore:0, claimed:false},
-  {name:"Day 3", crystals:300, gold:0, expBooks:5, ore:3, claimed:false},
+  {name:"Day 3", crystals:300, gold:0, expBooks:5, ore:3, roleId:5, claimed:false},
   {name:"Day 4", crystals:0, gold:3000, expBooks:8, ore:3, claimed:false},
   {name:"Day 5", crystals:500, gold:0, expBooks:8, ore:5, claimed:false},
-  {name:"Day 6", crystals:0, gold:5000, expBooks:12, ore:5, claimed:false},
+  {name:"Day 6", crystals:0, gold:5000, expBooks:12, ore:5, weaponId:"lavender", claimed:false},
   {name:"Day 7", crystals:1000, gold:8000, expBooks:20, ore:10, claimed:false}
 ];
 let levelRewards = [
@@ -4129,6 +4143,8 @@ let protagonistBindings = [];
 let protagonistSweeps = [];
 let protagonistDomain = {active:false,life:0,max:180,tick:0,sweepIndex:0};
 let teamDamageAmpTimer = 0;
+let lisaTeamDamageAmpTimer = 0;
+let lisaSelfDamageAmpTimer = 0;
 let kaneSigils = [];
 let noxDamageAmpTimer = 0;
 let windFields = [];
@@ -4779,8 +4795,26 @@ function grantReward(pack){
   if(pack.gold){ gold += pack.gold; totalGoldEarned += pack.gold; }
   if(pack.expBooks) expBooks += pack.expBooks;
   if(pack.ore) weaponOre += pack.ore;
+  if(Number.isInteger(pack.roleId) && roles[pack.roleId]){
+    while(owned.length<roles.length) owned.push(false);
+    owned[pack.roleId]=true;
+    showActionPrompt((language==="en"?"Executor acquired: ":"获得执行官：")+roleName(pack.roleId),120);
+  }
+  if(pack.weaponId){
+    ensureWeaponBag();
+    const item=weaponInventory.find(x=>x.id===pack.weaponId);
+    if(item) item.owned=true;
+    else weaponInventory.push({id:pack.weaponId,level:1,owned:true});
+    showActionPrompt((language==="en"?"Weapon acquired: ":"获得武器：")+weaponNameById(pack.weaponId),120);
+  }
   checkAchievements();
 }
+function grantExactEventCrystals(amount){
+  const value=Math.max(0,Math.floor(Number(amount)||0));
+  crystals+=value;totalCrystalsEarned+=value;checkAchievements();
+  return value;
+}
+window.grantExactEventCrystals=grantExactEventCrystals;
 
 function grantPZDaydreamReward(pack){
   pack=pack||{};
@@ -4798,6 +4832,8 @@ function rewardText(pack){
   if(pack.gold) arr.push((language==="en"?"Gold+":"金币+")+pack.gold);
   if(pack.expBooks) arr.push((language==="en"?"EXP Books+":"经验书+")+pack.expBooks);
   if(pack.ore) arr.push((language==="en"?"Weapon Ore+":"精炼合金+")+pack.ore);
+  if(Number.isInteger(pack.roleId)) arr.push(language==="en"?"Lisa":"丽莎");
+  if(pack.weaponId) arr.push(weaponNameById(pack.weaponId));
   return arr.join(" / ") || ui("claimed");
 }
 
@@ -4857,6 +4893,8 @@ function clearTransientBattleState(){
   protagonistSweeps=[];
   protagonistDomain={active:false,life:0,max:180,tick:0,sweepIndex:0};
   teamDamageAmpTimer=0;
+  lisaTeamDamageAmpTimer=0;
+  lisaSelfDamageAmpTimer=0;
   kaneSigils=[];
   noxDamageAmpTimer=0;
   windFields=[];
@@ -5388,6 +5426,42 @@ function updateAiloCombatEffects(){
   }
 }
 
+function lisaAttack(){
+  if(player.attackCd>0 || attackInputLock>0 || ult.active) return;
+  const aim=getAimPoint(480),dir=aim.y>=player.y?1:-1,len=clamp(Math.abs(aim.y-player.y),150,430),halfW=48;
+  player.attackCd=44;attackInputLock=20;player.facing=aim.x>=player.x?1:-1;
+  const cy=player.y+dir*len*.5;
+  addBladeTrail(player.x-halfW,player.y,player.x+halfW,player.y+dir*len,"#bda7ff",22,18,"windSkill");
+  addSlash(player.x,cy,Math.max(90,len*.55),"#78f0c3",20,"windField");
+  for(const e of enemies){
+    if(!e.alive)continue;
+    const insideX=Math.abs(e.x-player.x)<=halfW+e.r;
+    const rel=(e.y-player.y)*dir;
+    if(insideX&&rel>=-e.r&&rel<=len+e.r){e.weathering=Math.max(e.weathering||0,300);hitEnemy(e,panelDamage(5,.68,"normal",Math.random()*9)*windDamageScale(e,5),4,panelShieldDamage(5,15,"normal"),"#bda7ff","WEATHERING");}
+  }
+  addText(player.x,player.y+dir*len,language==="en"?"LENGTH "+Math.round(len):"攻击长度 "+Math.round(len),"#bda7ff",false);sfx("skill");doShake(5);
+}
+
+function lisaSkill(){
+  const cost=58;
+  if(player.skillCd>0||player.energy<cost||ult.active){if(player.energy<cost)showCenter(mt("notEnoughEnergy"),24);return;}
+  player.energy-=cost;player.skillCd=210;lisaTeamDamageAmpTimer=420;
+  ensureBattleRoleResources();
+  battleRoleEnergy[player.role]=player.energy;
+  for(const roleId of team){const max=roleMaxHpForBattle(roleId);battleRoleHp[roleId]=Math.max(1,Math.floor((battleRoleHp[roleId]||max)-max*.10));}
+  syncPlayerResourcesFromRole();
+  addSlash(player.x,player.y,230,"#bda7ff",30,"windSkill");addParticles(player.x,player.y,"#78f0c3",22,7);
+  showCenter(language==="en"?"LAVENDER PACT · DMG +10%":"薰风契约 · 全队增伤10%",65);sfx("skill");
+}
+
+function lisaUltimateResolve(){
+  ensureBattleRoleResources();
+  for(const roleId of team)battleRoleHp[roleId]=Math.min(roleMaxHpForBattle(roleId),(battleRoleHp[roleId]||0)+30);
+  lisaSelfDamageAmpTimer=480;syncPlayerResourcesFromRole();
+  addSlash(player.x,player.y,360,"#78f0c3",40,"windUltimate");addParticles(player.x,player.y,"#bda7ff",36,8);
+  addText(player.x,player.y-140,language==="en"?"LAVENDER RESTORATION · TEAM HP +30":"拉文德复苏 · 全队生命+30","#78f0c3",true);sfx("ultBoom");
+}
+
 function noxAttack(){
   if(player.attackCd>0 || attackInputLock>0 || ult.active) return;
   applyNoxRuinAttackCost();
@@ -5595,6 +5669,8 @@ function panelDamage(roleId, multiplier, kind="normal", randomBonus=0){
   const modules=roleModuleTotals(roleId);
   let setScale=1;
   if(teamDamageAmpTimer>0) setScale+=.18;
+  if(lisaTeamDamageAmpTimer>0) setScale+=.10;
+  if(roleId===5 && lisaSelfDamageAmpTimer>0) setScale+=.05;
   if(roleId===0 && kaneSigils.some(s=>s.life>0)) setScale+=.05;
   if(roleId===2 && noxDamageAmpTimer>0) setScale+=.20;
   if(kind==="skill") setScale+=modules.skillDamagePct||0;
@@ -5826,6 +5902,7 @@ function attack(){
   if(isFloraRole()){ floraAttack(); return; }
   if(player.role===1){ ailoAttack(); return; }
   if(player.role===2){ noxAttack(); return; }
+  if(player.role===5){ lisaAttack(); return; }
   if(player.attackCd>0 || attackInputLock>0 || ult.active) return;
   const role=roles[player.role];
   const cd = charData[player.role];
@@ -5860,6 +5937,7 @@ function skill(){
   if(isFloraRole()){ floraSkill(); return; }
   if(player.role===1){ ailoSkill(); return; }
   if(player.role===2){ noxSkill(); return; }
+  if(player.role===5){ lisaSkill(); return; }
   if(player.skillCd>0 || player.energy<SKILL_ENERGY_COST || ult.active){ if(player.energy<SKILL_ENERGY_COST) showCenter(mt("notEnoughEnergy"),24); return; }
   const role=roles[player.role]; const cd=charData[player.role]; player.energy-=SKILL_ENERGY_COST; player.skillCd=68;
   const sx=player.x+player.facing*65;
@@ -5895,6 +5973,7 @@ function resolveUltimate(){
     sfx("ultStart");return;
   }
   if(ult.role===2){ noxUltimateResolve(); return; }
+  if(ult.role===5){ lisaUltimateResolve(); return; }
   const role=roles[ult.role]; const cd=charData[ult.role];
   if(ult.role===0){
     kaneSigils.push({x:player.x+player.facing*75,y:player.y,r:175,life:360,max:360,hit:new WeakSet()});
@@ -8558,7 +8637,7 @@ function updateBattle(){
   if(dx||dy){ const l=Math.hypot(dx,dy); dx/=l; dy/=l; player.vx+=dx*role.speed*MOVE_SPEED_MULT*.35*frameScale; player.vy+=dy*role.speed*MOVE_SPEED_MULT*.35*frameScale; if(Math.abs(dx)>.1)player.facing=dx>0?1:-1; }
   if(lockTarget&&lockTarget.alive) player.facing=lockTarget.x>player.x?1:-1; else if(lockTarget&&!lockTarget.alive) lockTarget=null;
   const slow=slowMo>0?.45:1; player.x+=player.vx*slow*frameScale; player.y+=player.vy*slow*frameScale; player.vx*=Math.pow(.82,frameScale); player.vy*=Math.pow(.82,frameScale); player.x=clamp(player.x,35,W-35); player.y=clamp(player.y,105,H-35);
-  player.attackCd=Math.max(0,player.attackCd-frameScale); attackInputLock=Math.max(0,attackInputLock-frameScale); attackBuffer=Math.max(0,attackBuffer-frameScale); skillBuffer=Math.max(0,skillBuffer-frameScale); ultBuffer=Math.max(0,ultBuffer-frameScale); dashBuffer=Math.max(0,dashBuffer-frameScale); player.skillCd=Math.max(0,player.skillCd-frameScale); player.ultCd=Math.max(0,player.ultCd-frameScale); player.dashCd=Math.max(0,player.dashCd-frameScale); player.switchCd=Math.max(0,player.switchCd-frameScale); player.inv=Math.max(0,player.inv-frameScale); player.chainTimer=Math.max(0,player.chainTimer-frameScale); player.guardTimer=Math.max(0,player.guardTimer-frameScale); player.parryReady=Math.max(0,player.parryReady-frameScale); player.perfectBuff=Math.max(0,player.perfectBuff-frameScale); teamDamageAmpTimer=Math.max(0,teamDamageAmpTimer-frameScale); noxDamageAmpTimer=Math.max(0,noxDamageAmpTimer-frameScale); if(player.parryReady<=0)player.parryTarget=null;
+  player.attackCd=Math.max(0,player.attackCd-frameScale); attackInputLock=Math.max(0,attackInputLock-frameScale); attackBuffer=Math.max(0,attackBuffer-frameScale); skillBuffer=Math.max(0,skillBuffer-frameScale); ultBuffer=Math.max(0,ultBuffer-frameScale); dashBuffer=Math.max(0,dashBuffer-frameScale); player.skillCd=Math.max(0,player.skillCd-frameScale); player.ultCd=Math.max(0,player.ultCd-frameScale); player.dashCd=Math.max(0,player.dashCd-frameScale); player.switchCd=Math.max(0,player.switchCd-frameScale); player.inv=Math.max(0,player.inv-frameScale); player.chainTimer=Math.max(0,player.chainTimer-frameScale); player.guardTimer=Math.max(0,player.guardTimer-frameScale); player.parryReady=Math.max(0,player.parryReady-frameScale); player.perfectBuff=Math.max(0,player.perfectBuff-frameScale); teamDamageAmpTimer=Math.max(0,teamDamageAmpTimer-frameScale); lisaTeamDamageAmpTimer=Math.max(0,lisaTeamDamageAmpTimer-frameScale); lisaSelfDamageAmpTimer=Math.max(0,lisaSelfDamageAmpTimer-frameScale); noxDamageAmpTimer=Math.max(0,noxDamageAmpTimer-frameScale); if(player.parryReady<=0)player.parryTarget=null;
   for(const e of enemies){
     if(!e.alive)continue; e.parried=Math.max(0,e.parried-frameScale); e.breakLock=Math.max(0,(e.breakLock||0)-frameScale); e.freeze=Math.max(0,(e.freeze||0)-frameScale); e.chill=Math.max(0,(e.chill||0)-frameScale); e.physicalPain=Math.max(0,(e.physicalPain||0)-frameScale); e.weathering=Math.max(0,(e.weathering||0)-frameScale);
     if(e.trainingDummy){
@@ -9627,6 +9706,23 @@ function claimLoginReward(index){
   saveGame(); autoCloudSaveNow(true);
 }
 
+function versionLoginRewards(){ return [150,150,150,150,150,150,200]; }
+function canClaimVersionLogin(){
+  if(versionLoginCheckin.build!=="2026072205") versionLoginCheckin={build:"2026072205",claimedDays:[],lastClaimDate:""};
+  return versionLoginCheckin.claimedDays.length<7 && versionLoginCheckin.lastClaimDate!==todayKey();
+}
+function claimVersionLogin(index){
+  if(index!==versionLoginCheckin.claimedDays.length){ eventMsg=language==="en"?"Claim rewards in order.":"请按顺序领取版本签到奖励。"; return; }
+  if(!canClaimVersionLogin()){ eventMsg=language==="en"?"Come back tomorrow.":"今日已领取，请明天再来。"; return; }
+  const rewards=versionLoginRewards(), amount=rewards[index];
+  if(!amount) return;
+  grantExactEventCrystals(amount);
+  versionLoginCheckin.claimedDays.push(index);
+  versionLoginCheckin.lastClaimDate=todayKey();
+  eventMsg=(language==="en"?"Version sign-in: Crystal +":"版本签到：水晶 +")+amount;
+  sfx("reward"); saveGame(); autoCloudSaveNow(true);
+}
+
 function monthlyCheckinRewards(){
   return Array.from({length:30},(_,i)=>{
     const day=i+1;
@@ -9726,6 +9822,7 @@ function updateEvent(){
     else if(inRect(38,220,185,58)){ eventTab="level"; markUiNewSeen("event.level.v1"); }
     else if(inRect(38,290,185,58)){ eventTab="supply"; markUiNewSeen("event.supply.v1"); }
     else if(inRect(38,360,185,58)){ eventTab="match3"; markMatch3Seen(); markUiNewSeen("event.match3.v1"); }
+    else if(inRect(38,430,185,58)){ eventTab="version"; markUiNewSeen("event.version.2026072205"); }
 
     if(eventTab==="match3" && inRect(675,245,290,58)){
       if(window.PZMatch3) window.PZMatch3.start("campaign");
@@ -9761,6 +9858,11 @@ function updateEvent(){
       }
     }
 
+    if(eventTab==="version"){
+      const sx=630,sy=220,cw=52,gap=7;
+      for(let i=0;i<7;i++) if(inRect(sx+i*(cw+gap),sy,cw,126)) claimVersionLogin(i);
+    }
+
     if(eventTab==="supply"){
       if(inRect(640,245,315,74)){
         if(!eventClaimed){
@@ -9780,7 +9882,7 @@ function updateEvent(){
 }
 
 function drawEvent(){
-  const eventAccent=eventTab==="match3"?"#7cc7ff":eventTab==="supply"?"#ff6b78":eventTab==="level"?"#8d7cff":"#ffe066";
+  const eventAccent=eventTab==="version"?"#7cffb2":eventTab==="match3"?"#7cc7ff":eventTab==="supply"?"#ff6b78":eventTab==="level"?"#8d7cff":"#ffe066";
   const bg=ctx.createLinearGradient(0,0,W,H);
   bg.addColorStop(0,"#151a31");
   bg.addColorStop(.48,"#0a0d18");
@@ -9821,7 +9923,8 @@ function drawEvent(){
     ["login",ui("loginEvent"),ui("dailyReward")],
     ["level",ui("levelEvent"),ui("growthGoal")],
     ["supply",ui("supplyEvent"),ui("oneTimeSupply")],
-    ["match3",language==="en"?"X4 Match!":"消消消消乐！",language==="en"?"Match-3 Event":"消除小游戏"]
+    ["match3",language==="en"?"X4 Match!":"消消消消乐！",language==="en"?"Match-3 Event":"消除小游戏"],
+    ["version",language==="en"?"Version Sign-in":"版本签到",language==="en"?"7-day reward":"连续7日奖励"]
   ];
   for(let i=0;i<list.length;i++){
     const y=150+i*70;
@@ -9836,7 +9939,7 @@ function drawEvent(){
     ctx.fillStyle="rgba(255,255,255,.52)";
     ctx.font="12px " + FONT_UI;
     ctx.fillText(list[i][2],58,y+47);
-    const rawFresh=i===0?canClaimDailyLogin():i===1?levelRewards.some(r=>playerLevel>=r.lv&&!r.claimed):i===2?!eventClaimed:isMatch3New();
+    const rawFresh=i===0?canClaimDailyLogin():i===1?levelRewards.some(r=>playerLevel>=r.lv&&!r.claimed):i===2?!eventClaimed:i===3?isMatch3New():canClaimVersionLogin();
     const fresh=hasUiNewDot("event."+list[i][0]+".v1",rawFresh);
     drawNewDiamond(211,y+12,fresh);
   }
@@ -9872,9 +9975,9 @@ function drawEvent(){
   ctx.textAlign="center";
   ctx.fillStyle="#fff";
   ctx.font="bold 30px " + FONT_UI;
-  const title = eventTab==="login" ? ui("loginEvent") : eventTab==="level" ? tx("rookieGrowth") : eventTab==="match3" ? (language==="en"?"X4 Match!":"消消消消乐！") : ui("supplyEvent");
+  const title = eventTab==="login" ? ui("loginEvent") : eventTab==="level" ? tx("rookieGrowth") : eventTab==="match3" ? (language==="en"?"X4 Match!":"消消消消乐！") : eventTab==="version"?(language==="en"?"Version Sign-in":"版本签到"):ui("supplyEvent");
   ctx.fillText(title,posterX+posterW/2,posterY+58);
-  if(eventTab!=="match3"){
+  if(eventTab!=="match3" && eventTab!=="version"){
     ctx.fillStyle="rgba(255,255,255,.62)";
     ctx.font="15px " + FONT_UI;
     const sub = eventTab==="login" ? mt("eventLoginSub") : eventTab==="level" ? mt("eventLevelSub") : mt("eventSupplySub");
@@ -9894,7 +9997,7 @@ function drawEvent(){
   ctx.textAlign="left";
   ctx.fillStyle="#fff";
   ctx.font="bold 25px " + FONT_UI;
-  ctx.fillText(eventTab==="login"?mt("eventPanelLoginTitle"):eventTab==="level"?mt("eventPanelLevelTitle"):eventTab==="match3"?(language==="en"?"X4 Match!":"消消消消乐！"):mt("eventPanelSupplyTitle"),panelX+25,panelY+40);
+  ctx.fillText(eventTab==="login"?mt("eventPanelLoginTitle"):eventTab==="level"?mt("eventPanelLevelTitle"):eventTab==="match3"?(language==="en"?"X4 Match!":"消消消消乐！"):eventTab==="version"?(language==="en"?"7-DAY VERSION LOGIN":"7日版本签到"):mt("eventPanelSupplyTitle"),panelX+25,panelY+40);
   ctx.fillStyle="rgba(255,255,255,.58)";
   ctx.font="13px " + FONT_UI;
   const eventPanelHint = eventTab==="match3" ? "" : (eventMsg || (eventTab==="login" ? (canClaimDailyLogin() ? mt("dailyCheckAvailable") : mt("claimedTodayComeTomorrow")) : mt("eventDefaultHint")));
@@ -9978,6 +10081,25 @@ function drawEvent(){
     ctx.fillText(language==="en"?"Choose a mode":"选择玩法模式",680,232);
     drawBtn(language==="en"?"Stage Mode":"关卡模式",language==="en"?"20 STAGES":"20关",675,245,290,58,true,"#ffe066");
     drawBtn(language==="en"?"Endless Mode":"无尽模式",language==="en"?"INFINITE":"无限",675,330,290,58,true,"#7cc7ff");
+    const ms=window.PZMatch3&&window.PZMatch3.rewardSummary?window.PZMatch3.rewardSummary():{campaign:0,endless:0,total:3000};
+    ctx.fillStyle="rgba(124,255,178,.75)";ctx.font="12px "+FONT_UI;ctx.textAlign="left";
+    ctx.fillText((language==="en"?"One-time rewards: ":"一次性奖励：")+(language==="en"?"Stage ":"关卡 ")+ms.campaign+"/20 · "+(language==="en"?"Endless ":"无尽 ")+ms.endless+"/4 · "+(language==="en"?"Total 3,000 Crystals":"总计3000水晶"),660,438);
+  }
+
+  if(eventTab==="version"){
+    const rewards=versionLoginRewards(),sx=630,sy=220,cw=52,gap=7;
+    ctx.fillStyle="rgba(124,255,178,.08)";ctx.fillRect(630,175,405,205);
+    ctx.strokeStyle="rgba(124,255,178,.28)";ctx.strokeRect(630,175,405,205);
+    ctx.fillStyle="rgba(255,255,255,.65)";ctx.font="13px "+FONT_UI;ctx.textAlign="left";
+    ctx.fillText(language==="en"?"Sign in once per day. Total: 1,100 Crystals":"每日登录领取一次，总计 1100 水晶",650,202);
+    for(let i=0;i<7;i++){
+      const x=sx+i*(cw+gap),claimed=versionLoginCheckin.claimedDays.includes(i),current=i===versionLoginCheckin.claimedDays.length&&canClaimVersionLogin();
+      ctx.fillStyle=claimed?"rgba(255,255,255,.06)":current?"rgba(124,255,178,.22)":"rgba(255,255,255,.09)";ctx.fillRect(x,sy,cw,126);
+      ctx.strokeStyle=current?"#7cffb2":"rgba(255,255,255,.15)";ctx.strokeRect(x,sy,cw,126);
+      ctx.textAlign="center";ctx.fillStyle=claimed?"rgba(255,255,255,.4)":"#fff";ctx.font="bold 12px "+FONT_UI;ctx.fillText((language==="en"?"D":"第")+(i+1),x+cw/2,sy+24);
+      ctx.fillStyle="#7cc7ff";ctx.font="bold 13px Arial";ctx.fillText("◆"+rewards[i],x+cw/2,sy+61);
+      ctx.fillStyle=current?"#7cffb2":"rgba(255,255,255,.45)";ctx.font="11px "+FONT_UI;ctx.fillText(claimed?(language==="en"?"DONE":"已领"):current?(language==="en"?"CLAIM":"领取"):(language==="en"?"LOCK":"未到"),x+cw/2,sy+104);
+    }
   }
 
   drawBtn(ui("backLobby"),"ESC",58,560,220,52);
@@ -14221,7 +14343,9 @@ function drawOperation(){
     ctx.fillStyle="#fff";
     ctx.font="bold 22px " + FONT_UI;
     ctx.fillText(stageDisplayName(st),W-330,226);
-    drawUIText(stageDisplayDesc(st),W-330,252,250,{size:13,bold:false,color:"rgba(255,255,255,.68)",maxLines:3,lineH:18});
+    ctx.save();ctx.beginPath();ctx.rect(W-334,238,260,68);ctx.clip();
+    drawUIText(stageDisplayDesc(st),W-330,252,250,{size:13,bold:false,color:"rgba(255,255,255,.68)",maxLines:4,lineH:17});
+    ctx.restore();
     ctx.fillStyle="rgba(255,255,255,.68)";
     ctx.font="15px " + FONT_UI;
     ctx.fillText(tx("typeLabel")+(selectedTab==="combat" ? (language==="en"?st.mechanicEn:st.mechanicZh) : missionLabel()),W-330,315);
@@ -14571,13 +14695,13 @@ function operatorStatAtk(i){
   const cd=charData[i] || {level:1, weaponLevel:1};
   const lv=roleDisplayLevel(i);
   const base=100 + lv*(isProtagonist(i)?7:8) + roleWeaponLevelDisplay(i)*5,m=roleModuleTotals(i);
-  const identityScale=i===2?1.20:i===1?.88:1;
+  const identityScale=i===2?1.20:i===1?.88:i===5?.90:1;
   return Math.floor((base+(m.atk||0))*(1+(m.atkPct||0))*identityScale);
 }
 function operatorStatHp(i){
   const lv=roleDisplayLevel(i);
   const base=(isProtagonist(i)?1450:1200) + lv*(isProtagonist(i)?78:65),m=roleModuleTotals(i);
-  const identityScale=i===1?.84:i===2?.98:1;
+  const identityScale=i===1?.84:i===2?.98:i===5?.90:1;
   return Math.floor((base+(m.hp||0))*(1+(m.hpPct||0))*identityScale);
 }
 function operatorStatDef(i){
@@ -14984,6 +15108,7 @@ const WEAPON_MASTER=[
   {id:"shadow_blades",nameZh:"裂影双刃",nameEn:"Shadow Blades",rarity:"S",type:"dual",baseAtk:128,crit:9,passiveZh:"连击伤害提升",passiveEn:"Combo damage up"},
   {id:"frostmoon_spear",nameZh:"霜月长枪",nameEn:"Frostmoon Spear",rarity:"A",type:"spear",baseAtk:100,crit:4,passiveZh:"技能伤害提升。",passiveEn:"Skill damage increased."},
   {id:"starlight_spear",nameZh:"流光长枪",nameEn:"Starlight Spear",rarity:"S",type:"spear",baseAtk:125,crit:7,passiveZh:"命中回复少量能量",passiveEn:"Gain energy on hit"}
+  ,{id:"lavender",nameZh:"拉文德",nameEn:"Lavender",rarity:"S",type:"codex",baseAtk:112,crit:5,passiveZh:"丽莎的专属法器；风化持续时间提高。",passiveEn:"Lisa's signature catalyst; extends Weathering."}
 ];
 
 function roleWeaponType(i){
@@ -14992,6 +15117,7 @@ function roleWeaponType(i){
   if(i===1) return "spear";
   if(i===2) return "dual";
   if(i===3) return "codex";
+  if(i===5) return "codex";
   return "sword";
 }
 function weaponTypeLabel(type){
@@ -15009,16 +15135,17 @@ function defaultWeaponIdForRole(i){
   if(i===1) return "frostmoon_spear";
   if(i===2) return "endnight_blades";
   if(i===3) return "frost_book";
+  if(i===5) return "wind_codex";
   return "training_sword";
 }
 function ensureWeaponBag(){
   if(!window.weaponInventory) window.weaponInventory=null;
   if(!Array.isArray(weaponInventory)){
-    weaponInventory=WEAPON_MASTER.map(w=>({id:w.id,level:1,owned:true}));
+    weaponInventory=WEAPON_MASTER.map(w=>({id:w.id,level:1,owned:w.id!=="lavender"}));
   }
   if(!Array.isArray(ownedWeapons)) ownedWeapons=[];
   for(const w of WEAPON_MASTER){
-    if(!weaponInventory.some(x=>x.id===w.id)) weaponInventory.push({id:w.id,level:1,owned:true});
+    if(!weaponInventory.some(x=>x.id===w.id)) weaponInventory.push({id:w.id,level:1,owned:w.id!=="lavender"});
   }
   for(let i=0;i<charData.length;i++){
     if(!charData[i]) continue;
@@ -16407,7 +16534,9 @@ function paBaseAreaData(areaId){
         paMakeObject("crate",410,235,90,90,language==="en"?"Energy Crate":"能源箱",already?{}:{expBooks:1}),
         paMakeObject("terminal",940,245,95,110,language==="en"?"Area Log":"区域记录",already?{}:{gold:500},language==="en"?"A log says the same hallway appears in different places.":"记录显示，同一条走廊会出现在不同位置。"),
         paMakeObject("switch",640,500,82,82,language==="en"?"Control Switch":"控制开关",already?{}:{expReward:120},language==="en"?"The switch restores power to an abandoned sensor.":"开关恢复了一处废弃传感器的供电。"),
-        paMakeObject("file",805,350,84,62,language==="en"?"Research Note":"研究笔记",already?{}:{expBooks:1},language==="en"?"The note describes a dream-like spatial fold.":"笔记描述了一种类似白日梦的空间折叠。")
+        paMakeObject("file",805,350,84,62,language==="en"?"Research Note":"研究笔记",already?{}:{expBooks:1},language==="en"?"The note describes a dream-like spatial fold.":"笔记描述了一种类似白日梦的空间折叠。"),
+        Object.assign(paMakeObject("pushbox",500,430,64,64,language==="en"?"Power Crate":"动力箱",already?{}:{gold:700,expReward:100},language==="en"?"The crate powers the route gate.":"动力箱接通了路线门的供能。"),{required:true,targetX:760,targetY:430}),
+        Object.assign(paMakeObject("pushTarget",760,430,88,88,language==="en"?"Power Pad":"供能踏板",{},""),{solid:false})
       ]
     };
   }
@@ -16449,7 +16578,8 @@ function paAreaData(areaId,route="center"){
     data.objects.push(Object.assign(paMakeObject("resource",730,H-120,72,72,language==="en"?"Route Beacon":"路线信标",requiredReward,language==="en"?"The supply beacon reveals a stable lower passage.":"补给信标显示下层通路已经稳定。"),{required:true}));
     data.blocks.push(paMakeBlock("pipe",505,H-165,250,30));
   }else{
-    data.objects.push(Object.assign(paMakeObject("switch",735,H/2+105,78,78,language==="en"?"Route Control":"路线控制器",requiredReward,language==="en"?"The control array aligns the central corridor.":"控制阵列重新校准了中央走廊。"),{required:true}));
+    const controlX=areaId===2?875:735,controlY=areaId===2?520:H/2+105;
+    data.objects.push(Object.assign(paMakeObject("switch",controlX,controlY,78,78,language==="en"?"Route Control":"路线控制器",requiredReward,language==="en"?"The control array aligns the central corridor.":"控制阵列重新校准了中央走廊。"),{required:true}));
   }
   data.route=route;
   data.routeName=routeNames[route]||routeNames.center;
@@ -16526,6 +16656,7 @@ function paCollectObject(o){
   if(o.type==="resource") rw.resources++;
   if(o.type==="switch") rw.switches++;
   if(o.type==="npc") rw.npcs++;
+  if(o.type==="pushbox") rw.switches++;
 
   if(!paState.repeat){
     rw.gold += r.gold||0;
@@ -16568,7 +16699,14 @@ function paTryInteract(){
     const d=dist(paState.player.x,paState.player.y,px,py);
     if(d<80 && d<bd){best=o;bd=d;}
   }
-  if(best) paCollectObject(best);
+  if(best && best.type==="pushbox"){
+    const dx=best.targetX-best.x,dy=best.targetY-best.y,l=Math.hypot(dx,dy)||1;
+    best.x+=dx/l*Math.min(58,l); best.y+=dy/l*Math.min(58,l);
+    addParticles(best.x,best.y,"#ffe066",8,3); sfx("ui");
+    if(dist(best.x,best.y,best.targetX,best.targetY)<24){best.x=best.targetX;best.y=best.targetY;paCollectObject(best);showActionPrompt(language==="en"?"Power crate connected. Route opened.":"动力箱已接通，路线开启。",100);}
+    else showActionPrompt(language==="en"?"Push the crate onto the glowing pad.":"继续将动力箱推到发光踏板上。",70);
+  }
+  else if(best && best.type!=="pushTarget") paCollectObject(best);
   else showActionPrompt(language==="en"?"No object nearby.":"附近没有可互动目标。",45);
 }
 
@@ -16715,6 +16853,15 @@ function paDrawObject(o){
     ctx.fillStyle="#eaf6ff"; ctx.beginPath(); ctx.arc(o.x,o.y-20,17,0,Math.PI*2); ctx.fill();
     ctx.fillStyle="#7cc7ff"; ctx.fillRect(o.x-19,o.y,38,42);
     ctx.strokeStyle="#fff"; ctx.lineWidth=3; ctx.strokeRect(o.x-19,o.y,38,42);
+  }else if(o.type==="pushTarget"){
+    ctx.shadowBlur=18;ctx.shadowColor="#ffe066";ctx.fillStyle="rgba(255,224,102,.16)";ctx.strokeStyle="#ffe066";ctx.lineWidth=4;
+    ctx.fillRect(r.x,r.y,r.w,r.h);ctx.strokeRect(r.x,r.y,r.w,r.h);
+    ctx.fillStyle="#ffe066";ctx.font="bold 13px "+FONT_UI;ctx.textAlign="center";ctx.fillText(language==="en"?"POWER PAD":"供能踏板",o.x,o.y+5);
+  }else if(o.type==="pushbox"){
+    ctx.shadowBlur=o.done?0:18;ctx.shadowColor="#ffe066";ctx.fillStyle=o.done?"#59705d":"#9b7448";ctx.strokeStyle="#ffe066";ctx.lineWidth=4;
+    ctx.fillRect(r.x,r.y,r.w,r.h);ctx.strokeRect(r.x,r.y,r.w,r.h);
+    ctx.beginPath();ctx.moveTo(r.x,r.y);ctx.lineTo(r.x+r.w,r.y+r.h);ctx.moveTo(r.x+r.w,r.y);ctx.lineTo(r.x,r.y+r.h);ctx.stroke();
+    ctx.fillStyle="#fff";ctx.font="bold 13px "+FONT_UI;ctx.textAlign="center";ctx.fillText(o.done?"POWER ON":(language==="en"?"PUSH":"推动"),o.x,o.y+5);
   }
   if(!o.done && paNearObject(o,85)){
     ctx.shadowBlur=0; ctx.fillStyle="#fff"; ctx.font="bold 15px "+FONT_UI; ctx.textAlign="center"; ctx.fillText(language==="en"?"Press F":"按 F",o.x,r.y-12);
