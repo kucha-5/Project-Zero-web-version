@@ -8526,10 +8526,10 @@ function updateShop(){
         }else shopMsg=tx("floraPriceLow");
       }
       if(shopSubTab==="permanent"){
-        const items=[{i:0,price:1800},{i:1,price:2200},{i:2,price:2400}];
+        const items=[{i:0,price:1800},{i:1,price:2200},{i:2,price:2400},{i:5,price:3200}];
         for(let n=0;n<items.length;n++){
-          const x=70+n*315,y=250;
-          if(inRect(x,y,285,185)){
+          const x=70+n*245,y=250;
+          if(inRect(x,y,230,185)){
             const it=items[n];
             if(owned[it.i]) shopMsg=roleName(it.i)+mt("alreadyOwnedSuffix");
             else if(crystals>=it.price){ crystals-=it.price; owned[it.i]=true; shopMsg=roleName(it.i)+mt("recruitedSuffix"); sfx("buy"); saveGame(); autoCloudSaveNow(true); }
@@ -9905,7 +9905,7 @@ function drawEventPosterIllustration(kind,x,y,w,h,accent){
   if(kind==="login"){
     const dawn=ctx.createLinearGradient(x,y,x+w,y+h);dawn.addColorStop(0,"rgba(255,197,109,.19)");dawn.addColorStop(1,"rgba(189,167,255,.08)");ctx.fillStyle=dawn;ctx.fillRect(x,y,w,h);
     ctx.fillStyle="rgba(255,224,102,.13)";ctx.beginPath();ctx.arc(cx,cy-60,82+pulse*8,0,Math.PI*2);ctx.fill();
-    drawLisaPortrait(cx-58,cy-120,116,205,false);
+    drawPortrait(cx-58,cy-120,116,205,roles[5],!owned[5]);
     for(let i=0;i<7;i++){const bx=x+26+i*39,by=y+h-54+(i%2)*5;ctx.fillStyle=i===loginClaimIndex?"rgba(255,224,102,.28)":"rgba(255,255,255,.08)";ctx.fillRect(bx,by,31,31);ctx.strokeStyle=i===loginClaimIndex?"#ffe066":"rgba(255,255,255,.18)";ctx.strokeRect(bx,by,31,31);ctx.fillStyle="#fff";ctx.font="bold 11px "+FONT_UI;ctx.textAlign="center";ctx.fillText(String(i+1),bx+15.5,by+20);}
   }else if(kind==="level"){
     ctx.fillStyle="rgba(141,124,255,.10)";ctx.fillRect(x,y,w,h);
@@ -14539,41 +14539,7 @@ function drawSettlement(){
   drawBtn(ui("backLobby"),"CLICK",W/2-120,495,240,52,true,"#fff");
 }
 
-function drawLisaPortrait(x,y,w,h,lock=false){
-  // Lisa follows the same abstract PZ silhouette language as the existing
-  // executors, but has a readable support-caster profile and Lavender focus.
-  ctx.save();
-  ctx.translate(x+w/2,y+h*.58);
-  ctx.globalAlpha=lock?.42:1;
-  ctx.fillStyle="rgba(0,0,0,.34)";
-  ctx.beginPath();ctx.ellipse(0,h*.35,w*.43,h*.095,0,0,Math.PI*2);ctx.fill();
-
-  const robe=ctx.createLinearGradient(-w*.18,-h*.18,w*.2,h*.3);
-  robe.addColorStop(0,"#d8c9ff");robe.addColorStop(.52,"#9a7bdd");robe.addColorStop(1,"#463c73");
-  ctx.shadowBlur=lock?0:22;ctx.shadowColor="#bda7ff";ctx.fillStyle=robe;
-  ctx.beginPath();
-  ctx.moveTo(-w*.12,-h*.16);ctx.quadraticCurveTo(-w*.29,h*.06,-w*.25,h*.32);
-  ctx.lineTo(w*.25,h*.32);ctx.quadraticCurveTo(w*.30,h*.05,w*.12,-h*.16);ctx.closePath();ctx.fill();
-
-  ctx.shadowBlur=0;ctx.fillStyle="#f1eaff";
-  ctx.beginPath();ctx.arc(0,-h*.34,w*.145,0,Math.PI*2);ctx.fill();
-  ctx.fillStyle="#72599f";
-  ctx.beginPath();ctx.arc(0,-h*.39,w*.155,Math.PI,Math.PI*2);ctx.fill();
-  ctx.beginPath();ctx.arc(-w*.15,-h*.35,w*.075,0,Math.PI*2);ctx.arc(w*.15,-h*.35,w*.075,0,Math.PI*2);ctx.fill();
-
-  // Wind ribbon and the vertical catalyst silhouette communicate her ranged
-  // rectangular attack without introducing a different art style.
-  ctx.strokeStyle="#78f0c3";ctx.lineWidth=Math.max(3,w*.026);ctx.lineCap="round";
-  ctx.beginPath();ctx.moveTo(-w*.22,h*.08);ctx.bezierCurveTo(-w*.48,-h*.03,-w*.41,-h*.30,-w*.18,-h*.24);ctx.stroke();
-  ctx.strokeStyle="#e9dcff";ctx.lineWidth=Math.max(4,w*.045);
-  ctx.beginPath();ctx.moveTo(w*.23,h*.20);ctx.lineTo(w*.32,-h*.26);ctx.stroke();
-  ctx.fillStyle="#78f0c3";ctx.beginPath();ctx.arc(w*.32,-h*.29,w*.07,0,Math.PI*2);ctx.fill();
-  ctx.strokeStyle="rgba(120,240,195,.30)";ctx.lineWidth=2;ctx.strokeRect(-w*.34,-h*.13,w*.68,h*.47);
-  ctx.restore();
-}
-
 function drawPortrait(x,y,w,h,r,lock=false){
-  if(r===roles[5]){ drawLisaPortrait(x,y,w,h,lock); return; }
   ctx.save();
   ctx.translate(x+w/2,y+h*0.58);
   ctx.globalAlpha=lock?.45:1;
@@ -14615,7 +14581,7 @@ function drawPortrait(x,y,w,h,r,lock=false){
 let operatorPageMode = "list";
 
 function executorRank(i){
-  return (i===PROTAGONIST_ROLE || i===3) ? "S" : "A";
+  return (i===PROTAGONIST_ROLE || i===3 || i===5) ? "S" : "A";
 }
 function executorElement(i){
   if(i===PROTAGONIST_ROLE) return language==="en" ? "Gray" : "灰白";
@@ -15573,15 +15539,15 @@ function drawShop(){
       ctx.fillStyle=owned[3]?"#7cc7ff":"#ffe066"; ctx.font="bold 22px " + FONT_UI;
       ctx.fillText(owned[3]?ui("claimed"):"4100 "+ui("crystal"),245,415);
     }else{
-      const items=[{i:0,price:1800},{i:1,price:2200},{i:2,price:2400}];
+      const items=[{i:0,price:1800},{i:1,price:2200},{i:2,price:2400},{i:5,price:3200}];
       for(let n=0;n<items.length;n++){
-        const it=items[n],x=70+n*315,y=250,r=roles[it.i];
-        ctx.fillStyle="rgba(255,255,255,.07)"; ctx.fillRect(x,y,285,185);
-        ctx.strokeStyle="rgba(255,255,255,.14)"; ctx.strokeRect(x,y,285,185);
-        drawPortrait(x+18,y+25,85,120,r,!owned[it.i]);
-        ctx.fillStyle=r.color; ctx.font="bold 24px " + FONT_UI; ctx.textAlign="left"; ctx.fillText(roleName(it.i),x+125,y+48);
-        ctx.fillStyle="rgba(255,255,255,.72)"; ctx.font="14px " + FONT_UI; ctx.fillText("A / "+roleStyle(it.i),x+125,y+78);
-        ctx.fillStyle=owned[it.i]?"#7cc7ff":"#ffe066"; ctx.font="bold 18px " + FONT_UI; ctx.fillText(owned[it.i]?ui("claimed"):it.price+" "+ui("crystal"),x+125,y+130);
+        const it=items[n],x=70+n*245,y=250,r=roles[it.i],rank=executorRank(it.i);
+        ctx.fillStyle="rgba(255,255,255,.07)"; ctx.fillRect(x,y,230,185);
+        ctx.strokeStyle=rank==="S"?"rgba(255,224,102,.30)":"rgba(255,255,255,.14)"; ctx.strokeRect(x,y,230,185);
+        drawPortrait(x+12,y+25,72,120,r,!owned[it.i]);
+        ctx.fillStyle=r.color; ctx.font="bold 20px " + FONT_UI; ctx.textAlign="left"; ctx.fillText(roleName(it.i),x+96,y+48);
+        ctx.fillStyle=rank==="S"?"#ffe066":"rgba(255,255,255,.72)"; ctx.font="13px " + FONT_UI; ctx.fillText(rank+" / "+fitTextToWidth(roleStyle(it.i),118,13,false),x+96,y+78);
+        ctx.fillStyle=owned[it.i]?"#7cc7ff":"#ffe066"; ctx.font="bold 16px " + FONT_UI; ctx.fillText(owned[it.i]?ui("claimed"):it.price+" "+ui("crystal"),x+96,y+130);
       }
       ctx.fillStyle="rgba(255,255,255,.48)";ctx.font="bold 11px "+FONT_UI;ctx.textAlign="left";ctx.fillText(language==="en"?"LIMITED RESOURCE EXCHANGE":"限量资源兑换",70,438);
       for(let i=0;i<CRYSTAL_EXCHANGE_ITEMS.length;i++){
