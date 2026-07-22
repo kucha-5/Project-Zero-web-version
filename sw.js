@@ -9,7 +9,7 @@ const CORE_FILES=[
   "./story_chapter0_zh.js","./story_chapter0_en.js","./story_chapter1_zh.js","./story_chapter1_en.js",
   "./story_chapter2_zh.js","./story_chapter2_en.js","./game_crystal_modules.js","./game.js",
   "./game_match3.js","./game_patrol.js","./game_side_story.js","./game_daydream.js","./game_daydream_title.js",
-  "./assets/ui/project_zero_logo.png"
+  "./assets/ui/project_zero_logo.png","./assets/audio/bgm/login_theme.mp3"
 ];
 
 self.addEventListener("install",event=>{

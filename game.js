@@ -1315,9 +1315,7 @@ let audioMuted = false, particlesEnabled = true, damageTextEnabled = true;
 let bgmVolume = 0.40;
 let sfxVolume = 1.00;
 const LOGIN_BGM_PATHS = [
-  "assets/audio/bgm/login_theme.mp3",
-  "assets/audio/bgm/Project Zero.ON.mp3",
-  "assets/audio/bgm/Project%20Zero.ON.mp3"
+  "assets/audio/bgm/login_theme.mp3"
 ];
 let loginBgmPathIndex = 0;
 let loginBgmAudio = null;
@@ -1527,7 +1525,7 @@ try{
     localStorage.setItem(GUEST_SAVE_KEY, localStorage.getItem(LEGACY_SAVE_KEY));
   }
 }catch(e){}
-const SAVE_VERSION = 53;
+const SAVE_VERSION = 54;
 const SAVE_BACKUP_SUFFIX = "_backup_";
 const SAVE_TEMP_SUFFIX = "_writing";
 let saveCooldown = 0;
@@ -2564,7 +2562,8 @@ function resetRuntimeDefaults(){
   combatRank = "D";
   stylishScore = 0;
 
-  owned = [true,true,true,false];
+  // Starter roster: Kane, Ailo, Nox and the protagonist. Flora remains locked.
+  owned = [true,true,true,false,true];
   cleared = {};
   charData = roles.map((r,i)=>({
     level:1,
@@ -2652,8 +2651,10 @@ function resetRuntimeDefaults(){
     for(const r of levelRewards) r.claimed = false;
   }
 
-  team = [0,1,2];
-  teamPresets = [[0,1,2],[PROTAGONIST_ROLE],[0,2],[1,2]];
+  // The protagonist is always the initially controlled executor outside the
+  // scripted tutorial assist. Ailo and Nox are immediately available.
+  team = [PROTAGONIST_ROLE,1,2];
+  teamPresets = [[PROTAGONIST_ROLE,1,2],[PROTAGONIST_ROLE],[0,2],[1,2]];
   teamPresetNames = ["","","",""];
   teamSelectSlot = 0;
   packMsg = msg("packDefault");
@@ -2841,8 +2842,8 @@ function migrateSaveData(d){
   addMissing("battleManualDailyClaimed", {key:"",tasks:{},page:false});
   addMissing("mailDeleted", false);
   addMissing("projectAreaCleared", false);
-  addMissing("team", [0,1,2]);
-  addMissing("teamPresets", [[PROTAGONIST_ROLE],[0,1,2],[0,2],[1,2]]);
+  addMissing("team", [PROTAGONIST_ROLE,1,2]);
+  addMissing("teamPresets", [[PROTAGONIST_ROLE,1,2],[PROTAGONIST_ROLE],[0,2],[1,2]]);
   addMissing("teamPresetNames", ["","","",""]);
   addMissing("lobbyBackgroundTheme", "raven");
   addMissing("crystalModuleInventory", []);
@@ -2851,6 +2852,14 @@ function migrateSaveData(d){
   addMissing("externalProgress", {});
   addMissing("battleResume", null);
   addMissing("saveRevision", 0);
+  // V54 repairs profiles created by builds that accidentally omitted Ailo or
+  // Nox from the starter roster. This changes ownership only; progression and
+  // upgrade data remain untouched.
+  if(!Array.isArray(d.owned)){ d.owned=[true,true,true,false,true]; changed=true; }
+  while(d.owned.length<5){ d.owned.push(false); changed=true; }
+  for(const roleId of [0,1,2,PROTAGONIST_ROLE]){
+    if(d.owned[roleId]!==true){ d.owned[roleId]=true; changed=true; }
+  }
   // Equipment was removed from the game. Strip its obsolete save payload so
   // merged local/cloud saves cannot silently restore abandoned equipment data.
   if(Object.prototype.hasOwnProperty.call(d,"equipmentInventory")){
@@ -2916,8 +2925,8 @@ function loadGame(){
     if(typeof d.hasCreatedProfile === "boolean") hasCreatedProfile = d.hasCreatedProfile;
     if(Array.isArray(d.owned)) owned = d.owned;
     while(owned.length<roles.length) owned.push(false);
-    owned[PROTAGONIST_ROLE]=true;
-    team=normalizeBattleTeam(d.team,[PROTAGONIST_ROLE]);
+    ensureStarterRoster();
+    team=normalizeBattleTeam(d.team,[PROTAGONIST_ROLE,1,2]);
     teamPresets=normalizeTeamPresets(d.teamPresets);
     teamPresetNames=normalizeTeamPresetNames(d.teamPresetNames);
     if(typeof d.profileAvatarRole === "number") profileAvatarRole=clamp(Math.floor(d.profileAvatarRole),0,roles.length-1);
@@ -3820,8 +3829,8 @@ let levelRewards = [
   {lv:15, crystals:1200, gold:8000, expBooks:16, ore:8, claimed:false},
   {lv:20, crystals:1500, gold:10000, expBooks:20, ore:12, claimed:false}
 ];
-let team = [0,1,2];
-let teamPresets = [[0,1,2],[PROTAGONIST_ROLE],[0,2],[1,2]];
+let team = [PROTAGONIST_ROLE,1,2];
+let teamPresets = [[PROTAGONIST_ROLE,1,2],[PROTAGONIST_ROLE],[0,2],[1,2]];
 let teamPresetNames = ["","","",""];
 let teamSelectSlot = 0;
 let packMsg = msg("packDefault");
@@ -4058,8 +4067,9 @@ function finishPrologue(){
   tutorialInProgress = false;
   tutorialResumeMode = "";
   lobbyGuideDone = false;
-  owned[0] = true;
-  player.role = 0;
+  ensureStarterRoster();
+  team = normalizeBattleTeam(team,[PROTAGONIST_ROLE,1,2]);
+  player.role = PROTAGONIST_ROLE;
   notice = msg("lobbyGuide");
   showCenter(msg("prologueComplete"),80);
   saveGame();
@@ -6886,18 +6896,29 @@ function updateTutorialBattle(){
       }
 
       if(justPressed("r")){
-        const beforeParries=totalParries;
-        // The new-player tutorial teaches parry only. It must never switch
-        // away from the protagonist when R is pressed outside a warning.
-        tryParry();
-        if(totalParries>beforeParries){tutorialParried=true;e.warning=false;}
+        // Tutorial parry follows the warning shown on screen instead of the
+        // normal close-range detector. This keeps the prompt and input window
+        // identical across browsers and frame rates.
+        if(e.warning && e.alive){
+          player.parryTarget=e;
+          player.guardTimer=18;
+          player.parryReady=1;
+          parryCounter();
+          totalParries++;
+          checkAchievements();
+          tutorialParried=true;
+          e.warning=false;
+          e.windup=0;
+          e.attackCd=112;
+        }else{
+          showActionPrompt(language==="en"?"Wait for the enemy warning":"等待敌人攻击预警",28);
+        }
       }
 
       if(justPressed("f") && chainReady){
         tutorialUsedChain=true;
         chainAttack();
-        // Chain training may briefly call an assist, but control always
-        // returns to the protagonist in the tutorial.
+        // The assist demonstration must not leave the player controlling Kane.
         if(player.role!==PROTAGONIST_ROLE) setBattleRole(PROTAGONIST_ROLE);
       }
 
@@ -7247,12 +7268,15 @@ const UI_GUIDE_TEXT = {
 
 function uiGuidePick(v){ return v ? (language === "en" ? (v.en || v.zh || "") : (v.zh || v.en || "")) : ""; }
 
-function ensureStarterProtagonist(){
+function ensureStarterRoster(){
   while(owned.length < roles.length) owned.push(false);
-  owned[PROTAGONIST_ROLE] = true;
+  for(const roleId of [0,1,2,PROTAGONIST_ROLE]) owned[roleId] = true;
   if(!Array.isArray(team) || team.length < 1) team = [PROTAGONIST_ROLE,1,2];
   if(!owned[team[0]]) team[0] = PROTAGONIST_ROLE;
 }
+
+// Compatibility name for older call sites and external extensions.
+function ensureStarterProtagonist(){ ensureStarterRoster(); }
 
 function featureGuideData(key){ return UI_GUIDE_TEXT[key] || UI_GUIDE_TEXT.operation; }
 
@@ -10296,7 +10320,7 @@ function normalizeBattleTeam(value,fallback=[PROTAGONIST_ROLE]){
 }
 
 function normalizeTeamPresets(value){
-  const defaults=[[0,1,2],[PROTAGONIST_ROLE],[0,2],[1,2]];
+  const defaults=[[PROTAGONIST_ROLE,1,2],[PROTAGONIST_ROLE],[0,2],[1,2]];
   const source=Array.isArray(value)?value:defaults;
   const result=[];
   for(let i=0;i<4;i++) result.push(normalizeBattleTeam(source[i],defaults[i]));
@@ -11756,7 +11780,7 @@ function drawLobby(){
   const vg=ctx.createLinearGradient(28,470,278,604);vg.addColorStop(0,"rgba(35,55,91,.92)");vg.addColorStop(1,"rgba(4,7,15,.98)");
   ctx.beginPath();ctx.roundRect(28,470,250,134,12);ctx.fillStyle=vg;ctx.fill();ctx.strokeStyle="rgba(124,199,255,.42)";ctx.stroke();
   ctx.beginPath();ctx.roundRect(28,470,5,134,3);ctx.fillStyle=versionSlide.color;ctx.fill();
-  ctx.fillStyle="#7cc7ff";ctx.font="bold 11px Arial";ctx.textAlign="left";ctx.fillText("VERSION 49.18.7",44,492);
+  ctx.fillStyle="#7cc7ff";ctx.font="bold 11px Arial";ctx.textAlign="left";ctx.fillText("VERSION 49.18.9",44,492);
   ctx.fillStyle="#fff";ctx.font="bold 23px "+FONT_UI;ctx.fillText(versionSlide.title,44,529);
   ctx.fillStyle=versionSlide.color;ctx.font="bold 16px "+FONT_UI;ctx.fillText(versionSlide.headline,44,555);
   ctx.fillStyle="rgba(255,255,255,.68)";ctx.font="11px "+FONT_UI;ctx.fillText(versionSlide.sub,44,579);
