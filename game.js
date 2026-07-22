@@ -1141,6 +1141,10 @@ canvas.addEventListener("mousedown", e => {
 canvas.addEventListener("mouseup", e => { if(e.button===0) { if(gameMode==="match3" && window.PZMatch3) window.PZMatch3.pointerUp(mouseX,mouseY); mouseDown = false; mouseAttackConsumed = false; } if(e.button===2) keys["mouse2"]=false; });
 canvas.addEventListener("contextmenu", e => e.preventDefault());
 canvas.addEventListener("wheel", e => {
+  if(gameMode === "operators" && operatorPageMode === "list"){
+    operatorListWheelDelta += (e.deltaY || e.deltaX || 0);
+    e.preventDefault();
+  }
   if(gameMode === "warehouse"){
     warehouseWheelDelta += (e.deltaY || e.deltaX || 0);
     e.preventDefault();
@@ -2574,7 +2578,7 @@ function resetRuntimeDefaults(){
     skill:1,
     ultimate:1,
     weaponLevel:1,
-    weapon:["烈阳之刃","风语法典","终夜双刃","霜月长枪","灰白核心刃"][i]
+    weapon:["烈阳之刃","风语法典","终夜双刃","霜月长枪","灰白核心刃","拉文德"][i]
   }));
 
   ownedWeapons = {flora:false};
@@ -2621,7 +2625,7 @@ function resetRuntimeDefaults(){
   skillBooks = 6;
   skillMaterials = {normal:6,skill:4,ultimate:2};
   owned = [true,true,true,false,true,false];
-  charData = roles.map((r,i)=>({level:1,skillPoints:0,normal:1,skill:1,ultimate:1,weaponLevel:1,weapon:["烈阳之刃","风语法典","终夜双刃","霜月长枪"][i]}));
+  charData = roles.map((r,i)=>({level:1,skillPoints:0,normal:1,skill:1,ultimate:1,weaponLevel:1,weapon:["烈阳之刃","风语法典","终夜双刃","霜月长枪","灰白核心刃","拉文德"][i]}));
   cleared = {};
   achievements = {};
   totalKills = 0; totalParries = 0; totalChains = 0; totalBossKills = 0;
@@ -3559,8 +3563,8 @@ function roleStyle(i){
 
 function roleLine(i){
   const lines = {
-    zh:["烈阳，斩开黑夜。","风会记住这一击。","无名之刃，撕裂终局。","霜影落下，万物静止。"],
-    en:["Solar flame, cut through the night.","The wind will remember this strike.","Nameless blades tear through the end.","Frost descends. All becomes still."]
+    zh:["烈阳，斩开黑夜。","风会记住这一击。","无名之刃，撕裂终局。","霜影落下，万物静止。","","听见了吗？风正在回应。"],
+    en:["Solar flame, cut through the night.","The wind will remember this strike.","Nameless blades tear through the end.","Frost descends. All becomes still.","","Can you hear it? The wind is answering."]
   };
   return (lines[currentLang()] || lines.zh)[i] || "";
 }
@@ -3660,6 +3664,8 @@ let skillMaterials = {normal:6,skill:4,ultimate:2};
 let selectedOperator = 0;
 let lobbyExecutor = 2; // 0 Kane / 1 Ailo / 2 Nox / 3 Flora
 let operatorTab = "level";
+let operatorListScrollX = 0;
+let operatorListWheelDelta = 0;
 let selectedSkillKey = "normal";
 let weaponInventory = null;
 let crystalModuleInventory = [];
@@ -8365,12 +8371,24 @@ function updateSettlement(){
 }
 function updateOperators(){
   menuPulse++;
+  if(operatorPageMode==="list"){
+    const order=executorOrder(), cardW=200, gap=12, visibleW=W-84;
+    const maxScroll=Math.max(0,order.length*(cardW+gap)-gap-visibleW);
+    if(operatorListWheelDelta){
+      operatorListScrollX=clamp(operatorListScrollX+operatorListWheelDelta*.72,0,maxScroll);
+      operatorListWheelDelta=0;
+    }
+    operatorListScrollX=clamp(operatorListScrollX,0,maxScroll);
+  }else{
+    operatorListWheelDelta=0;
+  }
   if(clicked){
     if(operatorPageMode==="list"){
       if(inRect(60,592,190,46)){ enterLobby(); clicked=false; return; }
       const order=executorOrder(), cardW=200, cardH=430, gap=12, startX=42, y=150;
       for(let idx=0; idx<order.length; idx++){
-        const x=startX+idx*(cardW+gap), i=order[idx];
+        const x=startX+idx*(cardW+gap)-operatorListScrollX, i=order[idx];
+        if(x+cardW<startX || x>W-42) continue;
         if(inRect(x,y,cardW,cardH)){ selectedOperator=i; moduleWarehouseSlot=null; moduleWarehouseScroll=0; if(owned[i]) player.role=i; operatorPageMode="detail"; clicked=false; return; }
       }
     }else{
@@ -9881,6 +9899,34 @@ function updateEvent(){
   clicked=false;
 }
 
+function drawEventPosterIllustration(kind,x,y,w,h,accent){
+  ctx.save();ctx.beginPath();ctx.rect(x,y,w,h);ctx.clip();
+  const cx=x+w*.5,cy=y+h*.57,pulse=(Math.sin(menuPulse*.035)+1)*.5;
+  if(kind==="login"){
+    const dawn=ctx.createLinearGradient(x,y,x+w,y+h);dawn.addColorStop(0,"rgba(255,197,109,.19)");dawn.addColorStop(1,"rgba(189,167,255,.08)");ctx.fillStyle=dawn;ctx.fillRect(x,y,w,h);
+    ctx.fillStyle="rgba(255,224,102,.13)";ctx.beginPath();ctx.arc(cx,cy-60,82+pulse*8,0,Math.PI*2);ctx.fill();
+    drawLisaPortrait(cx-58,cy-120,116,205,false);
+    for(let i=0;i<7;i++){const bx=x+26+i*39,by=y+h-54+(i%2)*5;ctx.fillStyle=i===loginClaimIndex?"rgba(255,224,102,.28)":"rgba(255,255,255,.08)";ctx.fillRect(bx,by,31,31);ctx.strokeStyle=i===loginClaimIndex?"#ffe066":"rgba(255,255,255,.18)";ctx.strokeRect(bx,by,31,31);ctx.fillStyle="#fff";ctx.font="bold 11px "+FONT_UI;ctx.textAlign="center";ctx.fillText(String(i+1),bx+15.5,by+20);}
+  }else if(kind==="level"){
+    ctx.fillStyle="rgba(141,124,255,.10)";ctx.fillRect(x,y,w,h);
+    for(let i=0;i<5;i++){const sw=62,sh=35+i*14,sx=x+26+i*57,sy=y+h-42-sh;ctx.fillStyle=i<=Math.floor(playerLevel/5)?"rgba(141,124,255,.32)":"rgba(255,255,255,.07)";ctx.fillRect(sx,sy,sw,sh);ctx.strokeStyle=i<=Math.floor(playerLevel/5)?"#a899ff":"rgba(255,255,255,.16)";ctx.strokeRect(sx,sy,sw,sh);ctx.fillStyle="#fff";ctx.font="bold 12px "+FONT_UI;ctx.textAlign="center";ctx.fillText("Lv."+levelRewards[i].lv,sx+sw/2,sy+22);}
+    ctx.strokeStyle="#ffe066";ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(x+36,y+h-145);ctx.lineTo(x+w-35,y+70);ctx.stroke();ctx.fillStyle="#ffe066";ctx.beginPath();ctx.moveTo(x+w-35,y+70);ctx.lineTo(x+w-58,y+75);ctx.lineTo(x+w-40,y+93);ctx.closePath();ctx.fill();
+  }else if(kind==="supply"){
+    const red=ctx.createLinearGradient(x,y,x+w,y+h);red.addColorStop(0,"rgba(255,74,91,.22)");red.addColorStop(1,"rgba(255,224,102,.06)");ctx.fillStyle=red;ctx.fillRect(x,y,w,h);
+    ctx.save();ctx.translate(cx,cy+12);ctx.rotate(-.08);ctx.fillStyle="#252d41";ctx.fillRect(-90,-58,180,116);ctx.strokeStyle="#ff6b78";ctx.lineWidth=4;ctx.strokeRect(-90,-58,180,116);ctx.fillStyle="#111623";ctx.fillRect(-76,-44,152,88);ctx.strokeStyle="#ffe066";ctx.beginPath();ctx.moveTo(-68,0);ctx.lineTo(68,0);ctx.stroke();ctx.fillStyle="#ffe066";ctx.fillRect(-18,-12,36,24);ctx.restore();
+    ctx.fillStyle="rgba(255,107,120,"+(.10+pulse*.08)+")";for(let i=0;i<7;i++)ctx.fillRect(x+18,y+100+i*28,w-36,2);
+  }else if(kind==="match3"){
+    ctx.fillStyle="rgba(42,24,74,.46)";ctx.fillRect(x,y,w,h);
+    const colors=["#7cc7ff","#ff6b78","#ffe066","#7cffb2","#b98cff"];const s=37,ox=cx-s*3.5,oy=cy-s*3.25;
+    for(let gy=0;gy<6;gy++)for(let gx=0;gx<7;gx++){const c=colors[(gx*3+gy*2)%colors.length],px=ox+gx*s,py=oy+gy*s;ctx.fillStyle=c;ctx.globalAlpha=.72+(Math.sin(menuPulse*.04+gx+gy)+1)*.08;ctx.beginPath();ctx.moveTo(px,py-11);ctx.lineTo(px+11,py);ctx.lineTo(px,py+11);ctx.lineTo(px-11,py);ctx.closePath();ctx.fill();}
+    ctx.globalAlpha=1;ctx.strokeStyle="#fff";ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(ox+s*1,oy+s*2);ctx.lineTo(ox+s*3,oy+s*2);ctx.stroke();
+  }else{
+    const aurora=ctx.createLinearGradient(x,y,x+w,y+h);aurora.addColorStop(0,"rgba(124,255,178,.14)");aurora.addColorStop(.5,"rgba(124,199,255,.12)");aurora.addColorStop(1,"rgba(185,140,255,.11)");ctx.fillStyle=aurora;ctx.fillRect(x,y,w,h);
+    for(let i=0;i<7;i++){const px=x+31+i*41,base=y+h-50,hh=70+(i%3)*25;ctx.fillStyle=i<versionLoginCheckin.claimedDays.length?"rgba(124,255,178,.36)":"rgba(124,199,255,.18)";ctx.beginPath();ctx.moveTo(px,base-hh);ctx.lineTo(px+13,base-hh-20);ctx.lineTo(px+26,base-hh);ctx.lineTo(px+22,base);ctx.lineTo(px+4,base);ctx.closePath();ctx.fill();ctx.strokeStyle=i===versionLoginCheckin.claimedDays.length?"#7cffb2":"rgba(255,255,255,.22)";ctx.stroke();}
+  }
+  ctx.restore();
+}
+
 function drawEvent(){
   const eventAccent=eventTab==="version"?"#7cffb2":eventTab==="match3"?"#7cc7ff":eventTab==="supply"?"#ff6b78":eventTab==="level"?"#8d7cff":"#ffe066";
   const bg=ctx.createLinearGradient(0,0,W,H);
@@ -9953,24 +9999,7 @@ function drawEvent(){
   ctx.strokeStyle=eventAccent;
   ctx.strokeRect(posterX,posterY,posterW,posterH);
 
-  ctx.save();
-  ctx.translate(posterX+posterW/2,posterY+205);
-  ctx.fillStyle="rgba(255,80,80,.16)";
-  ctx.beginPath(); ctx.ellipse(0,110,100,30,0,0,Math.PI*2); ctx.fill();
-
-  ctx.save();
-  ctx.shadowBlur=30;
-  ctx.shadowColor="#7cc7ff";
-  ctx.fillStyle="#7cc7ff";
-  ctx.beginPath(); ctx.arc(0,-85,38,0,Math.PI*2); ctx.fill();
-  ctx.restore();
-
-  ctx.fillStyle="#ff5757";
-  ctx.beginPath(); ctx.ellipse(0,15,44,115,0,0,Math.PI*2); ctx.fill();
-  ctx.strokeStyle="#ffe066";
-  ctx.lineWidth=10; ctx.lineCap="round";
-  ctx.beginPath(); ctx.moveTo(36,-10); ctx.lineTo(92,-90); ctx.stroke();
-  ctx.restore();
+  drawEventPosterIllustration(eventTab,posterX+1,posterY+1,posterW-2,posterH-2,eventAccent);
 
   ctx.textAlign="center";
   ctx.fillStyle="#fff";
@@ -14510,7 +14539,41 @@ function drawSettlement(){
   drawBtn(ui("backLobby"),"CLICK",W/2-120,495,240,52,true,"#fff");
 }
 
+function drawLisaPortrait(x,y,w,h,lock=false){
+  // Lisa follows the same abstract PZ silhouette language as the existing
+  // executors, but has a readable support-caster profile and Lavender focus.
+  ctx.save();
+  ctx.translate(x+w/2,y+h*.58);
+  ctx.globalAlpha=lock?.42:1;
+  ctx.fillStyle="rgba(0,0,0,.34)";
+  ctx.beginPath();ctx.ellipse(0,h*.35,w*.43,h*.095,0,0,Math.PI*2);ctx.fill();
+
+  const robe=ctx.createLinearGradient(-w*.18,-h*.18,w*.2,h*.3);
+  robe.addColorStop(0,"#d8c9ff");robe.addColorStop(.52,"#9a7bdd");robe.addColorStop(1,"#463c73");
+  ctx.shadowBlur=lock?0:22;ctx.shadowColor="#bda7ff";ctx.fillStyle=robe;
+  ctx.beginPath();
+  ctx.moveTo(-w*.12,-h*.16);ctx.quadraticCurveTo(-w*.29,h*.06,-w*.25,h*.32);
+  ctx.lineTo(w*.25,h*.32);ctx.quadraticCurveTo(w*.30,h*.05,w*.12,-h*.16);ctx.closePath();ctx.fill();
+
+  ctx.shadowBlur=0;ctx.fillStyle="#f1eaff";
+  ctx.beginPath();ctx.arc(0,-h*.34,w*.145,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle="#72599f";
+  ctx.beginPath();ctx.arc(0,-h*.39,w*.155,Math.PI,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(-w*.15,-h*.35,w*.075,0,Math.PI*2);ctx.arc(w*.15,-h*.35,w*.075,0,Math.PI*2);ctx.fill();
+
+  // Wind ribbon and the vertical catalyst silhouette communicate her ranged
+  // rectangular attack without introducing a different art style.
+  ctx.strokeStyle="#78f0c3";ctx.lineWidth=Math.max(3,w*.026);ctx.lineCap="round";
+  ctx.beginPath();ctx.moveTo(-w*.22,h*.08);ctx.bezierCurveTo(-w*.48,-h*.03,-w*.41,-h*.30,-w*.18,-h*.24);ctx.stroke();
+  ctx.strokeStyle="#e9dcff";ctx.lineWidth=Math.max(4,w*.045);
+  ctx.beginPath();ctx.moveTo(w*.23,h*.20);ctx.lineTo(w*.32,-h*.26);ctx.stroke();
+  ctx.fillStyle="#78f0c3";ctx.beginPath();ctx.arc(w*.32,-h*.29,w*.07,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle="rgba(120,240,195,.30)";ctx.lineWidth=2;ctx.strokeRect(-w*.34,-h*.13,w*.68,h*.47);
+  ctx.restore();
+}
+
 function drawPortrait(x,y,w,h,r,lock=false){
+  if(r===roles[5]){ drawLisaPortrait(x,y,w,h,lock); return; }
   ctx.save();
   ctx.translate(x+w/2,y+h*0.58);
   ctx.globalAlpha=lock?.45:1;
@@ -14556,12 +14619,12 @@ function executorRank(i){
 }
 function executorElement(i){
   if(i===PROTAGONIST_ROLE) return language==="en" ? "Gray" : "灰白";
-  const zh=["物理","风","暗","冰"];
-  const en=["Physical","Wind","Dark","Ice"];
+  const zh=["物理","风","暗","冰","","风"];
+  const en=["Physical","Wind","Dark","Ice","","Wind"];
   return (language==="en"?en:zh)[i] || "";
 }
 function executorOrder(){
-  const order=[PROTAGONIST_ROLE,0,1,2,3];
+  const order=[PROTAGONIST_ROLE,0,1,2,3,5];
   return order.filter(i=>roles[i]);
 }
 function executorListIndexToRole(listIdx){
@@ -14747,8 +14810,15 @@ function drawOperatorListPage(){
 
   const order=executorOrder();
   const cardW=200, cardH=430, gap=12, startX=42, y=150;
+  const visibleW=W-startX*2;
+  const totalW=order.length*(cardW+gap)-gap;
+  const maxScroll=Math.max(0,totalW-visibleW);
+  operatorListScrollX=clamp(operatorListScrollX,0,maxScroll);
+  ctx.save();
+  ctx.beginPath();ctx.rect(startX-3,y-5,visibleW+6,cardH+12);ctx.clip();
   for(let idx=0; idx<order.length; idx++){
-    const i=order[idx], r=roles[i], cd=charData[i], x=startX+idx*(cardW+gap);
+    const i=order[idx], r=roles[i], cd=charData[i], x=startX+idx*(cardW+gap)-operatorListScrollX;
+    if(x+cardW<startX-6 || x>startX+visibleW+6) continue;
     const active=selectedOperator===i;
     const lock=!owned[i];
     const hover=inRect(x,y,cardW,cardH);
@@ -14777,6 +14847,17 @@ function drawOperatorListPage(){
     ctx.font="bold 20px "+FONT_UI;
     ctx.fillText(roleName(i),x+cardW-18,y+405);
 
+  }
+  ctx.restore();
+
+  if(maxScroll>0){
+    const trackY=586;
+    ctx.fillStyle="rgba(255,255,255,.10)";ctx.fillRect(startX,trackY,visibleW,4);
+    const knobW=Math.max(120,visibleW*(visibleW/totalW));
+    const knobX=startX+(visibleW-knobW)*(operatorListScrollX/maxScroll);
+    ctx.fillStyle="#7cc7ff";ctx.fillRect(knobX,trackY,knobW,4);
+    ctx.fillStyle="rgba(255,255,255,.52)";ctx.font="12px "+FONT_UI;ctx.textAlign="right";
+    ctx.fillText(language==="en"?"Mouse wheel · Browse executors":"鼠标滚轮 · 浏览执行官",W-42,606);
   }
 
   drawBtn(ui("backLobby"),"ESC",60,592,190,46,true,"#ffffff");
