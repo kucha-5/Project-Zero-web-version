@@ -1,0 +1,145 @@
+PROJECT ZERO V49.18 - Feature Gates Shop Open Fix
+
+NOX / AILO COMBAT MODULES
+- Nox now uses a deliberately slow two-second heavy normal attack with very high damage.
+- Nox's skill consumes 85 Energy for a powerful map-wide blast; his ultimate grants +20% damage with a 20% HP trade-off.
+- Nox now has high ATK, medium HP, low DEF, and slower movement to match his heavy-burst role.
+- Ailo's normal attack creates a three-second wind field that continuously pulls enemies inward.
+- Ailo's skill creates a self-centered vortex and applies Weathering; Wind damage gains +10% against Weathered targets.
+- Ailo's ultimate pulls all enemies toward the center before detonating the battlefield.
+- Added dedicated bilingual skill descriptions, status indicators, wind-field rendering, Weathering rendering, and ultimate effects.
+
+LIMITED EXCHANGE / GROWTH COST UPDATE
+- Moved resource exchange into Permanent Recruitment and removed the standalone exchange tab.
+- Added account-save-backed purchase limits for Gold, EXP, weapon material, and stamina exchanges.
+- Removed the Executor detail page Showcase Trial entry and its click target.
+- Character upgrade EXP Book and Gold costs now rise by level; weapon material and Gold costs now rise by weapon level.
+
+UI POLISH / FIRST-ENTRY FUNCTION GUIDES
+- Kept shared buttons, cards, panels, and page headers simple after removing excessive layered lighting and angled texture.
+- Added concise three-step function guides for Operations, Operators, Shop, Mail, Events, Inventory, Settings, Main Story, Commissions, Dungeons, Side Story, and Daydream.
+- Function guides appear only on the first active entry. Continue, close, or ESC permanently marks that guide as read for the current save.
+- Removed tutorial-replay wording and did not add any replay entry.
+- Rebuilt the Shop weapon armory with a focused featured banner, a permanent-armory detail panel, and a compact selectable weapon grid.
+
+V50 GLOBAL UI / SAVE AUDIT
+- Removed duplicate runtime function declarations so later legacy prototypes can no longer silently override fixes.
+- Main saves now include account-scoped Daydream, Match-3, and Patrol progress snapshots for cloud transfer.
+- Account switching reloads Patrol and Daydream state instead of retaining the previous account in memory.
+- External snapshots are validated and size-limited to protect Firestore synchronization.
+- Unified exit saving into one path and retained tutorial resume state without duplicate unload writes.
+- Added ESC handling to Mail and the Side Story popup; corrected Settings tab click regions.
+- Corrected the English deletion-grace dialog, mixed punctuation, and duplicated audio copy.
+- Save write, corrupt extension, and account-state errors now produce diagnostic console messages.
+
+V51 GUEST / ACCOUNT SAVE TRANSFER
+- Logging into an existing account from an active guest profile now requires an explicit overwrite confirmation.
+- The cloud/account save is loaded before the guest slot is removed; cancel and authentication failures preserve the guest save.
+- Registering from a guest profile migrates the complete guest save and account-scoped minigame progress into the new UID save.
+- The guest slot is cleared only after the migrated account save reaches Firestore successfully.
+- Failed cloud migration keeps a recoverable guest copy and retries through the normal cloud autosave path.
+- Selecting Guest again after a completed migration starts a new guest profile.
+
+V52 DAYDREAM PROJECT DIFFICULTIES
+- Added ten reconstruction difficulties: Project 1 through Project 9 and the highest Project 0.
+- Every difficulty has a fixed positive rule and a fixed negative rule shown before trait and squad selection.
+- Higher Projects increase route length, branch count, event options, enemy pressure, boss strength, pursuit speed, and rewards.
+- Added new Nightmares, interactive anomaly events, investigation records, and story nodes.
+- Daydream combat now applies difficulty-specific enemy HP, shield, and damage scaling instead of only changing labels.
+- Existing active Daydream runs migrate to the new route structure with Project 1 as the safe compatibility default.
+
+Equipment system rollback
+- Removed equipment, equipment bag, sets, four-dimensional equipment stats, and equipment drops.
+- Restored the original character pages: Attributes, Skills, Weapon, and Archive.
+- Character level remains capped at Lv.60 with four level breakthroughs in the Attributes page.
+- Dungeon remains temporarily unlocked early for testing.
+- Obsolete equipment fields are removed safely when older saves are loaded.
+
+Crystal module update
+- Added four fixed module slots: Helmet, Armor, Leggings, and Boots.
+- Added five permanent fixed-stat module sets with no random affixes.
+- Every module has a controlled stat benefit and a mild trade-off.
+- Added Module Archive to Material Dungeon with difficulty-based permanent drops.
+- Module stats now affect HP, ATK, DEF, and movement speed in existing combat.
+- Reworked the weapon panel with a stronger weapon header, rarity, level progress, selection, comparison, and direct switching.
+
+Changed:
+- Based on V49.17.9 feature gates.
+- Shop is now usable before Chapter 0 completion.
+- Before Chapter 0 completion, these are usable:
+  - Main Story / Operation
+  - Shop
+  - Mail
+  - Settings
+  - Event
+  - Executors
+  - Inventory
+  - Achievements
+  - Battle Manual
+- Chapter 0 completion still unlocks:
+  - Dungeon
+  - Side Story
+  - Action Record / Pass
+- Future-version gates remain for planned systems such as Daydream / Patrol / future social or long-term modes.
+- Lobby Shop button no longer shows FUTURE and now opens Shop normally.
+
+Kept:
+- Battle Manual daily tasks unchanged.
+- Action Record / Pass unchanged.
+- Tutorial resume fix unchanged.
+- Protagonist story level independence unchanged.
+- Custom cursor preserved.
+V43 MODULE ARCHIVE / 模块档案
+- 晶体模块为固定成品，不设升级；掉落等级固定为 2、3、4、5、6 级。
+- 模块档案副本难度直接决定掉落等级，等级越高，正向属性与副作用都会同步放大。
+- 新增模块档案式定向刷取页面，可使用鼠标滚轮浏览全部常驻模块并选择目标。
+- 定向掉落、已拥有检测、模块等级显示与存档迁移已接入。
+
+V44 MODULE SERIES DUNGEON / 模块系列副本
+- 模块副本改为按套装系列选择，单个系列统一掉落头盔、护甲、护腿、护鞋四个部位。
+- 取消单件定向与重复拥有拦截；模块允许无限重复刷取，并可供不同角色分别装配相同模块。
+- 保留材料副本的难度、体力、刷取倍率、编队和结算结构；倍率会独立结算对应数量的模块。
+- 仍为固定数值、无随机词条、无需升级；难度 2–6 对应模块等级 2–6。
+- 修复进入模块系列页面后无法返回金币、角色升级材料、武器强化材料副本列表的问题。
+
+V45 MODULE STORAGE EQUIP / 模块仓库装配
+- 点击任意模块槽位后，左侧属性数据区域切换为对应部位的模块仓库。
+- 仓库按模块等级与系列显示持有数量、固定增益、副作用及当前装备状态。
+- 点击仓库模块即可直接装备；支持卸下、关闭、ESC 返回和鼠标滚轮浏览。
+- 重复模块按实际持有数量分配，同一份模块不会被多个角色重复占用。
+
+V46 MATERIAL PROGRESSION & STORAGE UI / 材料难度与仓库优化
+- 金币、角色材料、武器材料、模块档案分别保存自己的难度选择，切换副本不会互相覆盖。
+- 高难度改为随主线通关进度解锁：00-03、00-06、第零章、01-05、第一章依次开放。
+- 锁定难度显示菱形与明确解锁条件，未解锁难度无法进入编队或战斗。
+- 模块仓库新增系列筛选、等级/系列排序、可用数量、已装备状态与滚轮列表。
+
+V47 CHAPTER GATES & LOBBY STORAGE / 章节门槛与大厅仓库
+- 材料副本难度改为严格章节门槛：难度2需通关第1章，难度3需通关第2章，依次到难度6需通关第5章。
+- 模块等级2不再默认开放，同样需要完整通关第1章；未制作章节对应的后续难度保持锁定。
+- 重做大厅入口的全局仓库，分类展示物资、武器与晶体模块，并加入排序、滚轮浏览、选中详情和来源说明。
+- 角色页面中的模块选择仓库继续只负责对应槽位的模块装配，不再承担全局仓库职责。
+
+V48 CHAPTER 0 PACING & GAME POLISH / 第零章节奏与整体优化
+- 00-03「意识坠落」与 00-06「不同的世界」改为纯剧情关卡，减少连续战斗造成的重复感。
+- 第零章新增紧急撤离、痕迹调查、单体迎击、空间稳定、侵蚀坚持与结晶调查玩法类型。
+- 00-02、00-04、00-07、00-09 加入逐区域剧情互动目标，必须清理威胁并按 F 调查关键目标后才能继续。
+- 00-04 改为无战斗环境调查，通过三段异常痕迹寻找凯恩；其余战斗关卡按剧情重新配置敌人组合。
+- 重写第零章战斗内提示，移除与当前剧情不符的旧城区、旅人与下层都市文案。
+- 主线节点以紫色菱形区分纯剧情关卡，关卡详情支持多行描述，纯剧情通关也会正确同步主角剧情等级。
+
+V49 DAYDREAM CONTENT, NEW DOTS & PROFILE / 白日梦内容、红点与个人资料
+- 白日梦新增 8 种固定梦魇道具，图鉴总数扩展至 16，并修复扩容后的图鉴越界问题。
+- 新增无人来电、重复旅馆、缺席者画廊、空席餐厅四组多选互动事件，以及六段分层梦境剧情记录。
+- 路线生成会穿插更多剧情节点；事件选择会即时改变意志、污染、线索、生命或精神状态。
+- 新增按内容版本记录的菱形红点：进入对应功能一次后永久隐藏，只有该功能内容版本再次更新才重新出现。
+- 版本信息、仓库、设置与资源栏明确排除红点；已读状态随存档保存。
+- 重做个人资料为身份记录、当前旅程、收藏统计、执行官展示、旅途数据与成就进度面板。
+- 个人资料不再点击任意位置退出，仅返回按钮与 Esc 生效，避免误触。
+
+V50 PZ PROFILE VISUAL IDENTITY / PZ个人资料视觉统一
+- 移除参考界面的黑白大色块与黄色导航式视觉，不照搬其它游戏的界面结构。
+- 个人资料重新使用 Project Zero 的深蓝背景、半透明档案面板、冰蓝描边、紫色层级与克制金色强调。
+- 保留身份、章节进度、执行官展示、收集数量、旅途数据和成就统计，数据逻辑不变。
+- 执行官展示改为 PZ 战术卡片样式，并保持当前队伍与角色配色同步。
+- 个人资料内容版本提升，玩家会收到一次新的菱形红点提示。

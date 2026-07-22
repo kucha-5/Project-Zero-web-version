@@ -1,0 +1,141 @@
+
+html,body{
+  margin:0;
+  padding:0;
+  width:100%;
+  height:100%;
+  background:
+    radial-gradient(circle at 50% 20%, rgba(124,199,255,.10), transparent 34%),
+    linear-gradient(180deg,#050814,#02030a);
+  color:white;
+  font-family:Arial,"Microsoft YaHei",sans-serif;
+  overflow:hidden;
+  user-select:none;
+}
+
+#bootScreen{
+  position:fixed;
+  inset:0;
+  z-index:1000;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:18px;
+  background:#050814;
+  color:#bfe9ff;
+  font-size:13px;
+  letter-spacing:.18em;
+  transition:opacity .35s ease, visibility .35s ease;
+}
+
+#bootScreen img{width:min(330px,70vw);height:auto;}
+#bootStatus{min-height:18px;text-align:center;}
+#bootVersion{
+  min-height:14px;
+  color:rgba(255,255,255,.42);
+  font-size:10px;
+  letter-spacing:.12em;
+  text-align:center;
+}
+#bootScreen.boot-update .boot-spinner{border-top-color:#ffe066;}
+#bootScreen.boot-update #bootStatus{color:#ffe066;}
+#bootScreen.boot-error #bootStatus{color:#ff9b9b;}
+#bootScreen.boot-complete{opacity:0;visibility:hidden;pointer-events:none;}
+.boot-spinner{
+  width:30px;
+  height:30px;
+  border:2px solid rgba(124,199,255,.18);
+  border-top-color:#7cc7ff;
+  border-radius:50%;
+  animation:bootSpin .8s linear infinite;
+}
+@keyframes bootSpin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.boot-spinner{animation:none}}
+
+#gameWrap{
+  position:fixed;
+  left:50%;
+  top:50%;
+  width:min(100vw, calc(100vh * 1120 / 660));
+  height:min(100vh, calc(100vw * 660 / 1120));
+  aspect-ratio:1120 / 660;
+  margin:0;
+  transform:translate(-50%,-50%);
+  box-sizing:border-box;
+  border:1px solid rgba(124,199,255,.22);
+  box-shadow:
+    0 0 42px rgba(124,199,255,.18),
+    inset 0 0 28px rgba(124,199,255,.06);
+  background:rgba(5,8,20,.76);
+}
+
+canvas{
+  image-rendering: auto;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+
+  display:block;
+  width:100%;
+  height:100%;
+  background:#090b13;
+}
+
+/* MV1 Mobile Control Test */
+html, body {
+  touch-action: none;
+  overscroll-behavior: none;
+}
+
+#game {
+  touch-action: none;
+}
+
+@media (max-width: 900px), (pointer: coarse) {
+  html, body {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    background: #05060b;
+  }
+  #gameWrap {
+    left:50%;
+    top:50%;
+    width:min(100vw, calc(100vh * 1120 / 660));
+    height:min(100vh, calc(100vw * 660 / 1120));
+    margin:0;
+    transform:translate(-50%,-50%);
+    border: none;
+    box-shadow: none;
+  }
+  #game {
+    width:100%;
+    height:100%;
+  }
+}
+
+
+#gameWrap:fullscreen{
+  width:100vw;
+  height:100vh;
+  max-height:none;
+  left:0;
+  top:0;
+  margin:0;
+  transform:none;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:
+    radial-gradient(circle at 50% 20%, rgba(124,199,255,.12), transparent 34%),
+    linear-gradient(180deg,#050814,#02030a);
+}
+
+#gameWrap:fullscreen canvas{
+  width:min(100vw, calc(100vh * 1120 / 660)) !important;
+  height:min(100vh, calc(100vw * 660 / 1120)) !important;
+}
+
+
+/* PZ Custom Cursor */
+#game{cursor:none;}

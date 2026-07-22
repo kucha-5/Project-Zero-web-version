@@ -1,0 +1,182 @@
+// Project Zero V47.2 Chapter 0 Story - English
+// Only Chapter 0 story data. Do not put gameplay logic here.
+(function(global){
+  "use strict";
+
+  global.PZ_CHAPTER0_STAGES_EN = [
+    {name:"West District Anomaly", desc:"Kane and Hermit reach the west side and clear crystal beasts, but their numbers keep rising."},
+    {name:"Evacuation Order", desc:"More crystal beasts appear, and an evacuation order comes through the communicator."},
+    {name:"Consciousness Collapse", desc:"As the evacuation nears completion, sound and time stop and both minds are pulled somewhere unknown."},
+    {name:"Endscape", desc:"Hermit wakes in unfamiliar ruins and searches environmental traces for the missing Kane."},
+    {name:"Crystal Man", desc:"A crystalized human figure appears before Hermit, forcing a fight."},
+    {name:"Different Worlds", desc:"Hermit finds Kane again, only to realize they are standing in two different realities."},
+    {name:"The Daydream", desc:"Kane explains only one thing: this place is the Daydream. Then the monsters arrive."},
+    {name:"Erosion", desc:"As they go deeper, Hermit grows exhausted, Kane begins to hallucinate, and more crystal beasts appear."},
+    {name:"Middle Layer", desc:"They reach the middle layer and must study the giant crystals' pulse pattern to stop more monsters appearing."},
+    {name:"Crystal Colossus", desc:"A giant glowing crystal humanoid appears, and Hermit and Kane engage it immediately."},
+    {name:"New Assignment", desc:"After defeating the crystal humanoid, they return to reality. Hermit is assigned to Kane's squad."}
+  ];
+
+  global.PZ_CHAPTER0_STORY_EN = {
+    1: [
+      ["Narrator","After the tutorial, Kane takes {playerName} toward the west district."],
+      ["Narrator","The outer streets of the west side have already been occupied by crystal beasts."],
+      ["Kane","Move fast. Clear the crystal beasts in this area."],
+      ["{playerName}","Got it."],
+      ["Narrator","After the first group falls, the street goes quiet for a moment."],
+      ["Narrator","Then, from farther away, another set of roars begins."],
+      ["Kane","...No."],
+      ["{playerName}","What's wrong?"],
+      ["Kane","Their numbers are growing. This isn't a normal cleanup mission."],
+      ["System","Objective: continue clearing the crystal beasts on the west side."]
+    ],
+    2: [
+      ["Narrator","Crystal beasts keep appearing in waves."],
+      ["Narrator","Kane and {playerName} continue falling back as crystals slowly spread along both sides of the street."],
+      ["{playerName}","Wasn't the report supposed to be a small-scale infection?"],
+      ["Kane","It was."],
+      ["Kane","But this... is completely abnormal."],
+      ["Communicator","Kzz... kzz..."],
+      ["Operator","Kane! Hermit! Evacuate the west district immediately!"],
+      ["Kane","Reason."],
+      ["Operator","The contamination is expanding. Staying there is too dangerous."],
+      ["Kane","...Move."],
+      ["System","Objective: move toward the evacuation point. You do not need to defeat every enemy."]
+    ],
+    3: [
+      ["Narrator","The two begin to withdraw."],
+      ["Narrator","The sounds of crystal beasts close in from behind."],
+      ["Kane","Don't look back. Keep running!"],
+      ["{playerName}","I know."],
+      ["Narrator","Just as they are about to break out of the west district..."],
+      ["Narrator","Every sound around them disappears."],
+      ["Narrator","Footsteps, monsters, radio static... all of it stops."],
+      ["{playerName}","...?"],
+      ["Narrator","The next second, both of them lose their balance and collapse to the ground."],
+      ["Narrator","A white flash swallows everything."],
+      ["System","Story Node: consciousness is separating from reality."]
+    ],
+    4: [
+      ["Narrator","After an unknown amount of time, {playerName} slowly opens their eyes."],
+      ["Narrator","This is no longer the west district."],
+      ["Narrator","The sky is black-gray. Buildings are broken. The ground is covered in crystal."],
+      ["Narrator","The whole world looks as if it has already ended."],
+      ["{playerName}","...Where am I?"],
+      ["Narrator","Kane is gone. The communicator gives no response."],
+      ["Narrator","Black particles drift through the air, and a low echo rolls in the distance."],
+      ["{playerName}","Kane?"],
+      ["Narrator","No one answers."],
+      ["System","Objective: move forward and search for Kane."]
+    ],
+    5: [
+      ["Narrator","Ahead of the ruins, a figure slowly rises."],
+      ["Narrator","It still has a human outline, but its entire body has turned to crystal."],
+      ["{playerName}","...A person?"],
+      ["Narrator","The crystal man lifts its head. A faint light pulses from the core in its chest."],
+      ["Narrator","The next second, it rushes toward {playerName}."],
+      ["{playerName}","Then I have no choice."],
+      ["System","Objective: defeat the crystal man."]
+    ],
+    6: [
+      ["Narrator","After defeating the crystal man, {playerName} continues deeper in."],
+      ["Narrator","A familiar figure appears in the distance."],
+      ["{playerName}","Kane!"],
+      ["Kane","Hermit! You're alive?"],
+      ["Narrator","They can see each other. They can hear each other."],
+      ["Narrator","But they soon realize they are not seeing the same world."],
+      ["{playerName}","Behind you... why is everything on fire?"],
+      ["Kane","Fire? What I see is you standing in a crystallized wasteland."],
+      ["Narrator","Neither of them speaks for a moment."],
+      ["Narrator","They can see each other clearly, yet it feels as if they are standing in two different worlds."],
+      ["Narrator","Then the sky suddenly darkens."],
+      ["Narrator","A massive dragon passes overhead, covering the sky as it flies."],
+      ["Kane","...Did you see that too?"],
+      ["{playerName}","I saw it."],
+      ["System","Story Node: two realities intersect for the first time."]
+    ],
+    7: [
+      ["Narrator","After the dragon disappears, the air goes quiet again."],
+      ["Narrator","Hermit and Kane continue inward."],
+      ["{playerName}","What is this place?"],
+      ["Kane","This is the Daydream."],
+      ["Narrator","Kane does not explain further."],
+      ["Narrator","The path grows narrower, and the crystals around them become denser."],
+      ["Narrator","Behind the ruins, several monsters slowly step out."],
+      ["Kane","I've got something coming on my side too."],
+      ["{playerName}","Then we deal with them first."],
+      ["System","Objective: defeat the incoming monsters."]
+    ],
+    8: [
+      ["Narrator","After the monsters fall, {playerName}'s breathing becomes heavier."],
+      ["{playerName}","...I'm getting tired."],
+      ["Narrator","The fight was not long, but the exhaustion keeps building."],
+      ["Narrator","On the other side, Kane suddenly stops."],
+      ["{playerName}","Kane?"],
+      ["Kane","...No. That's impossible."],
+      ["Narrator","His eyes lose focus, as if he is seeing something that is not there."],
+      ["{playerName}","What are you seeing?"],
+      ["Narrator","Kane does not answer."],
+      ["Narrator","In the distance, more crystal beasts emerge from the shadows."],
+      ["Kane","...They're coming. Be careful."],
+      ["System","Objective: survive the crystal beast assault."]
+    ],
+    9: [
+      ["Narrator","They barely manage to deal with the endless crystal beasts."],
+      ["Narrator","As they continue deeper, the space around them changes."],
+      ["Narrator","This feels like the middle layer of the Daydream."],
+      ["Narrator","Massive crystals grow from the ground, walls, and ruins."],
+      ["Narrator","Inside some of them, something appears to be moving."],
+      ["{playerName}","Are these crystals... alive?"],
+      ["Narrator","The next second, a crack opens across the surface of one crystal."],
+      ["Narrator","A crystal beast slowly crawls out from within."],
+      ["{playerName}","The monsters are being born from the crystals?"],
+      ["Narrator","Kane gives no answer."],
+      ["Narrator","He suddenly grips his head, his body swaying."],
+      ["Kane","My head..."],
+      ["{playerName}","Can you keep going?"],
+      ["Kane","...Keep moving. We can't stop."],
+      ["System","Objective: investigate the middle layer of the Daydream."]
+    ],
+    10: [
+      ["Narrator","The two continue forward."],
+      ["Narrator","Suddenly, the entire space begins to shake violently."],
+      ["Narrator","A massive crystal rises from the ground."],
+      ["Narrator","It keeps cracking apart, shedding countless fragments from its surface."],
+      ["Narrator","A huge arm reaches out from inside the crystal."],
+      ["Narrator","Then a giant crystal humanoid slowly stands up."],
+      ["Narrator","Its entire body glows, and the core in its chest beats like a heart."],
+      ["{playerName}","That thing..."],
+      ["Kane","So it finally showed itself."],
+      ["Narrator","The giant crystal humanoid lowers its head, locking onto Hermit and Kane."],
+      ["Kane","Hermit. Whatever world you're seeing..."],
+      ["Kane","Take it down."],
+      ["System","Boss Battle: defeat the giant crystal humanoid."]
+    ],
+    11: [
+      ["Narrator","After the giant crystal humanoid falls, the light in its chest slowly fades."],
+      ["Narrator","The Daydream around them begins to fracture."],
+      ["Narrator","Hermit and Kane are swallowed by the same white light."],
+      ["Narrator","..."],
+      ["Narrator","When {playerName} opens their eyes again, they are back in reality."],
+      ["Narrator","They slowly sit up and see the lake beside them."],
+      ["Narrator","The surface of the lake is strangely calm."],
+      ["Narrator","But every fish in it is dead, floating across the water."],
+      ["{playerName}","..."],
+      ["Narrator","Not far away, two government medics are checking Kane."],
+      ["Medic A","Vital signs are stable."],
+      ["Medic B","Mental state requires further observation."],
+      ["Narrator","Kane is still unconscious."],
+      ["Government Officer","Hermit, come with me. The commander is waiting."],
+      ["Narrator","The scene shifts to the commander office of Government Squad Twelve."],
+      ["Commander","Effective today, your transfer order has been approved."],
+      ["Commander","You are officially assigned to Kane's squad."],
+      ["Narrator","The file on the desk already has Hermit's name on it."],
+      ["Narrator","Affiliation: Government Squad Twelve."],
+      ["Commander","Kane still needs treatment for now."],
+      ["Commander","Until he wakes up, familiarize yourself with this place."],
+      ["Commander","Welcome aboard."],
+      ["Narrator","Chapter 0 ends."],
+      ["System","Chapter 0 Clear"]
+    ]
+  };
+})(window);
