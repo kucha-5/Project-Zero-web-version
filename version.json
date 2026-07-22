@@ -1,11 +1,14 @@
 {
   "version": "49.18.9",
-  "build": "2026072203",
+  "build": "2026072204",
   "publishedAt": "2026-07-22T15:30:00-07:00",
   "mandatory": false,
   "minimumLauncherVersion": "1.0.0",
-  "saveSchemaVersion": 18,
+  "saveSchemaVersion": 19,
   "changelog": [
+    "非主角技能升级改为消耗技能书、专用材料与金币",
+    "角色等级与武器等级消耗随等级逐步提高",
+    "新增技能训练材料副本并兼容旧存档",
     "修复新账号缺少艾洛与诺克斯的问题",
     "修复Desktop本地文件模式卡在启动阶段的问题",
     "修复旧存档初始阵容与主角控制逻辑",

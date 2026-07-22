@@ -1329,7 +1329,7 @@ let dungeonSelected = 0;
 let dungeonPanelMode = "list";
 let materialDungeonSelected = 0;
 let materialDungeonDifficulty = 1;
-let materialDungeonDifficulties = {gold:1,exp:1,weapon:1,module:2};
+let materialDungeonDifficulties = {gold:1,exp:1,weapon:1,module:2,skill:1};
 let moduleDungeonTarget = "survey";
 let moduleArchiveScroll = 0;
 let moduleArchiveWheelDelta = 0;
@@ -1525,7 +1525,7 @@ try{
     localStorage.setItem(GUEST_SAVE_KEY, localStorage.getItem(LEGACY_SAVE_KEY));
   }
 }catch(e){}
-const SAVE_VERSION = 54;
+const SAVE_VERSION = 55;
 const SAVE_BACKUP_SUFFIX = "_backup_";
 const SAVE_TEMP_SUFFIX = "_writing";
 let saveCooldown = 0;
@@ -2526,6 +2526,8 @@ function resetRuntimeDefaults(){
   gold = 1200;
   expBooks = 8;
   weaponOre = 5;
+  skillBooks = 6;
+  skillMaterials = {normal:6,skill:4,ultimate:2};
   notice = msg("defaultNotice");
 
   centerText = "";
@@ -2615,6 +2617,8 @@ function resetRuntimeDefaults(){
   gold = 1200;
   expBooks = 8;
   weaponOre = 5;
+  skillBooks = 6;
+  skillMaterials = {normal:6,skill:4,ultimate:2};
   owned = [true,true,true,false,true];
   charData = roles.map((r,i)=>({level:1,skillPoints:0,normal:1,skill:1,ultimate:1,weaponLevel:1,weapon:["烈阳之刃","风语法典","终夜双刃","霜月长枪"][i]}));
   cleared = {};
@@ -2638,7 +2642,7 @@ function resetRuntimeDefaults(){
   dungeonLastStaminaDate = ""; dungeonCandy = 2400; dungeonStimulant = 0;
   dungeonCandyMonthKey = ""; dungeonCandyDailyUsed = 0; dungeonCandyDailyKey = "";
   dungeonRewardMultiplier = 1; materialDungeonDifficulty = 1; materialDungeonSelected = 0;
-  materialDungeonDifficulties = {gold:1,exp:1,weapon:1,module:2};
+  materialDungeonDifficulties = {gold:1,exp:1,weapon:1,module:2,skill:1};
   moduleDungeonTarget = "survey"; moduleArchiveScroll = 0; moduleArchiveWheelDelta = 0;
   bossMultiplier = 1; bossKrosWeeklyKey = ""; dragonClaw = 0;
   uiGuideSeen = {};
@@ -2796,7 +2800,7 @@ function saveGame(){
       saveRevision:Math.max(0,Math.floor(Number(previous.saveRevision)||0))+1,
       updatedAt:now,
       accountUid:(!guestMode && cloudUser) ? cloudUser.uid : "",
-      crystals, gold, expBooks, weaponOre, playerLevel, playerExp, playerExpNeed, protagonistStoryLevel, playerName, playerUID, hasCreatedProfile, profileAvatarRole, profileAvatarFrame, profileShowcase,
+      crystals, gold, expBooks, weaponOre, skillBooks, skillMaterials, playerLevel, playerExp, playerExpNeed, protagonistStoryLevel, playerName, playerUID, hasCreatedProfile, profileAvatarRole, profileAvatarFrame, profileShowcase,
       owned, cleared, projectAreaCleared, charData, lobbyExecutor, lobbyBackgroundTheme, team, teamPresets, teamPresetNames, renderQuality, targetFPS, monthlyOwned, monthlyClaimed, monthlyClaimDate, mailClaimed, mailDeleted, eventClaimed, lastLoginClaimDate, loginClaimIndex, monthlyLoginCheckin,
       loginRewards, levelRewards, boughtPacks, ownedWeapons, weaponInventory, crystalExchangePurchases, dungeonStamina, dungeonWeeklyCrystalLeft, dungeonCrystalWeekKey, dungeonLastStaminaDate, dungeonCandy, dungeonStimulant, dungeonCandyMonthKey, dungeonCandyDailyUsed, dungeonCandyDailyKey, dungeonRewardMultiplier, materialDungeonDifficulty, materialDungeonDifficulties, materialDungeonSelected, moduleDungeonTarget, audioMuted, bgmVolume, sfxVolume, particlesEnabled, damageTextEnabled, tutorialCompleted, tutorialInProgress, tutorialResumeMode, language, prologueDone, lobbyGuideDone, lobbyGuideStep, achievements, totalKills, totalParries, totalChains, totalBossKills, totalGoldEarned, totalCrystalsEarned, growthGuidePage, growthGuidePageClaimed, growthGuideTaskClaimed, bossMultiplier, bossKrosWeeklyKey, dragonClaw, uiGuideSeen, uiNewSeen, actionRecordLevel, actionRecordExp, actionRecordExpNeed, actionRecordPage, actionRecordAdvanced, actionRecordUltimate, actionRecordClaimed, actionRecordWeaponChoice, actionRecordTab, actionRecordTaskTab, actionRecordTaskClaimed, battleManualDailyClaimed,
       battleResume:captureBattleResumeSnapshot()
@@ -2849,6 +2853,8 @@ function migrateSaveData(d){
   addMissing("crystalModuleInventory", []);
   addMissing("moduleDungeonTarget", "survey");
   addMissing("materialDungeonDifficulties", {gold:d.materialDungeonDifficulty||1,exp:d.materialDungeonDifficulty||1,weapon:d.materialDungeonDifficulty||1,module:Math.max(2,d.materialDungeonDifficulty||2)});
+  addMissing("skillBooks", 6);
+  addMissing("skillMaterials", {normal:6,skill:4,ultimate:2});
   addMissing("externalProgress", {});
   addMissing("battleResume", null);
   addMissing("saveRevision", 0);
@@ -2914,6 +2920,12 @@ function loadGame(){
     if(typeof d.gold === "number") gold = d.gold;
     if(typeof d.expBooks === "number") expBooks = d.expBooks;
     if(typeof d.weaponOre === "number") weaponOre = d.weaponOre;
+    if(typeof d.skillBooks === "number") skillBooks = Math.max(0,Math.floor(d.skillBooks));
+    if(d.skillMaterials && typeof d.skillMaterials === "object") skillMaterials = {
+      normal:Math.max(0,Math.floor(d.skillMaterials.normal||0)),
+      skill:Math.max(0,Math.floor(d.skillMaterials.skill||0)),
+      ultimate:Math.max(0,Math.floor(d.skillMaterials.ultimate||0))
+    };
     if(typeof d.playerLevel === "number") playerLevel = d.playerLevel;
     if(typeof d.playerExp === "number") playerExp = d.playerExp;
     if(typeof d.playerExpNeed === "number") playerExpNeed = d.playerExpNeed;
@@ -2994,9 +3006,10 @@ function loadGame(){
       gold:clamp(Math.floor(d.materialDungeonDifficulties.gold||1),1,6),
       exp:clamp(Math.floor(d.materialDungeonDifficulties.exp||1),1,6),
       weapon:clamp(Math.floor(d.materialDungeonDifficulties.weapon||1),1,6),
-      module:clamp(Math.floor(d.materialDungeonDifficulties.module||2),2,6)
+      module:clamp(Math.floor(d.materialDungeonDifficulties.module||2),2,6),
+      skill:clamp(Math.floor(d.materialDungeonDifficulties.skill||1),1,6)
     };
-    if(typeof d.materialDungeonSelected === "number") materialDungeonSelected = clamp(Math.floor(d.materialDungeonSelected),0,3);
+    if(typeof d.materialDungeonSelected === "number") materialDungeonSelected = clamp(Math.floor(d.materialDungeonSelected),0,4);
     if(typeof d.bossMultiplier === "number") bossMultiplier = clamp(Math.floor(d.bossMultiplier),1,4);
     if(typeof d.bossKrosWeeklyKey === "string") bossKrosWeeklyKey = d.bossKrosWeeklyKey;
     if(typeof d.dragonClaw === "number") dragonClaw = Math.max(0, Math.floor(d.dragonClaw));
@@ -3629,6 +3642,8 @@ let monthlyClaimDate = "";
 let gold = 1200;
 let expBooks = 8;
 let weaponOre = 5;
+let skillBooks = 6;
+let skillMaterials = {normal:6,skill:4,ultimate:2};
 let selectedOperator = 0;
 let lobbyExecutor = 2; // 0 Kane / 1 Ailo / 2 Nox / 3 Flora
 let operatorTab = "level";
@@ -4139,6 +4154,11 @@ function stabilizePlayerStats(){
   gold = Math.max(0, Math.floor(safeNumber(gold,0)));
   expBooks = Math.max(0, Math.floor(safeNumber(expBooks,0)));
   weaponOre = Math.max(0, Math.floor(safeNumber(weaponOre,0)));
+  skillBooks = Math.max(0, Math.floor(safeNumber(skillBooks,0)));
+  if(!skillMaterials || typeof skillMaterials!=="object") skillMaterials={normal:0,skill:0,ultimate:0};
+  skillMaterials.normal=Math.max(0,Math.floor(safeNumber(skillMaterials.normal,0)));
+  skillMaterials.skill=Math.max(0,Math.floor(safeNumber(skillMaterials.skill,0)));
+  skillMaterials.ultimate=Math.max(0,Math.floor(safeNumber(skillMaterials.ultimate,0)));
   playerLevel = Math.max(1, Math.floor(safeNumber(playerLevel,1)));
   playerExp = Math.max(0, Math.floor(safeNumber(playerExp,0)));
   playerExpNeed = Math.max(100, Math.floor(safeNumber(playerExpNeed,1600)));
@@ -8321,7 +8341,7 @@ function updateOperators(){
       if(!(!owned[i]) && !isProtagonist(i) && inRect(bx,by,222,46)){
         if(operatorTab==="level"){
           const cost=roleUpgradeCost(i);
-          if(canBreakthrough(i)){ performBreakthrough(i); } else if(expBooks>=cost.books && gold>=cost.gold && cd.level<roleLevelCap(i)){ expBooks-=cost.books; gold-=cost.gold; cd.level++; cd.skillPoints++; saveGame(); }
+          if(canBreakthrough(i)){ performBreakthrough(i); } else if(expBooks>=cost.books && gold>=cost.gold && cd.level<roleLevelCap(i)){ expBooks-=cost.books; gold-=cost.gold; cd.level++; saveGame(); autoCloudSaveNow(true); }
           else if(!canBreakthrough(i) && cd.level<roleLevelCap(i)) showCenter(language==="en"?"Not enough upgrade materials":"升级材料不足",70);
         }else if(operatorTab==="skill"){
           upgradeSelectedSkill(i);
@@ -8768,7 +8788,8 @@ function updateTeam(){
       if(inRect(x,y,220,130)) teamSelectSlot = Math.min(i,team.length);
     }
 
-    for(let i=0;i<4;i++){
+    const materialList=materialDungeonsV42();
+    for(let i=0;i<materialList.length;i++){
       const x=95+i*235,y=300;
       if(inRect(x,y,126,34)){loadTeamPreset(i);clicked=false;return;}
       if(inRect(x+130,y,55,34)){saveCurrentTeamPreset(i);clicked=false;return;}
@@ -9482,6 +9503,10 @@ function warehouseEntries(){
     {key:"material:gold",category:"material",name:tr("金币","Gold"),count:gold,color:"#ffe066",icon:"●",currencyKind:"gold",source:tr("金币试炼与关卡奖励","Gold Trial and stage rewards"),desc:tr("角色与武器养成所需的基础资源。","Basic resource for operator and weapon growth.")},
     {key:"material:exp",category:"material",name:tr("经验书","EXP Books"),count:expBooks,color:"#7cffb2",icon:"▤",source:tr("角色升级材料副本","Executor EXP Trial"),desc:tr("用于提升执行官等级。","Used to level up executors.")},
     {key:"material:ore",category:"material",name:tr("精炼合金","Weapon Ore"),count:weaponOre,color:"#c98cff",icon:"◇",source:tr("武器材料副本","Weapon Upgrade Trial"),desc:tr("用于武器精炼。","Used to upgrade weapons.")},
+    {key:"material:skillbook",category:"material",name:tr("技能书","Skill Book"),count:skillBooks,color:"#ffcf7c",icon:"▥",source:tr("技能训练副本","Skill Training"),desc:tr("用于非主角执行官的技能升级。","Used to upgrade non-protagonist skills.")},
+    {key:"material:normal",category:"material",name:tr("攻击训练记录","Attack Drill"),count:skillMaterials.normal,color:"#ff9f7c",icon:"N",source:tr("技能训练副本","Skill Training"),desc:tr("用于升级普通攻击。","Used to upgrade normal attacks.")},
+    {key:"material:skill",category:"material",name:tr("技能核心","Skill Core"),count:skillMaterials.skill,color:"#7cc7ff",icon:"E",source:tr("技能训练副本","Skill Training"),desc:tr("用于升级角色技能。","Used to upgrade skills.")},
+    {key:"material:ultimate",category:"material",name:tr("终结技档案","Ultimate Record"),count:skillMaterials.ultimate,color:"#c98cff",icon:"Q",source:tr("技能训练副本","Skill Training"),desc:tr("用于升级角色大招。","Used to upgrade ultimates.")},
     {key:"material:candy",category:"material",name:tr("体力糖","Stamina Candy"),count:dungeonCandy,color:"#ff9dc8",icon:"✦",source:tr("活动与签到","Events and check-in"),desc:tr("材料副本消耗资源。","Consumed when entering material dungeons.")},
     {key:"material:stimulant",category:"material",name:tr("体力补充剂","Stamina Stimulant"),count:dungeonStimulant,color:"#70e6ff",icon:"＋",source:tr("活动奖励","Event rewards"),desc:tr("用于补充副本体力。","Restores dungeon stamina.")},
     {key:"material:claw",category:"material",name:tr("龙爪徽记","Dragon Claw"),count:dragonClaw,color:"#ff837c",icon:"▲",source:tr("高难挑战","High-difficulty challenges"),desc:tr("稀有挑战纪念资源。","Rare challenge token.")}
@@ -11861,12 +11886,14 @@ function materialDungeonsV42(){
     {key:"gold", name:"Gold Trial", short:"Gold", color:"#ffe066", desc:"Obtain Gold.", enemy:"Crystal Worker", base:{gold:2500, expBooks:0, weaponOre:0}},
     {key:"exp", name:"Executor EXP", short:"EXP", color:"#7cffb2", desc:"Earn materials used to level executors.", enemy:"Crystal Beast", base:{gold:650, expBooks:4, weaponOre:0}},
     {key:"weapon", name:"Weapon Upgrade", short:"Weapon", color:"#7cc7ff", desc:"Earn Weapon Ore used to upgrade weapons.", enemy:"Crystal Guard", base:{gold:650, expBooks:0, weaponOre:4}},
-    {key:"module", name:"Module Archive", short:"Module", color:"#b98cff", desc:"Obtain permanent fixed-stat module sets.", enemy:"Module Sentinel", base:{gold:500, expBooks:0, weaponOre:0}}
+    {key:"module", name:"Module Archive", short:"Module", color:"#b98cff", desc:"Obtain permanent fixed-stat module sets.", enemy:"Module Sentinel", base:{gold:500, expBooks:0, weaponOre:0}},
+    {key:"skill", name:"Skill Training", short:"Skill", color:"#ff9f7c", desc:"Earn Skill Books and dedicated skill materials.", enemy:"Training Construct", base:{gold:500, expBooks:0, weaponOre:0,skillBooks:2,skillNormal:2,skillSkill:1,skillUltimate:1}}
   ] : [
     {key:"gold", name:"金币试炼", short:"金币", color:"#ffe066", desc:"获得金币。", enemy:"晶体工人", base:{gold:2500, expBooks:0, weaponOre:0}},
     {key:"exp", name:"角色升级材料", short:"角色", color:"#7cffb2", desc:"获得角色升级材料。", enemy:"晶体兽", base:{gold:650, expBooks:4, weaponOre:0}},
     {key:"weapon", name:"武器强化材料", short:"武器", color:"#7cc7ff", desc:"获得武器强化材料。", enemy:"晶体守卫", base:{gold:650, expBooks:0, weaponOre:4}},
-    {key:"module", name:"模块档案副本", short:"模块", color:"#b98cff", desc:"获取常驻固定数值模块套装。", enemy:"模块哨兵", base:{gold:500, expBooks:0, weaponOre:0}}
+    {key:"module", name:"模块档案副本", short:"模块", color:"#b98cff", desc:"获取常驻固定数值模块套装。", enemy:"模块哨兵", base:{gold:500, expBooks:0, weaponOre:0}},
+    {key:"skill", name:"技能训练副本", short:"技能", color:"#ff9f7c", desc:"获取技能书与三类专用技能材料。", enemy:"训练构造体", base:{gold:500, expBooks:0, weaponOre:0,skillBooks:2,skillNormal:2,skillSkill:1,skillUltimate:1}}
   ];
 }
 
@@ -11891,7 +11918,7 @@ function materialDifficultyUnlocked(key,diff){return materialDifficultyRequireme
 function syncSelectedMaterialDifficulty(){
   const d=materialDungeonsV42()[materialDungeonSelected]||materialDungeonsV42()[0];
   const min=d.key==="module"?2:1;
-  materialDungeonDifficulties=Object.assign({gold:1,exp:1,weapon:1,module:2},materialDungeonDifficulties||{});
+  materialDungeonDifficulties=Object.assign({gold:1,exp:1,weapon:1,module:2,skill:1},materialDungeonDifficulties||{});
   materialDungeonDifficulty=clamp(Math.floor(materialDungeonDifficulties[d.key]||min),min,6);
   if(!materialDifficultyUnlocked(d.key,materialDungeonDifficulty)){
     for(let g=materialDungeonDifficulty;g>=min;g--)if(materialDifficultyUnlocked(d.key,g)){materialDungeonDifficulty=g;break;}
@@ -11928,7 +11955,7 @@ function normalizeDungeonRuntime(){
 
   dungeonRewardMultiplier = clamp(Math.floor(dungeonRewardMultiplier || 1), 1, 4);
   materialDungeonDifficulty = clamp(Math.floor(materialDungeonDifficulty || 1), 1, 6);
-  materialDungeonSelected = clamp(Math.floor(materialDungeonSelected || 0), 0, 3);
+  materialDungeonSelected = clamp(Math.floor(materialDungeonSelected || 0), 0, 4);
   if(materialDungeonSelected===3 && !canUseModuleDungeon()) materialDungeonSelected=0;
   const validPanels=new Set(["home","list","material","boss","projectArea","patrol"]);
   if(!validPanels.has(dungeonPanelMode) || dungeonPanelMode==="list") dungeonPanelMode="home";
@@ -11950,6 +11977,10 @@ function materialRewardPreviewV42(run){
     gold: Math.floor((d.base.gold + diff * 450) * mult),
     expBooks: Math.floor((d.base.expBooks + Math.max(0,diff-1)*2) * mult),
     weaponOre: Math.floor((d.base.weaponOre + Math.max(0,diff-1)*2) * mult),
+    skillBooks: Math.floor(((d.base.skillBooks||0) + (d.key==="skill"?Math.max(0,diff-1):0)) * mult),
+    skillNormal: Math.floor(((d.base.skillNormal||0) + (d.key==="skill"?Math.floor(Math.max(0,diff-1)/2):0)) * mult),
+    skillSkill: Math.floor(((d.base.skillSkill||0) + (d.key==="skill"?Math.floor(Math.max(0,diff-1)/3):0)) * mult),
+    skillUltimate: Math.floor(((d.base.skillUltimate||0) + (d.key==="skill"?Math.floor(Math.max(0,diff-1)/4):0)) * mult),
     crystal: dungeonWeeklyCrystalLeft > 0 ? 20 : 0,
     staminaCost: 20 * mult,
     expReward: 350 + diff * 100,
@@ -12015,10 +12046,14 @@ function spawnMaterialDungeonArea(){
     if(area===1){ enemies.push(tunedEnemy(540,H/2+90,"shield")); enemies.push(tunedEnemy(740,H/2+130,"normal")); }
     else if(area===2){ enemies.push(tunedEnemy(450,H/2+60,"shield")); enemies.push(tunedEnemy(690,H/2+125,"ranged")); enemies.push(tunedEnemy(850,H/2+60,"normal")); }
     else { enemies.push(tunedEnemy(700,H/2+90,"shield")); enemies.push(tunedEnemy(500,H/2+145,"elite")); }
-  }else{
+  }else if(kind.key==="module"){
     if(area===1){ enemies.push(tunedEnemy(520,H/2+80,"ranged")); enemies.push(tunedEnemy(750,H/2+125,"shield")); }
     else if(area===2){ enemies.push(tunedEnemy(460,H/2+65,"ranged")); enemies.push(tunedEnemy(680,H/2+125,"elite")); enemies.push(tunedEnemy(850,H/2+70,"shield")); }
     else { enemies.push(tunedEnemy(680,H/2+90,"elite")); enemies.push(tunedEnemy(500,H/2+145,"ranged")); enemies.push(tunedEnemy(870,H/2+70,"shield")); }
+  }else{
+    if(area===1){ enemies.push(tunedEnemy(520,H/2+80,"normal")); enemies.push(tunedEnemy(740,H/2+125,"ranged")); }
+    else if(area===2){ enemies.push(tunedEnemy(460,H/2+65,"shield")); enemies.push(tunedEnemy(680,H/2+125,"ranged")); enemies.push(tunedEnemy(850,H/2+70,"normal")); }
+    else { enemies.push(tunedEnemy(680,H/2+90,"elite")); enemies.push(tunedEnemy(500,H/2+145,"shield")); enemies.push(tunedEnemy(870,H/2+70,"ranged")); }
   }
 
   showCenter((language==="en"?"MATERIAL ":"材料副本 ") + roman(diff) + " / AREA 0" + area, 70);
@@ -12031,6 +12066,10 @@ function applyMaterialDungeonReward(){
   gold += r.gold;
   expBooks += r.expBooks;
   weaponOre += r.weaponOre;
+  skillBooks += r.skillBooks||0;
+  skillMaterials.normal += r.skillNormal||0;
+  skillMaterials.skill += r.skillSkill||0;
+  skillMaterials.ultimate += r.skillUltimate||0;
   if(r.type==="module"&&window.PZModules){
     r.moduleDrops=[];
     const count=Math.max(1,(materialDungeonRun&&materialDungeonRun.multiplier)||1);
@@ -12257,6 +12296,8 @@ function drawMaterialDungeonDetailV42(){
   if(r.gold) rewardLine.push((language==="en"?"Gold ×":"金币 ×")+r.gold);
   if(r.expBooks) rewardLine.push((language==="en"?"Char Mat ×":"角色材料 ×")+r.expBooks);
   if(r.weaponOre) rewardLine.push((language==="en"?"Weapon Mat ×":"武器材料 ×")+r.weaponOre);
+  if(r.skillBooks) rewardLine.push((language==="en"?"Skill Book ×":"技能书 ×")+r.skillBooks);
+  if(r.skillNormal||r.skillSkill||r.skillUltimate) rewardLine.push((language==="en"?"Skill Parts ×":"技能材料 ×")+((r.skillNormal||0)+(r.skillSkill||0)+(r.skillUltimate||0)));
   if(r.type==="module") rewardLine.push(language==="en"?"Fixed Module ×1":"固定模块 ×1");
   ctx.fillText(rewardLine.join(" / "),495,464);
 
@@ -12292,7 +12333,7 @@ function updateDungeonInlineClicksLegacyV42(){
       clicked=false;
       return true;
     }
-    for(let i=0;i<4;i++){
+    for(let i=0;i<materialDungeonsV42().length;i++){
       if(inRect(95+i*170,245,156,76)){
         if(i===3&&!canUseModuleDungeon()){showFeatureLocked("chapter1");clicked=false;return true;}
         materialDungeonSelected=i;
@@ -12933,7 +12974,7 @@ function updateDungeonInlineClicks(){
       if(inRect(830,505,180,38)){startMaterialDungeonTeam();clicked=false;return true;}
       return false;
     }
-    for(let i=0;i<4;i++){
+    for(let i=0;i<materialDungeonsV42().length;i++){
       if(inRect(95+i*170,245,156,76)){
         if(i===3&&!canUseModuleDungeon()){showFeatureLocked("chapter1");clicked=false;return true;}
         materialDungeonSelected=i;
@@ -14251,7 +14292,7 @@ function drawBossKrosSettlement(){
 }
 
 function drawMaterialSettlement(){
-  const r = settlement && settlement.matReward ? settlement.matReward : {gold:0,expBooks:0,weaponOre:0,crystal:0,expReward:0,name:"Material"};
+  const r = settlement && settlement.matReward ? settlement.matReward : {gold:0,expBooks:0,weaponOre:0,skillBooks:0,skillNormal:0,skillSkill:0,skillUltimate:0,crystal:0,expReward:0,name:"Material"};
   const bg=ctx.createLinearGradient(0,0,0,H);
   bg.addColorStop(0,"#11172d");
   bg.addColorStop(.55,"#080a12");
@@ -14283,6 +14324,8 @@ function drawMaterialSettlement(){
   ctx.fillStyle="#ffe066"; if(r.gold){ ctx.fillText((language==="en"?"Gold +":"金币 +")+r.gold,W/2-190,y); y+=34; }
   ctx.fillStyle="#7cffb2"; if(r.expBooks){ ctx.fillText((language==="en"?"Executor EXP +":"角色升级材料 +")+r.expBooks,W/2-190,y); y+=34; }
   ctx.fillStyle="#7cc7ff"; if(r.weaponOre){ ctx.fillText((language==="en"?"Weapon Ore +":"武器强化材料 +")+r.weaponOre,W/2-190,y); y+=34; }
+  ctx.fillStyle="#ffcf7c"; if(r.skillBooks){ ctx.fillText((language==="en"?"Skill Books +":"技能书 +")+r.skillBooks,W/2-190,y); y+=34; }
+  ctx.fillStyle="#ff9f7c"; if(r.skillNormal||r.skillSkill||r.skillUltimate){ ctx.fillText((language==="en"?"Skill Materials +":"技能材料 +")+((r.skillNormal||0)+(r.skillSkill||0)+(r.skillUltimate||0)),W/2-190,y); y+=34; }
   ctx.fillStyle="#b98cff"; if(r.moduleName){ ctx.fillText((language==="en"?"Module: ":"获得模块：")+r.moduleName+"  G"+(r.moduleGrade||""),W/2-190,y); y+=34; }
   ctx.fillStyle="#c35cff"; if(r.crystal){ ctx.fillText((language==="en"?"Weekly Crystal +":"每周水晶 +")+r.crystal,W/2-190,y); y+=34; }
   ctx.fillStyle="#fff"; ctx.fillText("EXP +"+(r.expReward||0),W/2-190,y);
@@ -14736,7 +14779,9 @@ function breakthroughPreviewBonus(i){
 }
 function roleUpgradeCost(i){
   const lv=Math.max(1,roleDisplayLevel(i));
-  return {books:Math.min(5,1+Math.floor((lv-1)/12)),gold:200+lv*55+Math.floor(lv/10)*250};
+  if(isProtagonist(i)) return {books:0,gold:0};
+  const tier=Math.floor((lv-1)/10);
+  return {books:Math.min(12,1+Math.floor((lv-1)/5)),gold:Math.floor(220+lv*68+lv*lv*2.8+tier*420)};
 }
 function drawOperatorStatsTab(i,x=780,y=112,w=302,h=506){
   const auto=isProtagonist(i), lv=roleDisplayLevel(i), cap=roleLevelCap(i), bx=x+22, by=y+82;
@@ -14844,11 +14889,25 @@ function upgradeSelectedSkill(i){
   if(isProtagonist(i)) return;
   const cd=charData[i];
   if(!cd || !owned[i]) return;
-  if((cd.skillPoints||0)<=0){ showCenter(language==="en"?"Not enough Skill Points":"技能数据不足",70); return; }
   if((cd[selectedSkillKey]||1)>=10){ showCenter(language==="en"?"Skill already MAX":"已达上限",70); return; }
-  cd.skillPoints--; cd[selectedSkillKey]++;
+  const cost=skillUpgradeCost(selectedSkillKey,cd[selectedSkillKey]||1);
+  if(skillBooks<cost.books || (skillMaterials[selectedSkillKey]||0)<cost.material || gold<cost.gold){
+    showCenter(language==="en"?"Not enough skill materials":"技能升级材料不足",70); return;
+  }
+  skillBooks-=cost.books; skillMaterials[selectedSkillKey]-=cost.material; gold-=cost.gold; cd[selectedSkillKey]++;
   showCenter((language==="en"?"Upgraded ":"已升级 ")+skillDisplayName(selectedSkillKey),70);
-  sfx("reward"); saveGame();
+  sfx("reward"); saveGame(); autoCloudSaveNow(true);
+}
+
+function skillMaterialName(key){
+  if(key==="normal") return language==="en"?"Attack Drill":"攻击训练记录";
+  if(key==="skill") return language==="en"?"Skill Core":"技能核心";
+  return language==="en"?"Ultimate Record":"终结技档案";
+}
+function skillUpgradeCost(key,lv){
+  const tier=Math.floor(Math.max(0,lv-1)/3);
+  const typeAdd=key==="ultimate"?2:key==="skill"?1:0;
+  return {books:1+Math.floor(Math.max(0,lv-1)/2)+(key==="ultimate"?1:0),material:1+tier+typeAdd,gold:Math.floor(450+lv*320+tier*650+typeAdd*280)};
 }
 
 function drawOperatorSkillTab(i,x=780,y=112,w=302,h=506){
@@ -14873,8 +14932,11 @@ function drawOperatorSkillTab(i,x=780,y=112,w=302,h=506){
     drawInsetLabel((language==="en"?"Skill Sync Lv.":"技能同步 Lv.")+protagonistSkillLevel()+" / 10",bx,dy+202,258,34,"#ffe066","rgba(255,224,102,.08)","rgba(255,224,102,.20)",12,true,"center");
     drawBtn(language==="en"?"Story Sync":"主线同步","",bx+18,y+h-78,222,46,false,"#777");
   }else{
-    drawInsetLabel(tx("skillPoint")+"："+(charData[i].skillPoints||0)+"    "+(language==="en"?"Cost: 1":"消耗：1"),bx,dy+202,258,34,"#fff","rgba(255,255,255,.07)","rgba(255,255,255,.13)",12,true,"center");
-    const can=(charData[i].skillPoints||0)>0 && lv<10;
+    const cost=skillUpgradeCost(selectedSkillKey,lv);
+    const materialOwned=skillMaterials[selectedSkillKey]||0;
+    const costText=(language==="en"?"Book ":"技能书 ")+skillBooks+"/"+cost.books+" · "+skillMaterialName(selectedSkillKey)+" "+materialOwned+"/"+cost.material+" · "+gold+"/"+cost.gold+"G";
+    drawInsetLabel(costText,bx,dy+202,258,34,"#fff","rgba(255,255,255,.07)","rgba(255,255,255,.13)",9,true,"center");
+    const can=skillBooks>=cost.books && materialOwned>=cost.material && gold>=cost.gold && lv<10;
     drawBtn(lv>=10?(language==="en"?"MAX":"已满级"):(language==="en"?"Upgrade to Lv."+next:"精炼至 Lv."+next),"CLICK",bx+18,y+h-78,222,46,can,"#ffffff");
   }
 }
@@ -14882,7 +14944,7 @@ function drawOperatorSkillTab(i,x=780,y=112,w=302,h=506){
 
 function weaponNextAttackBonus(i){ return (roleWeaponLevelDisplay(i)+1)*5; }
 function weaponCurrentAttackBonus(i){ return roleWeaponLevelDisplay(i)*5; }
-function weaponUpgradeCost(i){const cd=charData[i]||{},lv=Math.max(1,cd.weaponLevel||1);return {ore:Math.min(4,1+Math.floor((lv-1)/15)),gold:150+lv*45+Math.floor(lv/10)*200};}
+function weaponUpgradeCost(i){const cd=charData[i]||{},lv=Math.max(1,cd.weaponLevel||1);if(isProtagonist(i))return {ore:0,gold:0};const tier=Math.floor((lv-1)/10);return {ore:Math.min(10,1+Math.floor((lv-1)/6)),gold:Math.floor(180+lv*62+lv*lv*2.35+tier*360)};}
 function weaponCostGold(i){ return weaponUpgradeCost(i).gold; }
 function weaponMaxLevel(i){ return 60; }
 function weaponCanUpgrade(i){ if(isProtagonist(i)) return false; const cd=charData[i]||{}; return owned[i] && (cd.weaponLevel||1)<weaponMaxLevel(i); }
