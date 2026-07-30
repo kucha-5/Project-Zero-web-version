@@ -8,16 +8,25 @@
   let board=[],selected=null,dragging=false,dragOrigin=null,moves=25,score=0,status="playing",message="",combo=0,bestCombo=0;
   let mode="campaign",stage=1,target=2200,popFx=[],boardKick=0,stageUnlocked=1;
   let idleFrames=0,hintPair=null,lastPower="";
-  let rewards={campaign:{},endless:{}};
+  let rewards={campaign:{},endless:{},pending:[]},rewardPopup=false;
   const ENDLESS_REWARDS=[{score:2500,crystals:100},{score:6000,crystals:200},{score:12000,crystals:300},{score:22000,crystals:400}];
 
   function progressKey(){const ns=browser.getProjectZeroSaveNamespace?browser.getProjectZeroSaveNamespace():"guest";return ns+"_match3_progress";}
   function saveProgress(){try{browser.localStorage.setItem(progressKey(),JSON.stringify({stageUnlocked,rewards}));if(host&&typeof host.safeSaveGame==="function")host.safeSaveGame();}catch(e){}}
-  function loadProgress(){try{const raw=browser.localStorage.getItem(progressKey());const parsed=raw&&raw.trim().startsWith("{")?JSON.parse(raw):null;stageUnlocked=Math.max(1,Math.min(MAX_STAGE,parsed?Number(parsed.stageUnlocked)||1:Number(raw)||1));rewards=parsed&&parsed.rewards?parsed.rewards:{campaign:{},endless:{}};rewards.campaign=rewards.campaign||{};rewards.endless=rewards.endless||{};}catch(e){stageUnlocked=1;rewards={campaign:{},endless:{}};}}
+  function loadProgress(){try{const raw=browser.localStorage.getItem(progressKey());const parsed=raw&&raw.trim().startsWith("{")?JSON.parse(raw):null;stageUnlocked=Math.max(1,Math.min(MAX_STAGE,parsed?Number(parsed.stageUnlocked)||1:Number(raw)||1));rewards=parsed&&parsed.rewards?parsed.rewards:{campaign:{},endless:{},pending:[]};rewards.campaign=rewards.campaign||{};rewards.endless=rewards.endless||{};rewards.pending=Array.isArray(rewards.pending)?rewards.pending:[];}catch(e){stageUnlocked=1;rewards={campaign:{},endless:{},pending:[]};}}
   function grantCrystal(amount,label){if(amount<=0)return;if(typeof browser.grantExactEventCrystals==="function")browser.grantExactEventCrystals(amount);message=(host.language==="en"?label+" · Crystal +":label+" · 水晶 +")+amount;host.sfx("reward");saveProgress();}
+  function queueReward(key,kind,index,crystals,label){
+    if(rewards.pending.some(v=>v.key===key))return;
+    rewards.pending.push({key,kind,index,crystals,label});rewardPopup=true;saveProgress();
+  }
+  function claimPendingReward(){
+    const pending=rewards.pending.shift();if(!pending)return;
+    if(pending.kind==="campaign")rewards.campaign[pending.index]=true;else rewards.endless[pending.index]=true;
+    grantCrystal(pending.crystals,pending.label);rewardPopup=rewards.pending.length>0;saveProgress();
+  }
   function checkRewards(){
-    if(mode==="campaign"&&status==="clear"&&!rewards.campaign[stage]){rewards.campaign[stage]=true;grantCrystal(100,host.language==="en"?"FIRST CLEAR":"首通奖励");}
-    if(mode==="endless") for(let i=0;i<ENDLESS_REWARDS.length;i++){const r=ENDLESS_REWARDS[i];if(score>=r.score&&!rewards.endless[i]){rewards.endless[i]=true;grantCrystal(r.crystals,host.language==="en"?"MILESTONE":"无尽里程碑");}}
+    if(mode==="campaign"&&status==="clear"&&!rewards.campaign[stage])queueReward("c"+stage,"campaign",stage,100,host.language==="en"?"FIRST CLEAR":"首通奖励");
+    if(mode==="endless") for(let i=0;i<ENDLESS_REWARDS.length;i++){const r=ENDLESS_REWARDS[i];if(score>=r.score&&!rewards.endless[i])queueReward("e"+i,"endless",i,r.crystals,host.language==="en"?"MILESTONE":"无尽里程碑");}
   }
   function stageTarget(n){return 1800+n*500+Math.floor(n/5)*300;}
   function stageMoves(n){return Math.max(18,27-Math.floor((n-1)/3));}
@@ -116,6 +125,12 @@
     if(status==="playing"&&!dragging){idleFrames+=1;if(idleFrames===300)hintPair=findPossibleMove();}
     if(host.justPressed("escape")){host.gameMode="event";host.eventTab="match3";host.clicked=false;return;}
     if(!host.clicked)return;
+    if(rewardPopup){
+      if(host.inRect(430,430,260,50)){claimPendingReward();host.clicked=false;return;}
+      if(host.inRect(707,190,44,44)){rewardPopup=false;host.clicked=false;return;}
+      host.clicked=false;return;
+    }
+    if(host.inRect(1024,534,62,62)){rewardPopup=true;host.clicked=false;return;}
     if(host.inRect(42,580,190,44)){host.gameMode="event";host.eventTab="match3";host.clicked=false;return;}
     if(status==="clear"){
       if(host.inRect(810,492,220,48)){nextStage();host.clicked=false;return;}
@@ -157,6 +172,16 @@
     if(status==="clear"){host.drawBtn(stage>=MAX_STAGE?(host.language==="en"?"Replay Stage 1":"重新挑战"): (host.language==="en"?"Next Stage":"下一关"),"NEXT",810,492,220,48,true,"#ffe066");host.drawBtn(host.language==="en"?"Retry":"重新挑战","",810,548,220,40,true,"#fff");}
     else if(status==="failed")host.drawBtn(host.language==="en"?"Retry Stage":"重新挑战","",810,520,220,48,true,"#ffe066");
     host.drawBtn(host.language==="en"?"Back to Events":"返回活动","ESC",42,580,190,44,true,"#fff");
+    g.save();g.beginPath();g.roundRect(1024,534,62,62,14);g.fillStyle=rewards.pending.length?"rgba(255,224,102,.20)":"rgba(255,255,255,.07)";g.fill();g.strokeStyle=rewards.pending.length?"#ffe066":"rgba(255,255,255,.20)";g.lineWidth=2;g.stroke();g.fillStyle="#fff";g.font="30px Arial";g.textAlign="center";g.fillText("🎁",1055,576);if(rewards.pending.length){g.fillStyle="#ff536f";g.beginPath();g.arc(1075,543,10,0,Math.PI*2);g.fill();g.fillStyle="#fff";g.font="bold 10px Arial";g.fillText(String(rewards.pending.length),1075,547);}g.restore();
+    if(rewardPopup){
+      g.fillStyle="rgba(0,0,0,.76)";g.fillRect(0,0,W,H);g.beginPath();g.roundRect(370,170,380,330,18);g.fillStyle="rgba(14,21,38,.99)";g.fill();g.strokeStyle="#ffe066";g.lineWidth=2;g.stroke();
+      g.fillStyle="#fff";g.font="bold 26px "+host.FONT_UI;g.textAlign="left";g.fillText(host.language==="en"?"Event Rewards":"活动奖励",410,220);
+      g.fillStyle="rgba(255,255,255,.55)";g.font="13px "+host.FONT_UI;g.fillText(host.language==="en"?"Claim earned Crystal rewards here.":"在这里领取已经达成的水晶奖励。",410,248);
+      const p=rewards.pending[0];g.fillStyle="rgba(255,224,102,.08)";g.fillRect(410,280,300,105);g.strokeStyle="rgba(255,224,102,.30)";g.strokeRect(410,280,300,105);
+      g.fillStyle=p?"#ffe066":"rgba(255,255,255,.35)";g.font="bold 38px Arial";g.fillText(p?("◆ "+p.crystals):(host.language==="en"?"ALL CLAIMED":"已全部领取"),445,345);
+      host.drawBtn(p?(host.language==="en"?"Claim Reward":"领取奖励"):(host.language==="en"?"No Reward":"暂无奖励"),"",430,430,260,50,!!p,"#ffe066");
+      host.drawBtn("×","",707,190,44,44,false,"#fff");
+    }
   }
   browser.PZMatch3={start,update,draw,pointerDown,pointerMove,pointerUp,rewardSummary:()=>({campaign:Object.keys(rewards.campaign||{}).length,endless:Object.keys(rewards.endless||{}).length,total:3000})};
 })(window);

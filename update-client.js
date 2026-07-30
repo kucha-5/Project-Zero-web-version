@@ -2,7 +2,7 @@
   "use strict";
 
   const VERSION_URL="version.json";
-  const LOCAL_VERSION="49.18.9";
+  const LOCAL_VERSION="49.18.13";
   const FILE_RUNTIME=location.protocol==="file:";
   const BUILD_KEY="pz_runtime_build";
   const VERSION_KEY="pz_runtime_version";

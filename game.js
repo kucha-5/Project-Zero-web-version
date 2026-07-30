@@ -14,7 +14,7 @@
 
 // Build info for quick debugging
 window.PZ_BUILD_INFO = window.PZ_BUILD_INFO || {
-  build: "V49_18_FEATURE_GATES_SHOP_OPEN",
+  build: "V49_18_11_COMMERCIAL_SYSTEMS",
   storyModule: true,
   optimized: true
 };
@@ -403,10 +403,10 @@ const LANG_CORE = I18N_RES.LANG_CORE || {
     qUltUpgrade:"Q大招强化  Lv.",
     shopSubtitle:"执行官、武器与资源中心",
     floraPriceLow:"水晶不足：芙洛拉需要4100水晶",
-    recruitFloraFirst:"请先招募芙洛拉",
+    recruitFloraFirst:"武器可独立购买，无需先获得对应角色",
     everwinterOwned:"永冬之歌已拥有",
     everwinterBought:"购买成功：永冬之歌",
-    everwinterLow:"水晶不足：永冬之歌需要888水晶",
+    everwinterLow:"水晶不足：永冬需要1100水晶",
     packDemo:"礼包为真钱购买内容，当前Demo仅展示。",
     supportDemo:"感谢支持开发。Demo中不会进行真实收费。",
     crystalGainPrefix:"水晶 +",
@@ -474,10 +474,10 @@ const LANG_CORE = I18N_RES.LANG_CORE || {
     qUltUpgrade:"Q Ultimate Upgrade Lv.",
     shopSubtitle:"Executors, weapons, and resources",
     floraPriceLow:"Not enough Crystals. Flora requires 4,100.",
-    recruitFloraFirst:"Recruit Flora first",
+    recruitFloraFirst:"Weapons can be purchased without owning their featured operator",
     everwinterOwned:"Song of Everwinter already owned",
     everwinterBought:"Purchased: Song of Everwinter",
-    everwinterLow:"Not enough Crystals. Song of Everwinter requires 888.",
+    everwinterLow:"Not enough Crystals. Everwinter requires 1,100.",
     packDemo:"Packs are real-money items. Demo display only.",
     supportDemo:"Thanks for supporting development. No real payment in this demo.",
     crystalGainPrefix:"Crystal +",
@@ -752,6 +752,10 @@ function sfx(name){
       tone(240,0.08,"sawtooth",0.08);
       tone(520,0.12,"triangle",0.06,0.04);
       noise(0.10,0.06,0.03);
+      break;
+    case "heal":
+      tone(620,0.10,"sine",0.035);
+      tone(920,0.14,"triangle",0.03,0.045);
       break;
     case "ultStart":
       tone(90,0.35,"sawtooth",0.05);
@@ -1290,6 +1294,10 @@ let settingsReturnMode = "lobby";
 const UI_LANGUAGE_PREFERENCE_KEY = "project_zero_ui_language";
 function readUiLanguagePreference(){
   try{
+    const launcherLanguage = new URLSearchParams(location.search).get("launcherLanguage");
+    if(launcherLanguage === "zh" || launcherLanguage === "en") return launcherLanguage;
+  }catch(e){}
+  try{
     const value = localStorage.getItem(UI_LANGUAGE_PREFERENCE_KEY);
     if(value === "zh" || value === "en") return value;
   }catch(e){}
@@ -1405,6 +1413,8 @@ let lobbyNoticeOpen = false;
 let lobbyNoticeCategory = 0;
 let lobbyNoticeSelected = 0;
 let lobbyCheckinOpen = false;
+let lobbyMonthlyCardPopupOpen = false;
+let lobbyDailyPopupHandled = false;
 let lobbyParallaxX = 0;
 let lobbyParallaxY = 0;
 let lobbyDialogueText = "";
@@ -1441,6 +1451,7 @@ let achievementNotice = "";
 let achievementNoticeTimer = 0;
 let achievementCheckCooldown = 0;
 let achievementMsg = "";
+let achievementCategory = "all";
 let totalKills = 0;
 let totalParries = 0;
 let totalChains = 0;
@@ -1529,7 +1540,7 @@ try{
     localStorage.setItem(GUEST_SAVE_KEY, localStorage.getItem(LEGACY_SAVE_KEY));
   }
 }catch(e){}
-const SAVE_VERSION = 56;
+const SAVE_VERSION = 57;
 const SAVE_BACKUP_SUFFIX = "_backup_";
 const SAVE_TEMP_SUFFIX = "_writing";
 let saveCooldown = 0;
@@ -2568,8 +2579,9 @@ function resetRuntimeDefaults(){
   combatRank = "D";
   stylishScore = 0;
 
-  // Starter roster: Kane, Ailo, Nox and the protagonist. Flora remains locked.
-  owned = [true,true,true,false,true,false];
+  // Starter roster: Kane, Ailo and the protagonist. Nox is an S-rank
+  // permanent recruit; Chloe is never granted automatically.
+  owned = [true,true,false,false,true,false];
   cleared = {};
   charData = roles.map((r,i)=>({
     level:1,
@@ -2578,7 +2590,8 @@ function resetRuntimeDefaults(){
     skill:1,
     ultimate:1,
     weaponLevel:1,
-    weapon:["烈阳之刃","风语法典","终夜双刃","霜月长枪","灰白核心刃","拉文德"][i]
+    weapon:["训练剑","训练长枪","训练双刃","训练法器","灰白核心刃","训练法器"][i],
+    equippedWeaponId:["training_sword","training_spear","training_dual","training_codex","gray_core_blade","training_codex"][i]
   }));
 
   ownedWeapons = {flora:false};
@@ -2624,8 +2637,8 @@ function resetRuntimeDefaults(){
   weaponOre = 5;
   skillBooks = 6;
   skillMaterials = {normal:6,skill:4,ultimate:2};
-  owned = [true,true,true,false,true,false];
-  charData = roles.map((r,i)=>({level:1,skillPoints:0,normal:1,skill:1,ultimate:1,weaponLevel:1,weapon:["烈阳之刃","风语法典","终夜双刃","霜月长枪","灰白核心刃","拉文德"][i]}));
+  owned = [true,true,false,false,true,false];
+  charData = roles.map((r,i)=>({level:1,skillPoints:0,normal:1,skill:1,ultimate:1,weaponLevel:1,weapon:["训练剑","训练长枪","训练双刃","训练法器","灰白核心刃","训练法器"][i],equippedWeaponId:["training_sword","training_spear","training_dual","training_codex","gray_core_blade","training_codex"][i]}));
   cleared = {};
   achievements = {};
   totalKills = 0; totalParries = 0; totalChains = 0; totalBossKills = 0;
@@ -2660,10 +2673,9 @@ function resetRuntimeDefaults(){
     for(const r of levelRewards) r.claimed = false;
   }
 
-  // The protagonist is always the initially controlled executor outside the
-  // scripted tutorial assist. Ailo and Nox are immediately available.
-  team = [PROTAGONIST_ROLE,1,2];
-  teamPresets = [[PROTAGONIST_ROLE,1,2],[PROTAGONIST_ROLE],[0,2],[1,2]];
+  // The protagonist is always initially controlled. Nox must be recruited.
+  team = [PROTAGONIST_ROLE,0,1];
+  teamPresets = [[PROTAGONIST_ROLE,0,1],[PROTAGONIST_ROLE],[0,1],[PROTAGONIST_ROLE,0]];
   teamPresetNames = ["","","",""];
   teamSelectSlot = 0;
   packMsg = msg("packDefault");
@@ -2852,8 +2864,8 @@ function migrateSaveData(d){
   addMissing("battleManualDailyClaimed", {key:"",tasks:{},page:false});
   addMissing("mailDeleted", false);
   addMissing("projectAreaCleared", false);
-  addMissing("team", [PROTAGONIST_ROLE,1,2]);
-  addMissing("teamPresets", [[PROTAGONIST_ROLE,1,2],[PROTAGONIST_ROLE],[0,2],[1,2]]);
+  addMissing("team", [PROTAGONIST_ROLE,0,1]);
+  addMissing("teamPresets", [[PROTAGONIST_ROLE,0,1],[PROTAGONIST_ROLE],[0,1],[PROTAGONIST_ROLE,0]]);
   addMissing("teamPresetNames", ["","","",""]);
   addMissing("lobbyBackgroundTheme", "raven");
   addMissing("crystalModuleInventory", []);
@@ -2864,13 +2876,22 @@ function migrateSaveData(d){
   addMissing("externalProgress", {});
   addMissing("battleResume", null);
   addMissing("saveRevision", 0);
-  // V54 repairs profiles created by builds that accidentally omitted Ailo or
-  // Nox from the starter roster. This changes ownership only; progression and
-  // upgrade data remain untouched.
-  if(!Array.isArray(d.owned)){ d.owned=[true,true,true,false,true,false]; changed=true; }
+  if(!Array.isArray(d.owned)){ d.owned=[true,true,false,false,true,false]; changed=true; }
   while(d.owned.length<6){ d.owned.push(false); changed=true; }
-  for(const roleId of [0,1,2,PROTAGONIST_ROLE]){
+  for(const roleId of [0,1,PROTAGONIST_ROLE]){
     if(d.owned[roleId]!==true){ d.owned[roleId]=true; changed=true; }
+  }
+  // Correct the old automatic grants once. Nox and Chloe must be recruited.
+  if(fromVersion<57){
+    d.owned[2]=false;
+    d.owned[5]=false;
+    if(Array.isArray(d.team)) d.team=d.team.filter(v=>v!==2&&v!==5);
+    if(!d.team.length)d.team=[PROTAGONIST_ROLE];
+    if(Array.isArray(d.teamPresets)) d.teamPresets=d.teamPresets.map(p=>{
+      const clean=Array.isArray(p)?p.filter(v=>v!==2&&v!==5):[];
+      return clean.length?clean:[PROTAGONIST_ROLE];
+    });
+    changed=true;
   }
   // Equipment was removed from the game. Strip its obsolete save payload so
   // merged local/cloud saves cannot silently restore abandoned equipment data.
@@ -3547,8 +3568,8 @@ function protagonistInfoLine(){
 function roleName(i){
   if(isProtagonist(i)) return protagonistName();
   const names = {
-    zh:["凯恩","艾洛","诺克斯","芙洛拉","主角","丽莎"],
-    en:["Kane","Ailo","Nox","Flora","Protagonist","Lisa"]
+    zh:["凯恩","艾洛","诺克斯","芙洛拉","主角","克洛伊"],
+    en:["Kane","Ailo","Nox","Flora","Protagonist","Chloe"]
   };
   return (names[currentLang()] || names.zh)[i] || "";
 }
@@ -3636,7 +3657,7 @@ const roles = [
   {name:"诺克斯", element:"dark", color:"#b47cff", sub:"#ffffff", atk:[28,38,68], skill:92, speed:2.45, style:"暗系重炮", line:"无名之刃，撕裂终局。"},
   {name:"芙洛拉", element:"ice", color:"#88d8ff", sub:"#ffffff", atk:[16,20,42], skill:78, speed:3.0, style:"冰系法术", line:"霜影落下，万物静止。"},
   {name:"主角", element:"monochrome", color:"#dfe6ef", sub:"#313846", atk:[15,20,38], skill:72, speed:3.05, style:"单体输出", line:"灰白之间，斩开前路。"},
-  {name:"丽莎", element:"wind", color:"#bda7ff", sub:"#78f0c3", atk:[9,12,20], skill:58, speed:3.15, style:"风系辅助", line:"听见了吗？风正在回应。"}
+  {name:"克洛伊", element:"wind", color:"#bda7ff", sub:"#78f0c3", atk:[9,12,20], skill:58, speed:3.15, style:"风系治疗辅助", line:"别离开我的治疗范围。"}
 ];
 let owned = [true,true,true,false,true,false];
 let charData = roles.map((r,i)=>({
@@ -4149,8 +4170,10 @@ let protagonistBindings = [];
 let protagonistSweeps = [];
 let protagonistDomain = {active:false,life:0,max:180,tick:0,sweepIndex:0};
 let teamDamageAmpTimer = 0;
-let lisaTeamDamageAmpTimer = 0;
-let lisaSelfDamageAmpTimer = 0;
+let chloeElementDamageAmpTimer = 0;
+let chloeTrueDamageTimer = 0;
+let chloeHealingFields = [];
+let chloeAttackCharge = {active:false,dir:1,length:120,width:120};
 let kaneSigils = [];
 let noxDamageAmpTimer = 0;
 let windFields = [];
@@ -4728,7 +4751,17 @@ const ACHIEVEMENT_LIST = I18N_RES.ACHIEVEMENT_LIST || [
   {id:"crystal_collector", cat:"collection", crystals:220,
     zhName:"水晶收集者", enName:"Crystal Collector",
     zhDesc:"累计获得3000水晶。", enDesc:"Earn 3,000 Crystal in total.",
-    check:()=>totalCrystalsEarned>=3000}
+    check:()=>totalCrystalsEarned>=3000},
+  {id:"chapter1_clear",cat:"journey",crystals:420,zhName:"遗忘之地",enName:"The Forgotten Place",zhDesc:"完成第一章。",enDesc:"Complete Chapter 1.",check:()=>chapter1Complete()},
+  {id:"chapter2_clear",cat:"journey",crystals:520,zhName:"作出抉择",enName:"A Choice Made",zhDesc:"完成第二章。",enDesc:"Complete Chapter 2.",check:()=>storyChapterComplete(2)},
+  {id:"kills_100",cat:"combat",crystals:260,zhName:"百战记录",enName:"Hundred Encounters",zhDesc:"累计击败100名敌人。",enDesc:"Defeat 100 enemies.",check:()=>totalKills>=100},
+  {id:"parry_30",cat:"combat",crystals:240,zhName:"精准时机",enName:"Perfect Timing",zhDesc:"累计成功弹刀30次。",enDesc:"Perform 30 successful parries.",check:()=>totalParries>=30},
+  {id:"chain_30",cat:"combat",crystals:240,zhName:"战术连携",enName:"Tactical Chain",zhDesc:"累计触发30次连携。",enDesc:"Trigger 30 chain attacks.",check:()=>totalChains>=30},
+  {id:"boss_10",cat:"combat",crystals:360,zhName:"首领猎手",enName:"Boss Hunter",zhDesc:"累计击败10名首领。",enDesc:"Defeat 10 bosses.",check:()=>totalBossKills>=10},
+  {id:"gold_100k",cat:"collection",crystals:300,zhName:"资源调度",enName:"Resource Logistics",zhDesc:"累计获得100000金币。",enDesc:"Earn 100,000 Gold.",check:()=>totalGoldEarned>=100000},
+  {id:"crystal_10k",cat:"collection",crystals:360,zhName:"晶体档案",enName:"Crystal Archive",zhDesc:"累计获得10000水晶。",enDesc:"Earn 10,000 Crystal.",check:()=>totalCrystalsEarned>=10000},
+  {id:"operators_4",cat:"collection",crystals:260,zhName:"小队扩编",enName:"Expanded Roster",zhDesc:"拥有4名执行官。",enDesc:"Own 4 operators.",check:()=>owned.filter(Boolean).length>=4},
+  {id:"weapons_4",cat:"collection",crystals:260,zhName:"武器整备",enName:"Armory Ready",zhDesc:"拥有4件非训练武器。",enDesc:"Own 4 non-training weapons.",check:()=>{ensureWeaponBag();return weaponInventory.filter(v=>v.owned&&!String(v.id).startsWith("training_")).length>=4;}}
 ];
 
 function achievementName(a){ return language==="en" ? a.enName : a.zhName; }
@@ -4783,6 +4816,22 @@ function claimAchievement(id){
   saveGame(); autoCloudSaveNow(true);
 }
 
+function claimAllAchievements(){
+  let count=0,total=0;
+  for(const a of ACHIEVEMENT_LIST){
+    const st=achievements[a.id];
+    if(st&&st.unlocked&&!st.claimed){
+      st.claimed=true;
+      const granted=grantFreeCrystals(a.crystals);
+      total+=granted;count++;
+    }
+  }
+  achievementMsg=count
+    ? (language==="en"?`Claimed ${count} rewards · +${total} Crystal`:`已领取 ${count} 项奖励 · +${total} 水晶`)
+    : (language==="en"?"No rewards available.":"暂无可领取奖励。");
+  if(count){sfx("reward");saveGame();autoCloudSaveNow(true);}
+}
+
 function achievementProgressText(a){
   if(a.id==="ten_kills") return totalKills + "/10";
   if(a.id==="parry_5") return totalParries + "/5";
@@ -4793,6 +4842,16 @@ function achievementProgressText(a){
   if(a.id==="first_step") return (cleared[1]?1:0)+"/1";
   if(a.id==="chapter0_half") return [1,2,3,4,5].filter(i=>cleared[i]).length+"/5";
   if(a.id==="chapter0_clear") return [1,2,3,4,5,6,7,8,9,10,11].filter(i=>cleared[i]).length+"/11";
+  if(a.id==="chapter1_clear") return chapter1Complete()?"1/1":"0/1";
+  if(a.id==="chapter2_clear") return storyChapterComplete(2)?"1/1":"0/1";
+  if(a.id==="kills_100") return Math.min(totalKills,100)+"/100";
+  if(a.id==="parry_30") return Math.min(totalParries,30)+"/30";
+  if(a.id==="chain_30") return Math.min(totalChains,30)+"/30";
+  if(a.id==="boss_10") return Math.min(totalBossKills,10)+"/10";
+  if(a.id==="gold_100k") return Math.min(totalGoldEarned,100000)+"/100000";
+  if(a.id==="crystal_10k") return Math.min(totalCrystalsEarned,10000)+"/10000";
+  if(a.id==="operators_4") return Math.min(owned.filter(Boolean).length,4)+"/4";
+  if(a.id==="weapons_4"){ensureWeaponBag();return Math.min(weaponInventory.filter(v=>v.owned&&!String(v.id).startsWith("training_")).length,4)+"/4";}
   return "";
 }
 
@@ -4804,6 +4863,7 @@ function grantReward(pack){
   if(Number.isInteger(pack.roleId) && roles[pack.roleId]){
     while(owned.length<roles.length) owned.push(false);
     owned[pack.roleId]=true;
+    if(charData[pack.roleId]) charData[pack.roleId].equippedWeaponId=defaultWeaponIdForRole(pack.roleId);
     showActionPrompt((language==="en"?"Executor acquired: ":"获得执行官：")+roleName(pack.roleId),120);
   }
   if(pack.weaponId){
@@ -4838,7 +4898,7 @@ function rewardText(pack){
   if(pack.gold) arr.push((language==="en"?"Gold+":"金币+")+pack.gold);
   if(pack.expBooks) arr.push((language==="en"?"EXP Books+":"经验书+")+pack.expBooks);
   if(pack.ore) arr.push((language==="en"?"Weapon Ore+":"精炼合金+")+pack.ore);
-  if(Number.isInteger(pack.roleId)) arr.push(language==="en"?"Lisa":"丽莎");
+  if(Number.isInteger(pack.roleId)) arr.push(language==="en"?"Chloe":"克洛伊");
   if(pack.weaponId) arr.push(weaponNameById(pack.weaponId));
   return arr.join(" / ") || ui("claimed");
 }
@@ -4899,8 +4959,10 @@ function clearTransientBattleState(){
   protagonistSweeps=[];
   protagonistDomain={active:false,life:0,max:180,tick:0,sweepIndex:0};
   teamDamageAmpTimer=0;
-  lisaTeamDamageAmpTimer=0;
-  lisaSelfDamageAmpTimer=0;
+  chloeElementDamageAmpTimer=0;
+  chloeTrueDamageTimer=0;
+  chloeHealingFields=[];
+  chloeAttackCharge={active:false,dir:1,length:120,width:120};
   kaneSigils=[];
   noxDamageAmpTimer=0;
   windFields=[];
@@ -5079,6 +5141,7 @@ function damageCurrentRoleHp(amount, label="HIT", color="#ff5555"){
 function setBattleRole(newRole){
   // HP, skill energy and ultimate energy are all owned by each executor.
   saveCurrentRoleResources();
+  chloeAttackCharge.active=false;
   player.role = clamp(newRole, 0, roles.length-1);
   syncPlayerResourcesFromRole();
 }
@@ -5103,7 +5166,14 @@ function startBattle(){
 }
 function enterLobby(){
   releaseMobileButtons();
-  clearMobileMoveKeys(); clearTransientBattleState(); resetBattleSourceToMain(); gameMode="lobby"; lobbyDialogueText=""; scheduleNextLobbyDialogue(); notice=prologueDone && !lobbyGuideDone ? msg("lobbyGuide") : msg("defaultNotice"); }
+  clearMobileMoveKeys(); clearTransientBattleState(); resetBattleSourceToMain(); gameMode="lobby"; lobbyDialogueText=""; scheduleNextLobbyDialogue(); notice=prologueDone && !lobbyGuideDone ? msg("lobbyGuide") : msg("defaultNotice");
+  if(!lobbyDailyPopupHandled){
+    lobbyDailyPopupHandled=true;
+    normalizeMonthlyLoginCheckin();
+    if(monthlyCheckinCanSign()){lobbyCheckinOpen=true;monthlyCheckinMsg="";}
+    else if(canClaimMonthlyCard()) lobbyMonthlyCardPopupOpen=true;
+  }
+}
 function enterOperation(){ clearTransientBattleState(); resetBattleSourceToMain(); gameMode="operation"; selectedTab="main"; mainChapterView="chapters"; operationDetailVisible=false; }
 function enterStory(id){ if(selectedTab==="main") resetBattleSourceToMain(); rebuildStoryScripts(); selectedStage=id; currentStory=storyScripts[id] || [[mt("storyFallbackSpeaker"),mt("storyFallbackText")]]; storyIndex=0; gameMode="story"; }
 
@@ -5432,61 +5502,114 @@ function updateAiloCombatEffects(){
   }
 }
 
-function lisaAttack(){
-  if(player.attackCd>0 || attackInputLock>0 || ult.active) return;
-  const aim=getAimPoint(480),dir=aim.y>=player.y?1:-1,len=clamp(Math.abs(aim.y-player.y),150,430),halfW=48;
-  player.attackCd=44;attackInputLock=20;player.facing=aim.x>=player.x?1:-1;
+function beginChloeAttackCharge(){
+  if(player.role!==5 || chloeAttackCharge.active || player.attackCd>0 || attackInputLock>0 || ult.active) return false;
+  chloeAttackCharge={active:true,dir:mouseY>=player.y?1:-1,length:120,width:120};
+  attackBuffer=0;
+  return true;
+}
+
+function updateChloeAttackCharge(){
+  if(!chloeAttackCharge.active) return;
+  if(player.role!==5 || ult.active || battlePaused){
+    chloeAttackCharge.active=false;
+    return;
+  }
+  chloeAttackCharge.dir=mouseY>=player.y?1:-1;
+  chloeAttackCharge.length=clamp(Math.abs(mouseY-player.y),120,430);
+  if(!mouseDown) releaseChloeAttack();
+}
+
+function releaseChloeAttack(){
+  if(!chloeAttackCharge.active) return;
+  const dir=chloeAttackCharge.dir;
+  const len=chloeAttackCharge.length;
+  const halfW=chloeAttackCharge.width*.5;
+  chloeAttackCharge.active=false;
+  player.attackCd=44;attackInputLock=20;
   const cy=player.y+dir*len*.5;
-  addBladeTrail(player.x-halfW,player.y,player.x+halfW,player.y+dir*len,"#bda7ff",22,18,"windSkill");
-  addSlash(player.x,cy,Math.max(90,len*.55),"#78f0c3",20,"windField");
+  addBladeTrail(player.x-halfW,player.y,player.x+halfW,player.y+dir*len,"#bda7ff",24,18,"windSkill");
+  addSlash(player.x,cy,Math.max(90,len*.48),"#78f0c3",18,"windField");
   for(const e of enemies){
-    if(!e.alive)continue;
+    if(!e.alive) continue;
     const insideX=Math.abs(e.x-player.x)<=halfW+e.r;
     const rel=(e.y-player.y)*dir;
-    if(insideX&&rel>=-e.r&&rel<=len+e.r){e.weathering=Math.max(e.weathering||0,300);hitEnemy(e,panelDamage(5,.68,"normal",Math.random()*9)*windDamageScale(e,5),4,panelShieldDamage(5,15,"normal"),"#bda7ff","WEATHERING");}
+    if(insideX&&rel>=-e.r&&rel<=len+e.r){
+      e.weathering=Math.max(e.weathering||0,300);
+      hitEnemy(e,panelDamage(5,.68,"normal",Math.random()*9)*windDamageScale(e,5),4,panelShieldDamage(5,15,"normal"),"#bda7ff","WEATHERING");
+    }
   }
-  addText(player.x,player.y+dir*len,language==="en"?"LENGTH "+Math.round(len):"攻击长度 "+Math.round(len),"#bda7ff",false);sfx("skill");doShake(5);
+  addText(player.x,player.y+dir*len,language==="en"?"RECTANGLE "+Math.round(len):"矩形范围 "+Math.round(len),"#bda7ff",false);
+  sfx("skill");doShake(5);
+}
+
+function lisaAttack(){
+  beginChloeAttackCharge();
 }
 
 function lisaSkill(){
   const cost=58;
   if(player.skillCd>0||player.energy<cost||ult.active){if(player.energy<cost)showCenter(mt("notEnoughEnergy"),24);return;}
-  player.energy-=cost;player.skillCd=210;lisaTeamDamageAmpTimer=420;
-  ensureBattleRoleResources();
+  player.energy-=cost;player.skillCd=210;
   battleRoleEnergy[player.role]=player.energy;
-  for(const roleId of team){const max=roleMaxHpForBattle(roleId);battleRoleHp[roleId]=Math.max(1,Math.floor((battleRoleHp[roleId]||max)-max*.10));}
-  syncPlayerResourcesFromRole();
-  addSlash(player.x,player.y,230,"#bda7ff",30,"windSkill");addParticles(player.x,player.y,"#78f0c3",22,7);
-  showCenter(language==="en"?"LAVENDER PACT · DMG +10%":"薰风契约 · 全队增伤10%",65);sfx("skill");
+  const aim=getAimPoint(390);
+  chloeHealingFields.push({x:aim.x,y:aim.y,size:300,life:480,max:480,tick:0});
+  addSlash(aim.x,aim.y,215,"#bda7ff",28,"windSkill");addParticles(aim.x,aim.y,"#78f0c3",22,7);
+  showCenter(language==="en"?"CHLOE FIELD · HP +5/s":"克洛伊领域 · 每秒恢复5生命",65);sfx("skill");
+}
+
+function updateChloeCombatEffects(){
+  updateChloeAttackCharge();
+  for(const field of chloeHealingFields){
+    field.life-=frameScale;
+    field.tick-=frameScale;
+    const half=field.size*.5;
+    if(field.tick<=0 && Math.abs(player.x-field.x)<=half && Math.abs(player.y-field.y)<=half){
+      field.tick+=60;
+      const max=playerMaxHp(),before=player.hp;
+      player.hp=Math.min(max,player.hp+5);
+      if(player.hp>before){
+        saveCurrentRoleResources();
+        addText(player.x,player.y-42,"+5 HP","#78f0c3",false);
+        sfx("heal");
+      }
+    }
+  }
+  chloeHealingFields=chloeHealingFields.filter(field=>field.life>0);
 }
 
 function lisaUltimateResolve(){
   ensureBattleRoleResources();
-  for(const roleId of team)battleRoleHp[roleId]=Math.min(roleMaxHpForBattle(roleId),(battleRoleHp[roleId]||0)+30);
-  lisaSelfDamageAmpTimer=480;syncPlayerResourcesFromRole();
+  for(const roleId of team){
+    const max=roleMaxHpForBattle(roleId),current=battleRoleHp[roleId]||0;
+    if(current>0) battleRoleHp[roleId]=Math.min(max,current+Math.ceil(max*.20));
+  }
+  chloeElementDamageAmpTimer=480;
+  chloeTrueDamageTimer=480;
+  syncPlayerResourcesFromRole();
   addSlash(player.x,player.y,360,"#78f0c3",40,"windUltimate");addParticles(player.x,player.y,"#bda7ff",36,8);
-  addText(player.x,player.y-140,language==="en"?"LAVENDER RESTORATION · TEAM HP +30":"拉文德复苏 · 全队生命+30","#78f0c3",true);sfx("ultBoom");
+  addText(player.x,player.y-140,language==="en"?"TEAM HP +20% · ELEMENT +5% · TRUE +10%":"全队生命+20% · 元素伤害+5% · 真实伤害+10%","#78f0c3",true);sfx("ultBoom");
 }
 
 function noxAttack(){
   if(player.attackCd>0 || attackInputLock>0 || ult.active) return;
   applyNoxRuinAttackCost();
   const target=lockTarget&&lockTarget.alive?lockTarget:nearestEnemy();
-  player.attackCd=120;attackInputLock=38;
+  player.attackCd=132;attackInputLock=42;
   if(target) player.facing=target.x>=player.x?1:-1;
   const sx=player.x+player.facing*64;
   addSlash(sx,player.y,145,"#b47cff",30,"hit");
   addBladeTrail(player.x-player.facing*28,player.y-70,sx+player.facing*86,player.y+55,"#b47cff",28,20,"heavyTrail");
   for(const e of enemies){
-    if(e.alive&&withinDist(sx,player.y,e.x,e.y,132)) hitEnemy(e,panelDamage(2,2.20,"normal",Math.random()*30),28,panelShieldDamage(2,68,"normal"),"#b47cff","HEAVY HIT");
+    if(e.alive&&withinDist(sx,player.y,e.x,e.y,132)) hitEnemy(e,panelDamage(2,1.82,"normal",Math.random()*24),26,panelShieldDamage(2,58,"normal"),"#b47cff","HEAVY HIT");
   }
   sfx("slash3");doShake(15);doHitStop(4);
 }
 
 function noxSkill(){
-  const cost=85;
+  const cost=90;
   if(player.skillCd>0 || player.energy<cost || ult.active){
-    if(player.energy<cost) showCenter(language==="en"?"NOX REQUIRES 85 ENERGY":"诺克斯需要85点能量",28);
+    if(player.energy<cost) showCenter(language==="en"?"NOX REQUIRES 90 ENERGY":"诺克斯需要90点能量",28);
     return;
   }
   applyNoxRuinAttackCost();
@@ -5494,7 +5617,7 @@ function noxSkill(){
   addSlash(W/2,H/2+60,560,"#b47cff",42,"noxBlast");
   addSlash(W/2,H/2+60,390,"#ffffff",28,"noxBlast");
   addParticles(W/2,H/2+60,"#b47cff",38,10);
-  for(const e of enemies) if(e.alive) hitEnemy(e,panelDamage(2,4.00,"skill",Math.random()*62),18,panelShieldDamage(2,112,"skill"),"#b47cff","VOID BLAST");
+  for(const e of enemies) if(e.alive) hitEnemy(e,panelDamage(2,3.25,"skill",Math.random()*48),16,panelShieldDamage(2,94,"skill"),"#b47cff","VOID BLAST");
   addText(W/2,H*.27,language==="en"?"MAP-WIDE DETONATION":"全域爆破","#d9baff",true);
   sfx("ultBoom");doShake(25);doHitStop(6);flash=17;
 }
@@ -5507,7 +5630,7 @@ function noxUltimateResolve(){
   addSlash(W/2,H/2+60,620,"#b47cff",52,"noxUltimate");
   addSlash(W/2,H/2+60,430,"#15111f",38,"noxUltimate");
   addSlash(W/2,H/2+60,270,"#ffffff",30,"noxUltimate");
-  for(const e of enemies) if(e.alive) hitEnemy(e,panelDamage(2,5.70,"ultimate",Math.random()*85),26,panelShieldDamage(2,142,"ultimate"),"#b47cff","ANNIHILATION");
+  for(const e of enemies) if(e.alive) hitEnemy(e,panelDamage(2,4.55,"ultimate",Math.random()*68),24,panelShieldDamage(2,118,"ultimate"),"#b47cff","ANNIHILATION");
   addText(W/2,H*.24,language==="en"?"RUIN · DMG +20% · ATTACK HP COST":"毁灭状态 · 增伤20% · 攻击消耗生命","#d9baff",true);
   sfx("ultBoom");doShake(30);doHitStop(7);flash=22;
 }
@@ -5557,6 +5680,11 @@ function hitEnemy(e,dmg,knock=8,stunDmg=16,color="#fff",label=null){
   if(e.stun<=0) final*=1.3;
   final = Math.max(1, Math.floor(final));
   e.hp-=final;
+  if(chloeTrueDamageTimer>0){
+    const trueDamage=Math.max(1,Math.floor(Math.max(1,dmg)*.10));
+    e.hp-=trueDamage;
+    addText(e.x,e.y-e.r-56,(language==="en"?"TRUE ":"真实 ")+trueDamage,"#e2c8ff",false);
+  }
   if(e.trainingDummy) e.hp=e.maxHp;
   const effectiveStunDmg = Math.min(stunDmg, e.boss ? 42 : 34);
   e.stun -= effectiveStunDmg;
@@ -5675,8 +5803,7 @@ function panelDamage(roleId, multiplier, kind="normal", randomBonus=0){
   const modules=roleModuleTotals(roleId);
   let setScale=1;
   if(teamDamageAmpTimer>0) setScale+=.18;
-  if(lisaTeamDamageAmpTimer>0) setScale+=.10;
-  if(roleId===5 && lisaSelfDamageAmpTimer>0) setScale+=.05;
+  if(chloeElementDamageAmpTimer>0 && roles[roleId] && roles[roleId].element!=="physical") setScale+=.05;
   if(roleId===0 && kaneSigils.some(s=>s.life>0)) setScale+=.05;
   if(roleId===2 && noxDamageAmpTimer>0) setScale+=.20;
   if(kind==="skill") setScale+=modules.skillDamagePct||0;
@@ -7375,8 +7502,8 @@ function uiGuidePick(v){ return v ? (language === "en" ? (v.en || v.zh || "") : 
 
 function ensureStarterRoster(){
   while(owned.length < roles.length) owned.push(false);
-  for(const roleId of [0,1,2,PROTAGONIST_ROLE]) owned[roleId] = true;
-  if(!Array.isArray(team) || team.length < 1) team = [PROTAGONIST_ROLE,1,2];
+  for(const roleId of [0,1,PROTAGONIST_ROLE]) owned[roleId] = true;
+  if(!Array.isArray(team) || team.length < 1) team = [PROTAGONIST_ROLE,0,1];
   if(!owned[team[0]]) team[0] = PROTAGONIST_ROLE;
 }
 
@@ -7687,14 +7814,22 @@ function updateLobby(){
     return;
   }
   if(lobbyCheckinOpen){
-    if(justPressed("escape")){ lobbyCheckinOpen=false; clicked=false; return; }
+    if(justPressed("escape")){ lobbyCheckinOpen=false; lobbyMonthlyCardPopupOpen=canClaimMonthlyCard(); clicked=false; return; }
     if(clicked){
       // The visible close icon is centered at (1051,56). Use a generous,
       // symmetric hit target so canvas scaling never leaves half of it inert.
-      if(dist(mouseX,mouseY,1051,56)<=32 || inRect(1018,22,66,66)){ lobbyCheckinOpen=false; clicked=false; return; }
-      if(inRect(80,535,580,44)){ claimMonthlyCheckinDay(); clicked=false; return; }
+      if(dist(mouseX,mouseY,1051,56)<=32 || inRect(1018,22,66,66)){ lobbyCheckinOpen=false; lobbyMonthlyCardPopupOpen=canClaimMonthlyCard(); clicked=false; return; }
+      if(inRect(80,535,580,44)){ claimMonthlyCheckinDay(); lobbyMonthlyCardPopupOpen=canClaimMonthlyCard(); clicked=false; return; }
       const milestones=monthlyCheckinMilestones();
       for(let i=0;i<milestones.length;i++) if(inRect(938,175+i*50,76,30)){ claimMonthlyMilestone(milestones[i]); clicked=false; return; }
+    }
+    clicked=false;return;
+  }
+  if(lobbyMonthlyCardPopupOpen){
+    if(justPressed("escape")){lobbyMonthlyCardPopupOpen=false;clicked=false;return;}
+    if(clicked){
+      if(inRect(560,420,240,54)){claimMonthlyCardReward();lobbyMonthlyCardPopupOpen=false;clicked=false;return;}
+      if(inRect(790,140,44,44)||inRect(560,480,240,38)){lobbyMonthlyCardPopupOpen=false;clicked=false;return;}
     }
     clicked=false;return;
   }
@@ -7803,10 +7938,11 @@ function claimMonthlyCardReward(){
     shopMsg = msg("monthlyClaimed");
     return;
   }
-  const granted=grantFreeCrystals(150);
+  const granted=grantFreeCrystals(90);
+  dungeonStamina=Math.min(9999,dungeonStamina+30);
   monthlyClaimDate = currentDateKey();
   monthlyClaimed = true;
-  shopMsg = (language==="en"?"Claimed: +":"领取成功：+")+granted+(language==="en"?" Crystal":"水晶");
+  shopMsg = (language==="en"?"Claimed: +":"领取成功：+")+granted+(language==="en"?" Crystal · +30 Stamina":"水晶 · 体力 +30");
   sfx("reward");
   saveGame();
   autoCloudSaveNow && autoCloudSaveNow(true);
@@ -8460,13 +8596,13 @@ const CRYSTAL_EXCHANGE_ITEMS=[
   {id:"stamina",cost:90,max:2,zh:"体力补给",en:"Stamina Supply",descZh:"40 点副本体力",descEn:"40 Dungeon Stamina",apply(){dungeonStamina=Math.min(9999,dungeonStamina+40);}}
 ];
 const SHOP_PACKS=[
-  {id:"starter",cat:1,accent:"#7cffb2",zh:"启程补给",en:"Starter Supply",descZh:"经验书×8 · 金币×8000 · 水晶×180",descEn:"EXP ×8 · Gold ×8,000 · Crystal ×180",price:"$2.99",limitZh:"永久限购1次",limitEn:"ONE-TIME"},
-  {id:"tactical",cat:2,accent:"#ff8d72",zh:"战术支援",en:"Tactical Support",descZh:"武器素材×5 · 经验书×6 · 水晶×360",descEn:"Ore ×5 · EXP ×6 · Crystal ×360",price:"$7.99",limitZh:"限时限购1次",limitEn:"LIMITED · 1"},
+  {id:"starter",cat:1,accent:"#7cffb2",zh:"启程补给",en:"Starter Supply",descZh:"经验书×8 · 金币×8000 · 水晶×180",descEn:"EXP ×8 · Gold ×8,000 · Crystal ×180",price:"$0.99",limitZh:"永久限购1次",limitEn:"ONE-TIME"},
+  {id:"tactical",cat:2,accent:"#ff8d72",zh:"战术支援",en:"Tactical Support",descZh:"武器素材×8 · 经验书×12 · 水晶×720",descEn:"Ore ×8 · EXP ×12 · Crystal ×720",price:"$9.99",limitZh:"限时限购1次",limitEn:"LIMITED · 1"},
   {id:"field",cat:3,accent:"#7cc7ff",zh:"野外资源",en:"Field Resources",descZh:"金币×12000 · 体力×40",descEn:"Gold ×12,000 · Stamina ×40",limitZh:"每周限购",limitEn:"WEEKLY"},
-  {id:"growth",cat:4,accent:"#c58cff",zh:"成长档案",en:"Growth Archive",descZh:"经验书×15 · 武器素材×6 · 水晶×680",descEn:"EXP ×15 · Ore ×6 · Crystal ×680",price:"$12.99",limitZh:"每月限购",limitEn:"MONTHLY"},
+  {id:"growth",cat:4,accent:"#c58cff",zh:"成长档案",en:"Growth Archive",descZh:"经验书×24 · 武器素材×10 · 水晶×1280",descEn:"EXP ×24 · Ore ×10 · Crystal ×1,280",price:"$19.99",limitZh:"每月限购",limitEn:"MONTHLY"},
   {id:"module",cat:2,accent:"#72e1ff",zh:"模块支援",en:"Module Support",descZh:"模块副本入场券×3",descEn:"Module Entry Ticket ×3",limitZh:"限时限购1次",limitEn:"LIMITED · 1"},
   {id:"reserve",cat:3,accent:"#ffe066",zh:"作战储备",en:"Operation Reserve",descZh:"体力×80 · 金币×5000",descEn:"Stamina ×80 · Gold ×5,000",limitZh:"每周限购",limitEn:"WEEKLY"},
-  {id:"monthly_exp",cat:4,accent:"#8fa8ff",zh:"月度经验补给",en:"Monthly EXP Supply",descZh:"经验书×24 · 金币×10000 · 水晶×980",descEn:"EXP ×24 · Gold ×10,000 · Crystal ×980",price:"$19.99",limitZh:"每月限购",limitEn:"MONTHLY"},
+  {id:"monthly_exp",cat:4,accent:"#8fa8ff",zh:"月度经验补给",en:"Monthly EXP Supply",descZh:"经验书×40 · 金币×30000 · 水晶×1880",descEn:"EXP ×40 · Gold ×30,000 · Crystal ×1,880",price:"$29.99",limitZh:"每月限购",limitEn:"MONTHLY"},
   {id:"standard",cat:1,accent:"#d8e1ec",zh:"标准启程包",en:"Standard Starter Pack",descZh:"体力×40 · 经验书×5",descEn:"Stamina ×40 · EXP ×5",limitZh:"永久限购1次",limitEn:"ONE-TIME"}
 ];
 function crystalTopupCardRect(i){return{x:48+i*174,y:215,w:156,h:318};}
@@ -8532,7 +8668,7 @@ function updateShop(){
           if(inRect(x,y,230,185)){
             const it=items[n];
             if(owned[it.i]) shopMsg=roleName(it.i)+mt("alreadyOwnedSuffix");
-            else if(crystals>=it.price){ crystals-=it.price; owned[it.i]=true; shopMsg=roleName(it.i)+mt("recruitedSuffix"); sfx("buy"); saveGame(); autoCloudSaveNow(true); }
+            else if(crystals>=it.price){ crystals-=it.price; owned[it.i]=true; if(charData[it.i])charData[it.i].equippedWeaponId=defaultWeaponIdForRole(it.i); shopMsg=roleName(it.i)+mt("recruitedSuffix"); sfx("buy"); saveGame(); autoCloudSaveNow(true); }
             else shopMsg=mt("notEnoughCrystal");
           }
         }
@@ -8542,27 +8678,37 @@ function updateShop(){
 
     if(shopTab==="weapon"){
       if(shopSubTab==="limited" && inRect(845,410,175,42)){
-        if(!owned[3]) shopMsg=tx("recruitFloraFirst");
-        else if(ownedWeapons.flora) shopMsg=tx("everwinterOwned");
-        else if(crystals>=888){ crystals-=888; ownedWeapons.flora=true; shopMsg=tx("everwinterBought"); sfx("buy"); saveGame(); autoCloudSaveNow(true); }
+        ensureWeaponBag();
+        const everwinter=weaponInventory.find(v=>v.id==="everwinter_codex");
+        if(everwinter&&everwinter.owned) shopMsg=tx("everwinterOwned");
+        else if(crystals>=1100){ crystals-=1100; if(everwinter)everwinter.owned=true; ownedWeapons.flora=true; shopMsg=tx("everwinterBought"); sfx("buy"); saveGame(); autoCloudSaveNow(true); }
         else shopMsg=tx("everwinterLow");
       }
       if(shopSubTab==="permanent"){
-        for(let n=0;n<WEAPON_MASTER.length;n++){
+        const catalog=permanentWeaponCatalog();
+        for(let n=0;n<catalog.length;n++){
           const col=n%4,row=Math.floor(n/4),cx=70+col*245,cy=366+row*68;
-          if(inRect(cx,cy,230,58)){shopWeaponSelectedId=WEAPON_MASTER[n].id;shopMsg=language==="en"?"Weapon details selected.":"已切换武器详情。";break;}
+          if(inRect(cx,cy,230,58)){shopWeaponSelectedId=catalog[n].id;shopMsg=language==="en"?"Weapon details selected.":"已切换武器详情。";break;}
+        }
+        const selected=weaponData(shopWeaponSelectedId),item=weaponInventory.find(v=>v.id===selected.id);
+        if(selected.price>0&&!item?.owned&&inRect(840,292,180,42)){
+          if(crystals<selected.price) shopMsg=mt("notEnoughCrystal");
+          else{crystals-=selected.price;item.owned=true;shopMsg=(language==="en"?"Purchased: ":"购买成功：")+weaponNameById(selected.id);sfx("buy");saveGame();autoCloudSaveNow(true);}
         }
       }
     }
 
 
     if(shopTab==="monthly"){
-      if(inRect(80,240,420,210)){
-        if(monthlyOwned) shopMsg=msg("monthlyOwned");
-        else { monthlyOwned=true; monthlyClaimed=false; monthlyClaimDate=""; shopMsg=msg("monthlyBought"); sfx("buy"); saveGame(); autoCloudSaveNow(true); }
-      }
-      if(inRect(540,290,260,92)){
-        claimMonthlyCardReward();
+      if(inRect(570,305,240,72)){
+        if(!monthlyOwned){
+          monthlyOwned=true; monthlyClaimed=false; monthlyClaimDate="";
+          grantFreeCrystals(300);
+          shopMsg=(language==="en"?"Monthly card activated · Crystal +300":"月卡已开启 · 水晶 +300");
+          sfx("buy"); saveGame(); autoCloudSaveNow(true);
+        }else{
+          claimMonthlyCardReward();
+        }
       }
     }
 
@@ -8593,7 +8739,7 @@ function updateBattle(){
     return;
   }
   if(justPressed("escape") || (clicked&&inRect(W-72,18,50,44))){
-    battlePaused=true;clicked=false;mouseDown=false;mouseAttackConsumed=false;
+    battlePaused=true;clicked=false;mouseDown=false;mouseAttackConsumed=false;chloeAttackCharge.active=false;
     return;
   }
   if(battleModeSource==="commission"){
@@ -8608,6 +8754,7 @@ function updateBattle(){
   updateProtagonistCombatEffects();
   updateKaneCombatEffects();
   updateAiloCombatEffects();
+  updateChloeCombatEffects();
   if(hitStop>0){ hitStop -= fpsScale(); updateEffects(); return; }
   if(ult.active){ ult.timer++; if(ult.timer===48&&!ult.hitDone){ult.hitDone=true; resolveUltimate();} if(ult.timer>=96)ult.active=false; updateEffects(); return; }
   updateProjectiles();
@@ -8637,7 +8784,11 @@ function updateBattle(){
   }
 
   const attackPressed = mouseDown && !mouseAttackConsumed;
-  if(attackPressed){ if(player.attackCd<=6) attackBuffer=10; mouseAttackConsumed=true; }
+  if(attackPressed){
+    if(player.role===5) beginChloeAttackCharge();
+    else if(player.attackCd<=6) attackBuffer=10;
+    mouseAttackConsumed=true;
+  }
   if(attackBuffer>0 && chainReady){ chainAttack(); attackBuffer=0; }
   else if(attackBuffer>0 && player.attackCd<=0 && attackInputLock<=0){ attack(); attackBuffer=0; } if(justPressed("e")) skillBuffer=10;
   if(justPressed("q")) ultBuffer=10;
@@ -8655,7 +8806,7 @@ function updateBattle(){
   if(dx||dy){ const l=Math.hypot(dx,dy); dx/=l; dy/=l; player.vx+=dx*role.speed*MOVE_SPEED_MULT*.35*frameScale; player.vy+=dy*role.speed*MOVE_SPEED_MULT*.35*frameScale; if(Math.abs(dx)>.1)player.facing=dx>0?1:-1; }
   if(lockTarget&&lockTarget.alive) player.facing=lockTarget.x>player.x?1:-1; else if(lockTarget&&!lockTarget.alive) lockTarget=null;
   const slow=slowMo>0?.45:1; player.x+=player.vx*slow*frameScale; player.y+=player.vy*slow*frameScale; player.vx*=Math.pow(.82,frameScale); player.vy*=Math.pow(.82,frameScale); player.x=clamp(player.x,35,W-35); player.y=clamp(player.y,105,H-35);
-  player.attackCd=Math.max(0,player.attackCd-frameScale); attackInputLock=Math.max(0,attackInputLock-frameScale); attackBuffer=Math.max(0,attackBuffer-frameScale); skillBuffer=Math.max(0,skillBuffer-frameScale); ultBuffer=Math.max(0,ultBuffer-frameScale); dashBuffer=Math.max(0,dashBuffer-frameScale); player.skillCd=Math.max(0,player.skillCd-frameScale); player.ultCd=Math.max(0,player.ultCd-frameScale); player.dashCd=Math.max(0,player.dashCd-frameScale); player.switchCd=Math.max(0,player.switchCd-frameScale); player.inv=Math.max(0,player.inv-frameScale); player.chainTimer=Math.max(0,player.chainTimer-frameScale); player.guardTimer=Math.max(0,player.guardTimer-frameScale); player.parryReady=Math.max(0,player.parryReady-frameScale); player.perfectBuff=Math.max(0,player.perfectBuff-frameScale); teamDamageAmpTimer=Math.max(0,teamDamageAmpTimer-frameScale); lisaTeamDamageAmpTimer=Math.max(0,lisaTeamDamageAmpTimer-frameScale); lisaSelfDamageAmpTimer=Math.max(0,lisaSelfDamageAmpTimer-frameScale); noxDamageAmpTimer=Math.max(0,noxDamageAmpTimer-frameScale); if(player.parryReady<=0)player.parryTarget=null;
+  player.attackCd=Math.max(0,player.attackCd-frameScale); attackInputLock=Math.max(0,attackInputLock-frameScale); attackBuffer=Math.max(0,attackBuffer-frameScale); skillBuffer=Math.max(0,skillBuffer-frameScale); ultBuffer=Math.max(0,ultBuffer-frameScale); dashBuffer=Math.max(0,dashBuffer-frameScale); player.skillCd=Math.max(0,player.skillCd-frameScale); player.ultCd=Math.max(0,player.ultCd-frameScale); player.dashCd=Math.max(0,player.dashCd-frameScale); player.switchCd=Math.max(0,player.switchCd-frameScale); player.inv=Math.max(0,player.inv-frameScale); player.chainTimer=Math.max(0,player.chainTimer-frameScale); player.guardTimer=Math.max(0,player.guardTimer-frameScale); player.parryReady=Math.max(0,player.parryReady-frameScale); player.perfectBuff=Math.max(0,player.perfectBuff-frameScale); teamDamageAmpTimer=Math.max(0,teamDamageAmpTimer-frameScale); chloeElementDamageAmpTimer=Math.max(0,chloeElementDamageAmpTimer-frameScale); chloeTrueDamageTimer=Math.max(0,chloeTrueDamageTimer-frameScale); noxDamageAmpTimer=Math.max(0,noxDamageAmpTimer-frameScale); if(player.parryReady<=0)player.parryTarget=null;
   for(const e of enemies){
     if(!e.alive)continue; e.parried=Math.max(0,e.parried-frameScale); e.breakLock=Math.max(0,(e.breakLock||0)-frameScale); e.freeze=Math.max(0,(e.freeze||0)-frameScale); e.chill=Math.max(0,(e.chill||0)-frameScale); e.physicalPain=Math.max(0,(e.physicalPain||0)-frameScale); e.weathering=Math.max(0,(e.weathering||0)-frameScale);
     if(e.trainingDummy){
@@ -9115,6 +9266,10 @@ function updateProfile(){
 
 function profileFrameColor(id){return {zero:"#7cc7ff",crystal:"#76ffe1",raven:"#ffe066",dream:"#b998ff"}[id]||"#7cc7ff";}
 function profileFrameName(id){const zh={zero:"零号记录",crystal:"晶体回响",raven:"雷文哈多",dream:"白日梦"},en={zero:"ZERO RECORD",crystal:"CRYSTAL ECHO",raven:"RAVENHADO",dream:"DAYDREAM"};return (language==="en"?en:zh)[id]||id;}
+function drawProfileRolePortrait(i,x,y,w,h,locked=false){
+  if(i===PROTAGONIST_ROLE&&!locked&&drawHermitPortrait(x,y,w,h,"card")) return;
+  drawPortrait(x,y,w,h,roles[i],locked);
+}
 
 function drawProfileRecordTab(){
   const x=590,y=166,w=468,h=344;
@@ -9142,7 +9297,7 @@ function drawProfilePicker(){
   for(let i=0;i<roles.length;i++){
     const x=245+(i%3)*220,y=180+Math.floor(i/3)*125,available=!!owned[i];
     ctx.fillStyle=available?"rgba(124,199,255,.07)":"rgba(255,255,255,.025)";ctx.fillRect(x,y,190,104);ctx.strokeStyle=available?roles[i].color:"rgba(255,255,255,.10)";ctx.strokeRect(x,y,190,104);
-    drawPortrait(x+10,y+10,58,82,roles[i],!available);
+    drawProfileRolePortrait(i,x+10,y+10,58,82,!available);
     ctx.fillStyle=available?"#fff":"#666";ctx.font="bold 13px "+FONT_UI;ctx.fillText(roleName(i),x+80,y+39);
     ctx.fillStyle=available?"rgba(255,255,255,.48)":"#555";ctx.font="10px "+FONT_UI;ctx.fillText(available?roleStyle(i):tr("未获得","LOCKED"),x+80,y+64);
   }
@@ -9158,8 +9313,12 @@ function updateAchievements(){
   checkAchievements();
   if(clicked){
     if(inRect(60,560,220,52)){ enterLobby(); clicked=false; return; }
-    let y = 145;
-    for(const a of ACHIEVEMENT_LIST){
+    const filters=["all","journey","combat","collection"];
+    for(let i=0;i<filters.length;i++)if(inRect(70+i*148,126,136,36)){achievementCategory=filters[i];clicked=false;return;}
+    if(inRect(828,126,180,36)){claimAllAchievements();clicked=false;return;}
+    const visible=ACHIEVEMENT_LIST.filter(a=>achievementCategory==="all"||a.cat===achievementCategory);
+    let y = 180;
+    for(const a of visible.slice(0,7)){
       const st = achievements[a.id];
       if(st && !st.claimed && inRect(760,y+8,190,38)){
         claimAchievement(a.id);
@@ -9198,8 +9357,13 @@ function drawAchievements(){
     collection: tr("收集记录","Collection")
   };
 
-  let y = 145;
-  for(const a of ACHIEVEMENT_LIST){
+  const filters=[["all",tr("全部","All")],["journey",cats.journey],["combat",cats.combat],["collection",cats.collection]];
+  filters.forEach((f,i)=>drawBtn(f[1],"",70+i*148,126,136,36,achievementCategory===f[0],"#7cc7ff"));
+  const claimable=ACHIEVEMENT_LIST.filter(a=>achievements[a.id]&&achievements[a.id].unlocked&&!achievements[a.id].claimed).length;
+  drawBtn(tr("一键领取","Claim All"),claimable?String(claimable):"",828,126,180,36,claimable>0,"#ffe066");
+  const visible=ACHIEVEMENT_LIST.filter(a=>achievementCategory==="all"||a.cat===achievementCategory);
+  let y = 180;
+  for(const a of visible.slice(0,7)){
     const st = achievements[a.id];
     const unlocked = !!st;
     const claimed = st && st.claimed;
@@ -9230,14 +9394,14 @@ function drawAchievements(){
       ctx.textAlign="center";
       ctx.fillText(claimed?ui("claimed"):ui("achievementLocked"),855,y+28);
     }
-    y += 52;
+    y += 50;
   }
 
   if(achievementMsg){
     ctx.textAlign="left";
     ctx.fillStyle="#7cc7ff";
     ctx.font="14px " + FONT_UI;
-    ctx.fillText(achievementMsg,70,535);
+    ctx.fillText(achievementMsg,320,585);
   }
 
   drawBtn(ui("backLobby"),"ESC",60,560,220,52);
@@ -9496,7 +9660,7 @@ function drawProfile(){
   // PZ identity core: translucent archive panel with restrained executor color.
   ctx.beginPath();ctx.roundRect(42,116,500,205,15);ctx.fillStyle="rgba(10,17,37,.78)";ctx.fill();ctx.strokeStyle="rgba(124,199,255,.30)";ctx.stroke();
   const roleAccent=roles[profileAvatarRole]&&roles[profileAvatarRole].color||"#7cc7ff",frameColor=profileFrameColor(profileAvatarFrame);
-  ctx.fillStyle="rgba(124,199,255,.07)";ctx.fillRect(58,132,132,132);drawPortrait(72,140,104,116,roles[profileAvatarRole],false);
+  ctx.fillStyle="rgba(124,199,255,.07)";ctx.fillRect(58,132,132,132);drawProfileRolePortrait(profileAvatarRole,72,140,104,116,false);
   ctx.save();ctx.shadowColor=frameColor;ctx.shadowBlur=16;ctx.strokeStyle=frameColor;ctx.lineWidth=3;ctx.strokeRect(58,132,132,132);ctx.restore();
   ctx.fillStyle=frameColor;ctx.beginPath();ctx.moveTo(58,132);ctx.lineTo(82,132);ctx.lineTo(58,156);ctx.closePath();ctx.fill();
   ctx.fillStyle="rgba(255,255,255,.62)";ctx.font="bold 9px "+FONT_UI;ctx.textAlign="center";ctx.fillText(tr("点击更换","CHANGE"),124,281);
@@ -10822,7 +10986,7 @@ const GROWTH_GUIDE_PAGES = [
   {title:{zh:"初入雷文哈多",en:"Arrival in Ravenhado"}, pageReward:{crystal:200,gold:5000,books:3,ore:1}, tasks:[
     {zh:"完成主线 00-01",en:"Clear Main 00-01", check:()=>!!cleared[1], reward:{exp:500,gold:1000,books:1}},
     {zh:"完成1次作战委托",en:"Clear 1 Operation Commission", check:()=>!!cleared.c1, reward:{exp:500,gold:1000,books:1}},
-    {zh:"获得芙洛拉",en:"Recruit Flora", check:()=>!!owned[3], reward:{exp:500,gold:1200,books:1}},
+    {zh:"任意技能达到 Lv.2",en:"Raise any skill to Lv.2", check:()=>charData.some(c=>c.normal>=2||c.skill>=2||c.ultimate>=2), reward:{exp:500,gold:1200,books:1}},
     {zh:"强化任意武器1次",en:"Upgrade any weapon once", check:()=>charData.some(c=>c.weaponLevel>1), reward:{exp:500,gold:1000,ore:1}},
     {zh:"玩家等级达到 Lv.2",en:"Reach Player Lv.2", check:()=>playerLevel>=2, reward:{exp:500,gold:1500,books:1}}
   ]},
@@ -11867,6 +12031,27 @@ function drawLobbyCheckinPopup(){
   ctx.restore();
 }
 
+function drawLobbyMonthlyCardPopup(){
+  ctx.save();ctx.fillStyle="rgba(0,0,0,.72)";ctx.fillRect(0,0,W,H);
+  const x=270,y=125,w=580,h=390,g=ctx.createLinearGradient(x,y,x+w,y+h);
+  g.addColorStop(0,"rgba(24,38,72,.99)");g.addColorStop(.55,"rgba(39,25,72,.99)");g.addColorStop(1,"rgba(8,11,22,.99)");
+  ctx.beginPath();ctx.roundRect(x,y,w,h,22);ctx.fillStyle=g;ctx.fill();ctx.strokeStyle="rgba(185,152,255,.52)";ctx.lineWidth=2;ctx.stroke();
+  ctx.fillStyle="#b998ff";ctx.fillRect(x,y,7,h);
+  ctx.fillStyle="rgba(255,255,255,.45)";ctx.font="bold 11px "+FONT_UI;ctx.textAlign="left";ctx.fillText("PROJECT ZERO / MONTHLY SUPPLY",x+36,y+42);
+  ctx.fillStyle="#fff";ctx.font="bold 32px "+FONT_UI;ctx.fillText(language==="en"?"Monthly Card Supply":"月卡每日补给",x+36,y+88);
+  ctx.fillStyle="rgba(255,255,255,.68)";ctx.font="14px "+FONT_UI;ctx.fillText(language==="en"?"Your daily supply is ready.":"今日月卡补给已准备完成。",x+36,y+120);
+  drawCurrencyIcon("crystal",x+52,y+158,74);
+  ctx.fillStyle="#7cc7ff";ctx.font="bold 34px Arial";ctx.fillText("90",x+145,y+199);
+  ctx.fillStyle="rgba(255,255,255,.54)";ctx.font="12px "+FONT_UI;ctx.fillText(language==="en"?"Crystal":"水晶",x+146,y+220);
+  drawCurrencyIcon("stamina",x+300,y+160,72);
+  ctx.fillStyle="#ffe066";ctx.font="bold 34px Arial";ctx.fillText("30",x+390,y+199);
+  ctx.fillStyle="rgba(255,255,255,.54)";ctx.font="12px "+FONT_UI;ctx.fillText(language==="en"?"Stamina":"体力",x+391,y+220);
+  drawBtn(language==="en"?"Claim Daily Supply":"领取每日补给","",560,420,240,54,true,"#ffe066");
+  drawBtn(language==="en"?"Later":"稍后领取","ESC",560,480,240,38,false,"#fff");
+  drawBtn("×","",790,140,44,44,false,"#fff");
+  ctx.restore();
+}
+
 function drawLobby(){
   const bg=ctx.createLinearGradient(0,0,W,H);
   bg.addColorStop(0,"#101a33");bg.addColorStop(.52,"#080b16");bg.addColorStop(1,"#03040a");
@@ -11956,7 +12141,7 @@ function drawLobby(){
   const vg=ctx.createLinearGradient(28,470,278,604);vg.addColorStop(0,"rgba(35,55,91,.92)");vg.addColorStop(1,"rgba(4,7,15,.98)");
   ctx.beginPath();ctx.roundRect(28,470,250,134,12);ctx.fillStyle=vg;ctx.fill();ctx.strokeStyle="rgba(124,199,255,.42)";ctx.stroke();
   ctx.beginPath();ctx.roundRect(28,470,5,134,3);ctx.fillStyle=versionSlide.color;ctx.fill();
-  ctx.fillStyle="#7cc7ff";ctx.font="bold 11px Arial";ctx.textAlign="left";ctx.fillText("VERSION 49.18.9",44,492);
+  ctx.fillStyle="#7cc7ff";ctx.font="bold 11px Arial";ctx.textAlign="left";ctx.fillText("VERSION 49.18.13",44,492);
   ctx.fillStyle="#fff";ctx.font="bold 23px "+FONT_UI;ctx.fillText(versionSlide.title,44,529);
   ctx.fillStyle=versionSlide.color;ctx.font="bold 16px "+FONT_UI;ctx.fillText(versionSlide.headline,44,555);
   ctx.fillStyle="rgba(255,255,255,.68)";ctx.font="11px "+FONT_UI;ctx.fillText(versionSlide.sub,44,579);
@@ -11970,10 +12155,11 @@ function drawLobby(){
   checkAchievementsThrottled();
   ctx.restore();
   if(lobbyCheckinOpen) drawLobbyCheckinPopup();
+  if(lobbyMonthlyCardPopupOpen) drawLobbyMonthlyCardPopup();
   if(lobbyNoticeOpen) drawLobbyNoticeCenter();
   drawStaminaRecoverOverlay();
   drawLobbyAssistantSelector();
-  if(!lobbyCheckinOpen&&!lobbyNoticeOpen&&!staminaRecoverOpen&&!lobbyAssistantSelectorOpen) drawLobbyStarterGuide();
+  if(!lobbyCheckinOpen&&!lobbyMonthlyCardPopupOpen&&!lobbyNoticeOpen&&!staminaRecoverOpen&&!lobbyAssistantSelectorOpen) drawLobbyStarterGuide();
 }
 
 const commissionChapters = [
@@ -14581,7 +14767,7 @@ function drawPortrait(x,y,w,h,r,lock=false){
 let operatorPageMode = "list";
 
 function executorRank(i){
-  return (i===PROTAGONIST_ROLE || i===3 || i===5) ? "S" : "A";
+  return (i===PROTAGONIST_ROLE || i===2 || i===3 || i===5) ? "S" : "A";
 }
 function executorElement(i){
   if(i===PROTAGONIST_ROLE) return language==="en" ? "Gray" : "灰白";
@@ -15148,15 +15334,20 @@ function upgradeWeaponSelected(i){
 
 const WEAPON_MASTER=[
   {id:"training_sword",nameZh:"训练剑",nameEn:"Training Sword",rarity:"B",type:"sword",baseAtk:60,crit:0,passiveZh:"训练用单手剑",passiveEn:"Training sword"},
-  {id:"sun_blade",nameZh:"烈阳之刃",nameEn:"Solar Blade",rarity:"S",type:"sword",baseAtk:120,crit:8,passiveZh:"普攻伤害提升12%。",passiveEn:"Normal DMG +12%"},
-  {id:"wind_codex",nameZh:"风语法典",nameEn:"Wind Codex",rarity:"A",type:"codex",baseAtk:95,crit:4,passiveZh:"支援效率提升",passiveEn:"Support efficiency"},
-  {id:"frost_book",nameZh:"冰霜之书",nameEn:"Frost Book",rarity:"S",type:"codex",baseAtk:118,crit:6,passiveZh:"冰伤+10%",passiveEn:"Ice DMG +10%"},
-  {id:"endnight_blades",nameZh:"终夜双刃",nameEn:"Endnight Blades",rarity:"A",type:"dual",baseAtk:105,crit:6,passiveZh:"破盾效率提升",passiveEn:"Break efficiency"},
-  {id:"shadow_blades",nameZh:"裂影双刃",nameEn:"Shadow Blades",rarity:"S",type:"dual",baseAtk:128,crit:9,passiveZh:"连击伤害提升",passiveEn:"Combo damage up"},
-  {id:"frostmoon_spear",nameZh:"霜月长枪",nameEn:"Frostmoon Spear",rarity:"A",type:"spear",baseAtk:100,crit:4,passiveZh:"技能伤害提升。",passiveEn:"Skill damage increased."},
-  {id:"starlight_spear",nameZh:"流光长枪",nameEn:"Starlight Spear",rarity:"S",type:"spear",baseAtk:125,crit:7,passiveZh:"命中回复少量能量",passiveEn:"Gain energy on hit"}
-  ,{id:"lavender",nameZh:"拉文德",nameEn:"Lavender",rarity:"S",type:"codex",baseAtk:112,crit:5,passiveZh:"丽莎的专属法器；风化持续时间提高。",passiveEn:"Lisa's signature catalyst; extends Weathering."}
+  {id:"training_spear",nameZh:"训练长枪",nameEn:"Training Spear",rarity:"B",type:"spear",baseAtk:58,crit:0,passiveZh:"标准训练长枪。",passiveEn:"Standard training spear.",price:0},
+  {id:"training_dual",nameZh:"训练双刃",nameEn:"Training Dual Blades",rarity:"B",type:"dual",baseAtk:56,crit:1,passiveZh:"标准训练双刃。",passiveEn:"Standard training dual blades.",price:0},
+  {id:"training_codex",nameZh:"训练法器",nameEn:"Training Codex",rarity:"B",type:"codex",baseAtk:54,crit:0,passiveZh:"标准训练法器。",passiveEn:"Standard training catalyst.",price:0},
+  {id:"everwinter_codex",nameZh:"永冬",nameEn:"Everwinter",rarity:"S",type:"codex",baseAtk:116,crit:6,passiveZh:"冰属性伤害提升10%；法器定位执行官均可使用。",passiveEn:"Ice DMG +10%; usable by Codex operators.",price:1100,limited:true},
+  {id:"sun_blade",nameZh:"烈阳之刃",nameEn:"Solar Blade",rarity:"S",type:"sword",baseAtk:120,crit:8,passiveZh:"普攻伤害提升12%。",passiveEn:"Normal DMG +12%.",price:1300},
+  {id:"wind_codex",nameZh:"风语法典",nameEn:"Wind Codex",rarity:"A",type:"codex",baseAtk:95,crit:4,passiveZh:"支援效率提升。",passiveEn:"Support efficiency increased.",price:800},
+  {id:"frost_book",nameZh:"冰霜之书",nameEn:"Frost Book",rarity:"S",type:"codex",baseAtk:118,crit:6,passiveZh:"冰属性伤害提升10%。",passiveEn:"Ice DMG +10%.",price:1200},
+  {id:"endnight_blades",nameZh:"终夜双刃",nameEn:"Endnight Blades",rarity:"A",type:"dual",baseAtk:105,crit:6,passiveZh:"破盾效率提升。",passiveEn:"Break efficiency increased.",price:900},
+  {id:"shadow_blades",nameZh:"裂影双刃",nameEn:"Shadow Blades",rarity:"S",type:"dual",baseAtk:128,crit:9,passiveZh:"连击伤害提升。",passiveEn:"Combo damage increased.",price:1250},
+  {id:"frostmoon_spear",nameZh:"霜月长枪",nameEn:"Frostmoon Spear",rarity:"A",type:"spear",baseAtk:100,crit:4,passiveZh:"技能伤害提升。",passiveEn:"Skill damage increased.",price:850},
+  {id:"starlight_spear",nameZh:"流光长枪",nameEn:"Starlight Spear",rarity:"S",type:"spear",baseAtk:125,crit:7,passiveZh:"命中回复少量能量。",passiveEn:"Gain a small amount of energy on hit.",price:1150},
+  {id:"lavender",nameZh:"拉文德",nameEn:"Lavender",rarity:"S",type:"codex",baseAtk:112,crit:5,passiveZh:"风化持续时间提高。",passiveEn:"Extends Weathering duration.",price:1200}
 ];
+function permanentWeaponCatalog(){return WEAPON_MASTER.filter(w=>!w.limited);}
 
 function roleWeaponType(i){
   if(isProtagonist(i)) return "core";
@@ -15178,22 +15369,24 @@ function weaponNameById(id){
   return language==="en"?w.nameEn:w.nameZh;
 }
 function defaultWeaponIdForRole(i){
-  if(i===0) return "sun_blade";
-  if(i===1) return "frostmoon_spear";
-  if(i===2) return "endnight_blades";
-  if(i===3) return "frost_book";
-  if(i===5) return "wind_codex";
+  if(i===0) return "training_sword";
+  if(i===1) return "training_spear";
+  if(i===2) return "training_dual";
+  if(i===3 || i===5) return "training_codex";
   return "training_sword";
 }
 function ensureWeaponBag(){
   if(!window.weaponInventory) window.weaponInventory=null;
   if(!Array.isArray(weaponInventory)){
-    weaponInventory=WEAPON_MASTER.map(w=>({id:w.id,level:1,owned:w.id!=="lavender"}));
+    weaponInventory=WEAPON_MASTER.map(w=>({id:w.id,level:1,owned:!w.price}));
   }
   if(!Array.isArray(ownedWeapons)) ownedWeapons=[];
   for(const w of WEAPON_MASTER){
-    if(!weaponInventory.some(x=>x.id===w.id)) weaponInventory.push({id:w.id,level:1,owned:w.id!=="lavender"});
+    if(!weaponInventory.some(x=>x.id===w.id)) weaponInventory.push({id:w.id,level:1,owned:!w.price});
   }
+  const everwinter=weaponInventory.find(x=>x.id==="everwinter_codex");
+  if(everwinter&&ownedWeapons&&ownedWeapons.flora) everwinter.owned=true;
+  if(everwinter&&everwinter.owned&&ownedWeapons) ownedWeapons.flora=true;
   for(let i=0;i<charData.length;i++){
     if(!charData[i]) continue;
     if(!charData[i].equippedWeaponId) charData[i].equippedWeaponId=defaultWeaponIdForRole(i);
@@ -15399,6 +15592,8 @@ function drawArmoryWeaponIcon(type,x,y,scale=1,color="#dbe8ff"){
 function drawShopWeaponArmory(){
   ensureWeaponBag();
   if(shopSubTab==="limited"){
+    const everwinter=(weaponInventory||[]).find(v=>v.id==="everwinter_codex");
+    const everwinterOwned=!!(everwinter&&everwinter.owned);
     const x=70,y=240,w=980,h=230;
     ctx.fillStyle="rgba(8,12,20,.88)";ctx.fillRect(x,y,w,h);
     ctx.strokeStyle="rgba(124,199,255,.32)";ctx.strokeRect(x,y,w,h);
@@ -15409,12 +15604,13 @@ function drawShopWeaponArmory(){
     ctx.fillStyle="#fff";ctx.font="bold 38px "+FONT_UI;ctx.fillText(mt("everwinterName"),x+34,y+84);
     ctx.fillStyle="#88d8ff";ctx.font="bold 15px "+FONT_UI;ctx.fillText(mt("floraSignatureWeapon"),x+36,y+116);
     ctx.fillStyle="rgba(255,255,255,.66)";ctx.font="14px "+FONT_UI;ctx.fillText(mt("everwinterDesc"),x+36,y+148);
-    ctx.fillStyle=ownedWeapons.flora?"#7cc7ff":"#ffe066";ctx.font="bold 20px "+FONT_UI;ctx.fillText(ownedWeapons.flora?ui("claimed"):"◆ 888",x+36,y+194);
-    drawBtn(ownedWeapons.flora?(language==="en"?"Owned":"已拥有"):(language==="en"?"Acquire":"领取武器"),"",x+w-205,y+h-60,175,42,!ownedWeapons.flora,"#ffe066");
+    ctx.fillStyle=everwinterOwned?"#7cc7ff":"#ffe066";ctx.font="bold 20px "+FONT_UI;ctx.fillText(everwinterOwned?ui("claimed"):"◆ 1100",x+36,y+194);
+    drawBtn(everwinterOwned?(language==="en"?"Owned":"已拥有"):(language==="en"?"Purchase":"购买"),"",x+w-205,y+h-60,175,42,!everwinterOwned,"#ffe066");
     return;
   }
 
-  if(!WEAPON_MASTER.some(v=>v.id===shopWeaponSelectedId)) shopWeaponSelectedId=WEAPON_MASTER[0].id;
+  const catalog=permanentWeaponCatalog();
+  if(!catalog.some(v=>v.id===shopWeaponSelectedId)) shopWeaponSelectedId=catalog[0].id;
   const selected=weaponData(shopWeaponSelectedId),ownedItem=(weaponInventory||[]).find(v=>v.id===selected.id&&v.owned);
   const x=70,y=240,w=980;
   ctx.fillStyle="rgba(8,12,20,.84)";ctx.fillRect(x,y,w,112);
@@ -15427,9 +15623,10 @@ function drawShopWeaponArmory(){
   ctx.fillStyle="#a8b6cc";ctx.fillText(language==="en"?selected.passiveEn:selected.passiveZh,x+270,y+101);
   drawInsetLabel(selected.rarity,x+w-176,y+22,44,30,selected.rarity==="S"?"#ffe066":"#7cc7ff","rgba(255,255,255,.05)","rgba(255,255,255,.16)",14,true,"center");
   drawInsetLabel(ownedItem?(language==="en"?"OWNED":"已拥有"):(language==="en"?"LOCKED":"未获得"),x+w-122,y+22,92,30,ownedItem?"#7cc7ff":"#888","rgba(255,255,255,.05)","rgba(255,255,255,.16)",11,true,"center");
+  if(selected.price>0&&!ownedItem) drawBtn(language==="en"?"Purchase":"购买","◆ "+selected.price,840,292,180,42,true,"#ffe066");
 
-  for(let n=0;n<WEAPON_MASTER.length;n++){
-    const wd=WEAPON_MASTER[n],col=n%4,row=Math.floor(n/4),cx=x+col*245,cy=366+row*68,cw=230,ch=58,active=wd.id===shopWeaponSelectedId;
+  for(let n=0;n<catalog.length;n++){
+    const wd=catalog[n],col=n%4,row=Math.floor(n/4),cx=x+col*245,cy=366+row*68,cw=230,ch=58,active=wd.id===shopWeaponSelectedId;
     const owned=(weaponInventory||[]).some(v=>v.id===wd.id&&v.owned);
     ctx.fillStyle=active?"rgba(124,199,255,.14)":"rgba(255,255,255,.055)";ctx.fillRect(cx,cy,cw,ch);
     ctx.strokeStyle=active?"#7cc7ff":"rgba(255,255,255,.13)";ctx.lineWidth=active?2:1;ctx.strokeRect(cx,cy,cw,ch);
@@ -15604,15 +15801,19 @@ function drawShop(){
   }
 
   if(shopTab==="monthly"){
-    ctx.fillStyle="rgba(195,92,255,.10)"; ctx.fillRect(80,240,420,210); ctx.strokeStyle="rgba(195,92,255,.45)"; ctx.strokeRect(80,240,420,210);
-    ctx.fillStyle="#c35cff"; ctx.font="bold 30px " + FONT_UI; ctx.textAlign="left"; ctx.fillText(mt("adventurePass"),110,295);
-    ctx.fillStyle="rgba(255,255,255,.72)"; ctx.font="16px " + FONT_UI; ctx.fillText(mt("adventurePassDesc"),110,335);
-    ctx.fillText("$4.99",110,370);
+    const mg=ctx.createLinearGradient(80,220,860,470);mg.addColorStop(0,"rgba(27,47,86,.98)");mg.addColorStop(.5,"rgba(62,36,93,.96)");mg.addColorStop(1,"rgba(8,11,22,.99)");
+    ctx.beginPath();ctx.roundRect(80,220,780,250,18);ctx.fillStyle=mg;ctx.fill();ctx.strokeStyle="rgba(185,152,255,.45)";ctx.lineWidth=2;ctx.stroke();
+    ctx.fillStyle="#b998ff";ctx.fillRect(80,220,7,250);
+    ctx.fillStyle="rgba(255,255,255,.42)";ctx.font="bold 11px "+FONT_UI;ctx.textAlign="left";ctx.fillText("PROJECT ZERO / 30 DAYS",110,254);
+    ctx.fillStyle="#fff";ctx.font="bold 30px "+FONT_UI;ctx.fillText(language==="en"?"Monthly Supply Card":"月度补给卡",110,300);
+    ctx.fillStyle="rgba(255,255,255,.72)";ctx.font="14px "+FONT_UI;ctx.fillText(language==="en"?"Instant: 300 Crystal":"立即获得：水晶 300",110,338);
+    ctx.fillText(language==="en"?"Daily: 90 Crystal + 30 Stamina":"每日可领：水晶 90 + 体力 30",110,366);
+    ctx.fillStyle="#ffe066";ctx.font="bold 24px Arial";ctx.fillText("$4.99",110,412);
     normalizeMonthlyCardRuntime();
     ctx.fillStyle=canClaimMonthlyCard()?"#7cffb2":"rgba(255,255,255,.52)";
     ctx.font="bold 14px " + FONT_UI;
-    ctx.fillText(canClaimMonthlyCard() ? (language==="en"?"Available today":"今日可领取") : (monthlyOwned ? (language==="en"?"Claimed today":"今日已领取") : (language==="en"?"Not active":"未开启")),110,405);
-    drawBtn(canClaimMonthlyCard()?mt("dailyClaim"):(monthlyOwned?(language==="en"?"Claimed":"已领取"):mt("dailyClaim")),"",540,290,260,92,canClaimMonthlyCard(),"#ffe066");
+    ctx.fillText(canClaimMonthlyCard() ? (language==="en"?"Available today":"今日可领取") : (monthlyOwned ? (language==="en"?"Claimed today":"今日已领取") : (language==="en"?"Not active":"未开启")),110,445);
+    drawBtn(monthlyOwned?(canClaimMonthlyCard()?mt("dailyClaim"):(language==="en"?"Claimed":"已领取")):(language==="en"?"Activate":"开启月卡"),monthlyOwned?"":"$4.99",570,305,240,72,!monthlyOwned||canClaimMonthlyCard(),"#ffe066");
   }
 
   if(shopTab==="packs"){
@@ -15642,10 +15843,17 @@ function drawShop(){
   }
 
   if(shopTab==="support"){
-    ctx.fillStyle="rgba(255,255,255,.08)"; ctx.fillRect(70,240,760,210); ctx.strokeStyle="rgba(255,255,255,.18)"; ctx.strokeRect(70,240,760,210);
-    ctx.fillStyle="#fff"; ctx.font="bold 28px " + FONT_UI; ctx.textAlign="left"; ctx.fillText(ui("developerSupport"),100,295);
-    ctx.fillStyle="rgba(255,255,255,.72)"; ctx.font="16px " + FONT_UI;
-    ctx.fillText(mt("supportDesc"),100,335);
+    const tiers=["$0.99","$9.99","$19.99","$29.99","$39.99","$49.99"];
+    ctx.fillStyle="#fff";ctx.font="bold 28px "+FONT_UI;ctx.textAlign="left";ctx.fillText(ui("developerSupport"),70,225);
+    ctx.fillStyle="rgba(255,255,255,.52)";ctx.font="12px "+FONT_UI;ctx.fillText(language==="en"?"Optional support · no gameplay advantage · billing is not connected":"自愿资助 · 不提供战力优势 · 测试版未接入支付",70,249);
+    for(let i=0;i<tiers.length;i++){
+      const x=70+i*163,y=275,w=145,h=185,hover=inRect(x,y,w,h),sg=ctx.createLinearGradient(x,y,x,y+h);
+      sg.addColorStop(0,hover?"rgba(40,69,97,.96)":"rgba(24,34,53,.95)");sg.addColorStop(1,"rgba(7,10,18,.98)");
+      ctx.beginPath();ctx.roundRect(x,y,w,h,12);ctx.fillStyle=sg;ctx.fill();ctx.strokeStyle=hover?"#7cc7ff":"rgba(255,255,255,.16)";ctx.lineWidth=hover?2:1;ctx.stroke();
+      ctx.fillStyle=i>3?"#ffe066":"#7cc7ff";ctx.font="bold 24px Arial";ctx.textAlign="center";ctx.fillText(tiers[i],x+w/2,y+112);
+      ctx.fillStyle="rgba(255,255,255,.50)";ctx.font="10px "+FONT_UI;ctx.fillText(language==="en"?"SUPPORT TIER "+(i+1):"资助档位 "+(i+1),x+w/2,y+139);
+      ctx.fillStyle="rgba(255,255,255,.08)";ctx.beginPath();ctx.arc(x+w/2,y+52,27,0,Math.PI*2);ctx.fill();ctx.fillStyle=i>3?"#ffe066":"#bfe8ff";ctx.font="bold 24px Arial";ctx.fillText("SF",x+w/2,y+60);
+    }
   }
 
   ctx.fillStyle="rgba(0,0,0,.35)"; ctx.fillRect(60,510,900,36);
@@ -15857,6 +16065,19 @@ function drawEffects(){
   drawProtagonistCombatEffects();
   drawKaneCombatEffects();
   drawNoxAiloCombatEffects();
+  for(const field of chloeHealingFields){
+    const a=clamp(field.life/60,0,1);
+    const half=field.size*.5;
+    ctx.save();ctx.globalAlpha=.14+.12*a;ctx.fillStyle="#78f0c3";ctx.fillRect(field.x-half,field.y-half,field.size,field.size);
+    ctx.globalAlpha=.8;ctx.strokeStyle="#bda7ff";ctx.lineWidth=3;ctx.setLineDash([14,8]);ctx.strokeRect(field.x-half,field.y-half,field.size,field.size);ctx.setLineDash([]);
+    ctx.fillStyle="#d9fff0";ctx.font="bold 10px "+FONT_UI;ctx.textAlign="center";ctx.fillText(language==="en"?"HEALING FIELD · +5 HP/s":"治疗领域 · 每秒+5生命",field.x,field.y-half-10);ctx.restore();
+  }
+  if(chloeAttackCharge.active){
+    const c=chloeAttackCharge,halfW=c.width*.5,y=c.dir>0?player.y:player.y-c.length;
+    ctx.save();ctx.globalAlpha=.18;ctx.fillStyle="#bda7ff";ctx.fillRect(player.x-halfW,y,c.width,c.length);
+    ctx.globalAlpha=.92;ctx.strokeStyle="#78f0c3";ctx.lineWidth=3;ctx.setLineDash([10,6]);ctx.strokeRect(player.x-halfW,y,c.width,c.length);ctx.setLineDash([]);
+    ctx.fillStyle="#e7dcff";ctx.font="bold 10px "+FONT_UI;ctx.textAlign="center";ctx.fillText(language==="en"?"RELEASE TO ATTACK":"松开鼠标攻击",player.x,y+(c.dir>0?c.length+17:-9));ctx.restore();
+  }
   for(const s of slashes){
     ctx.save();
     const a=s.life/s.max;
