@@ -33,6 +33,14 @@ const hermitPortraitImg = new Image();
 hermitPortraitImg.src = "assets/ui/hermit_portrait_display.png";
 let hermitPortraitReady = false;
 hermitPortraitImg.onload = () => { hermitPortraitReady = true; };
+const floraPortraitImg = new Image();
+floraPortraitImg.src = "assets/ui/flora_portrait_display.png";
+let floraPortraitReady = false;
+floraPortraitImg.onload = () => { floraPortraitReady = true; };
+const floraExecutorPortraitImg = new Image();
+floraExecutorPortraitImg.src = "assets/ui/flora_portrait_executor.png";
+let floraExecutorPortraitReady = false;
+floraExecutorPortraitImg.onload = () => { floraExecutorPortraitReady = true; };
 const crystalCurrencyImg = new Image();
 crystalCurrencyImg.src = "assets/ui/currency_crystal.png";
 let crystalCurrencyReady = false;
@@ -58,6 +66,7 @@ const crystalTopupTierImgs=CRYSTAL_TOPUP_TIERS.map(t=>{
   const img=new Image();img.src=t.image;return img;
 });
 let hermitLobbyBorderlessLayer = null;
+let floraLobbyBorderlessLayer = null;
 let pzCursorReady = false;
 let pzCursorPulse = 0;
 pzCursorImg.onload = () => { pzCursorReady = true; };
@@ -265,7 +274,7 @@ const MSG_TEXT = I18N_RES.MSG_TEXT || {
     eventSupplySuccess:"领取成功：初入奖励",
     codeTooShort:"名字需要2-12个有效字符",
     codeSaved:"名字确认完成",
-    guardPrompt:"GUARD! 按R弹刀",
+    guardPrompt:"GUARD! 按空格弹刀",
     chainEntry:" 连携入场",
     switchCooldown:"切换冷却 ",
     moveRight:"前往右侧区域",
@@ -276,10 +285,10 @@ const MSG_TEXT = I18N_RES.MSG_TEXT || {
     tutorialMove:"新手教程 1/4｜移动：使用 WASD 移动到光圈处",
     tutorialAttack:"新手教程 2/4｜攻击：点击左键打碎训练木箱",
     tutorialEnemy:"新手教程 3/4｜实战：击败训练目标",
-    tutorialParry:"新手教程 4/4｜弹刀：敌人攻击预警时按R",
+    tutorialParry:"新手教程 4/4｜弹刀：敌人攻击预警时按空格键",
     tutorialSuccess:"教程完成｜奖励已加入背包",
     nameNeedOne:"请输入2-12个有效字符",
-    chainSelect:"CHAIN SELECT  左键/右键选择连携",
+    chainSelect:"连携选择：左键或右键选择队友",
     bossPhase2:"BOSS PHASE 2  护盾展开",
     bossPhase3:"BOSS PHASE 3  连续红光",
     eventClaimPrefix:"领取成功："
@@ -320,7 +329,7 @@ const MSG_TEXT = I18N_RES.MSG_TEXT || {
     eventSupplySuccess:"Claimed: Arrival Rewards",
     codeTooShort:"Name must contain 2-12 valid characters",
     codeSaved:"Name confirmed",
-    guardPrompt:"GUARD! Press R to Parry",
+    guardPrompt:"GUARD! Press Space to Parry",
     chainEntry:" Chain Entry",
     switchCooldown:"Switch CD ",
     moveRight:"Move to the right area",
@@ -331,10 +340,10 @@ const MSG_TEXT = I18N_RES.MSG_TEXT || {
     tutorialMove:"Tutorial 1/4 | Move: use WASD to reach the marker",
     tutorialAttack:"Tutorial 2/4 | Attack: left click to break the crate",
     tutorialEnemy:"Tutorial 3/4 | Combat: defeat the training target",
-    tutorialParry:"Tutorial 4/4 | Parry: press R during the enemy warning",
+    tutorialParry:"Tutorial 4/4 | Parry: press Space during the enemy warning",
     tutorialSuccess:"Tutorial Complete | Rewards added",
     nameNeedOne:"Please enter 2-12 valid characters",
-    chainSelect:"CHAIN SELECT  Left/Right Click to choose chain",
+    chainSelect:"CHAIN SELECT: choose with left or right click",
     bossPhase2:"BOSS PHASE 2  Shield Deployed",
     bossPhase3:"BOSS PHASE 3  Continuous Red Warning",
     eventClaimPrefix:"Claimed: "
@@ -539,6 +548,7 @@ function accTx(key){ return L(ACCOUNT_TEXT, key, key); }
 function accountErrorText(err){
   const code = err && err.code ? String(err.code) : "";
   const msg = err && err.message ? String(err.message) : "";
+  if(code==="GAME_ACCOUNT_ALREADY_BOUND") return msg;
   if(code.includes("invalid-email")) return accTx("invalidEmail");
   if(code.includes("weak-password")) return accTx("weakPassword");
   if(code.includes("email-already-in-use")) return accTx("emailExists");
@@ -565,6 +575,7 @@ function unlockAudio(){
   if(audioCtx.state === "suspended") audioCtx.resume();
   audioUnlocked = true;
   if(gameMode === "login") requestLoginBgmPlay();
+  else requestWorldBgmPlay();
 }
 
 function audioEase01(x){
@@ -631,6 +642,182 @@ function updateLoginBgm(){
     a.volume = clamp(eased,0,1);
     if(loginBgmTargetVolume <= 0.001 && loginBgmCurrentVolume <= 0.003 && !a.paused){
       try{ a.pause(); }catch(e){}
+    }
+  }
+}
+
+function ensureWorldBgmTrack(kind){
+  const isShop=kind==="shop";
+  const current=isShop ? shopBgmAudio : worldBgmAudio;
+  if(current) return current;
+  try{
+    const a=new Audio(isShop ? SHOP_BGM_PATH : WORLD_BGM_PATH);
+    a.loop=true;
+    a.preload="auto";
+    a.volume=0;
+    a.addEventListener("error",()=>{
+      if(isShop) shopBgmUnavailable=true;
+      else worldBgmUnavailable=true;
+    },{once:true});
+    if(isShop) shopBgmAudio=a;
+    else worldBgmAudio=a;
+    return a;
+  }catch(e){
+    if(isShop) shopBgmUnavailable=true;
+    else worldBgmUnavailable=true;
+    return null;
+  }
+}
+
+function playWorldBgmTrack(kind){
+  const isShop=kind==="shop";
+  if(isShop ? shopBgmUnavailable : worldBgmUnavailable) return;
+  const a=ensureWorldBgmTrack(kind);
+  if(!a || !a.paused) return;
+  const pending=isShop ? shopBgmPlayPending : worldBgmPlayPending;
+  if(pending) return;
+  if(isShop) shopBgmPlayPending=true;
+  else worldBgmPlayPending=true;
+  const done=()=>{
+    if(isShop) shopBgmPlayPending=false;
+    else worldBgmPlayPending=false;
+  };
+  try{
+    const p=a.play();
+    if(p&&typeof p.then==="function")p.then(done).catch(done);
+    else done();
+  }catch(e){done();}
+}
+
+function requestWorldBgmPlay(){
+  if(!audioUnlocked) return;
+  const isBossKrosBattle=gameMode==="battle" && battleModeSource==="bossKros";
+  if(["story","team","settlement","defeat","projectArea"].includes(gameMode) || (gameMode==="battle"&&!isBossKrosBattle)) return;
+  if(gameMode==="shop") playWorldBgmTrack("shop");
+  if(worldBgmHasStarted && (WORLD_BGM_MODES.has(gameMode) || gameMode==="shop")) playWorldBgmTrack("world");
+  if(battleModeSource==="bossKros" && ["battle","settlement","defeat"].includes(gameMode)) playBossKrosBgm();
+}
+
+function ensureBossKrosBgm(){
+  if(bossKrosBgmAudio || bossKrosBgmUnavailable) return bossKrosBgmAudio;
+  try{
+    const a=new Audio(BOSS_KROS_BGM_PATH);
+    a.loop=true;
+    a.preload="auto";
+    a.volume=0;
+    a.addEventListener("error",()=>{bossKrosBgmUnavailable=true;},{once:true});
+    bossKrosBgmAudio=a;
+  }catch(e){bossKrosBgmUnavailable=true;}
+  return bossKrosBgmAudio;
+}
+
+function playBossKrosBgm(){
+  const a=ensureBossKrosBgm();
+  if(!a || bossKrosBgmUnavailable || !a.paused || bossKrosBgmPlayPending) return;
+  bossKrosBgmPlayPending=true;
+  const done=()=>{bossKrosBgmPlayPending=false;};
+  try{
+    const p=a.play();
+    if(p&&typeof p.then==="function")p.then(done).catch(done);
+    else done();
+  }catch(e){done();}
+}
+
+function restartBgmTrackFromStart(track){
+  if(!track) return;
+  try{track.currentTime=0;}catch(e){}
+}
+
+function restartBossKrosBgmFromStart(){
+  const a=ensureBossKrosBgm();
+  restartBgmTrackFromStart(a);
+  bossKrosBgmCurrentVolume=0;
+  if(audioUnlocked) playBossKrosBgm();
+}
+
+function approachBgmVolume(current,target,seconds){
+  const maxStep=(frameScale||1)/Math.max(1,60*seconds);
+  if(current<target) return Math.min(target,current+maxStep);
+  return Math.max(target,current-maxStep);
+}
+
+function updateWorldBgm(){
+  const isWorldMode=WORLD_BGM_MODES.has(gameMode);
+  const isShop=gameMode==="shop";
+  const isBossKrosBattle=gameMode==="battle" && battleModeSource==="bossKros";
+  const isProjectArea=gameMode==="projectArea" || (gameMode==="battle" && battleModeSource==="projectArea");
+  const stageMusicPaused=["story","team","settlement","defeat"].includes(gameMode) || (gameMode==="battle"&&!isBossKrosBattle) || isProjectArea;
+  const enabled=!audioMuted ? clamp(bgmVolume,0,1) : 0;
+  const isWorldEntryPage=gameMode==="lobby" || gameMode==="operation";
+
+  if(["boot","login","loading","nameInput","prologue","tutorialBattle","tutorialLobbyLoading"].includes(gameMode)){
+    worldBgmHasStarted=false;
+    worldBgmStartDelay=60;
+  }else if(!worldBgmHasStarted && isWorldEntryPage){
+    worldBgmStartDelay=Math.max(0,worldBgmStartDelay-(frameScale||1));
+    if(worldBgmStartDelay<=0) worldBgmHasStarted=true;
+  }
+
+  // Boss battles own the complete music bus. `battle` remains in
+  // WORLD_BGM_MODES for legacy routing, so explicitly exclude Kros here.
+  const worldTarget=isWorldMode && worldBgmHasStarted && !stageMusicPaused && !isShop && !isBossKrosBattle ? enabled : 0;
+  const shopTarget=isShop ? enabled : 0;
+  const bossTarget=isBossKrosBattle ? enabled : 0;
+
+  if(gameMode!==lastBgmGameMode){
+    const leavingStage=["story","team","battle","settlement","defeat"].includes(lastBgmGameMode) && !stageMusicPaused && !isBossKrosBattle;
+    if(stageMusicPaused){
+      const world=ensureWorldBgmTrack("world"),shop=ensureWorldBgmTrack("shop"),boss=ensureBossKrosBgm();
+      for(const track of [world,shop,boss]) if(track){try{track.pause();}catch(e){}}
+      worldBgmCurrentVolume=0;shopBgmCurrentVolume=0;bossKrosBgmCurrentVolume=0;
+    }else if(leavingStage){
+      const world=ensureWorldBgmTrack("world");
+      restartBgmTrackFromStart(world);
+      worldBgmCurrentVolume=0;
+      worldBgmHasStarted=true;
+      if(audioUnlocked) playWorldBgmTrack("world");
+    }
+    if(gameMode==="shop"){
+      restartBgmTrackFromStart(ensureWorldBgmTrack("shop"));
+      shopBgmCurrentVolume=0;
+    }
+    if(isBossKrosBattle){
+      // Do not cross-fade the lobby track into a boss encounter.
+      const world=ensureWorldBgmTrack("world"),shop=ensureWorldBgmTrack("shop");
+      for(const track of [world,shop]) if(track){try{track.pause();track.currentTime=0;}catch(e){}}
+      worldBgmCurrentVolume=0;
+      shopBgmCurrentVolume=0;
+      restartBossKrosBgmFromStart();
+    }
+    lastBgmGameMode=gameMode;
+  }
+
+  if(audioUnlocked && !stageMusicPaused && (isWorldMode || isShop || isBossKrosBattle)) requestWorldBgmPlay();
+
+  // Page-entry restarts are handled above; volume changes remain smooth.
+  worldBgmCurrentVolume=approachBgmVolume(worldBgmCurrentVolume,worldTarget,2.4);
+  shopBgmCurrentVolume=approachBgmVolume(shopBgmCurrentVolume,shopTarget,2.4);
+  bossKrosBgmCurrentVolume=approachBgmVolume(bossKrosBgmCurrentVolume,bossTarget,1.6);
+
+  const world=ensureWorldBgmTrack("world");
+  if(world){
+    world.volume=clamp(audioEase01(worldBgmCurrentVolume),0,1);
+    if(!isWorldMode && !isShop && worldBgmCurrentVolume<=.001 && !world.paused){
+      try{world.pause();}catch(e){}
+    }
+  }
+  const shop=ensureWorldBgmTrack("shop");
+  if(shop){
+    shop.volume=clamp(audioEase01(shopBgmCurrentVolume),0,1);
+    if(!isShop && shopBgmCurrentVolume<=.001 && !shop.paused){
+      try{shop.pause();}catch(e){}
+    }
+  }
+  const boss=ensureBossKrosBgm();
+  if(boss){
+    boss.volume=clamp(audioEase01(bossKrosBgmCurrentVolume),0,1);
+    if(!isBossKrosBattle && bossKrosBgmCurrentVolume<=.001 && !boss.paused){
+      try{boss.pause();}catch(e){}
     }
   }
 }
@@ -858,9 +1045,6 @@ const MOVE_SPEED_MULT = 1.02;
 const SKILL_ENERGY_COST = 40;
 const W = LOGICAL_W, H = LOGICAL_H;
 
-// Flora illustration removed: use original white-head / blue-body executor model.
-const floraPortraitImg = null;
-
 const keys = {};
 let mouseX = 0, mouseY = 0, mouseDown = false, clicked = false, mouseAttackConsumed = false, attackInputLock = 0, prev = {};
 
@@ -981,7 +1165,8 @@ function handleMobileTouchEnd(e){
 
 
 function handleAccountTextKey(e){
-  if(gameMode !== "login" || cloudUser) return false;
+  const accountRequestOpen = gameMode === "login" || (gameMode === "settings" && accountCredentialPanelActive);
+  if(!accountRequestOpen || cloudUser) return false;
   if(accountBusy) return false;
   const k = e.key;
   const lower = String(k || "").toLowerCase();
@@ -1018,6 +1203,13 @@ function handleAccountTextKey(e){
     return true;
   }
   if(lower === "escape"){
+    if(accountCredentialPanelActive){
+      accountCredentialPanelActive=false;
+      accountFocusedField="";
+      accountPassword="";
+      e.preventDefault();
+      return true;
+    }
     accountFocusedField = "";
     e.preventDefault();
     return true;
@@ -1091,6 +1283,13 @@ window.addEventListener("keydown", e => {
     return;
   }
 
+  // The chain decision is mouse-only. Any keyboard input cancels it.
+  if(gameMode === "battle" && chainSelect){
+    e.preventDefault();
+    if(!e.repeat) cancelChainSelection(language==="en"?"Chain cancelled":"已取消连携");
+    return;
+  }
+
   keys[e.key.toLowerCase()] = true;
   if(gameMode === "nameInput"){
     if(e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey){
@@ -1130,6 +1329,14 @@ canvas.addEventListener("mousedown", e => {
   const r = canvas.getBoundingClientRect();
   mouseX = (e.clientX - r.left) * W / r.width;
   mouseY = (e.clientY - r.top) * H / r.height;
+  if(gameMode === "battle" && chainSelect){
+    unlockAudio();
+    e.preventDefault();
+    if(e.button===0) chainSelectChoiceRequested=0;
+    else if(e.button===2) chainSelectChoiceRequested=1;
+    else cancelChainSelection(language==="en"?"Chain cancelled":"已取消连携");
+    return;
+  }
   if(gameMode === "match3" && e.button === 0 && window.PZMatch3){
     unlockAudio();
     mouseDown = true;
@@ -1262,6 +1469,8 @@ let tutorialUsedDash = false;
 let tutorialUsedUltimate = false;
 let tutorialUsedChain = false;
 let tutorialParried = false;
+let tutorialUsedCycleSwitch = false;
+let tutorialUsedDirectSwitch = false;
 let profileTab = "overview";
 let prologueLine = 0;
 let prologueAfterBattle = false;
@@ -1287,9 +1496,12 @@ function fpsScale(){
   // making 30 FPS gameplay move faster/slower than 60 FPS.
   return 1;
 }
-let chainSelect = false, chainSelectTimer = 0;
+const CHAIN_SELECT_DURATION_MS = 5000;
+let chainSelect = false, chainSelectTimer = 0, chainSelectDeadline = 0;
+let chainSelectChoiceRequested = -1;
 let loadingTimer = 0, loadingProgress = 0, loadingTarget = "lobby", loadingMessage = "Initializing...";
 let settingsTab = "graphics", logoutConfirm = false, localDeleteConfirm = false;
+let accountSignOutPromptActive = false;
 let settingsReturnMode = "lobby";
 const UI_LANGUAGE_PREFERENCE_KEY = "project_zero_ui_language";
 function readUiLanguagePreference(){
@@ -1329,12 +1541,35 @@ let sfxVolume = 1.00;
 const LOGIN_BGM_PATHS = [
   "assets/audio/bgm/login_theme.mp3"
 ];
+const WORLD_BGM_PATH = "assets/audio/bgm/last_safe_city.mp3";
+const SHOP_BGM_PATH = "assets/audio/bgm/skyglass_bazaar.mp3";
+const BOSS_KROS_BGM_PATH = "assets/audio/bgm/kros_battle.mp3";
+const WORLD_BGM_MODES = new Set([
+  "lobby","operation","story","settlement","operators","mail","profile",
+  "settings","event","match3","warehouse","team","battle","defeat",
+  "achievements","actionRecord","growthGuide"
+]);
 let loginBgmPathIndex = 0;
 let loginBgmAudio = null;
 let loginBgmCurrentVolume = 0;
 let loginBgmTargetVolume = 0;
 let loginBgmUnavailable = false;
 let loginBgmPlayPending = false;
+let worldBgmAudio = null;
+let shopBgmAudio = null;
+let worldBgmCurrentVolume = 0;
+let shopBgmCurrentVolume = 0;
+let worldBgmUnavailable = false;
+let shopBgmUnavailable = false;
+let worldBgmPlayPending = false;
+let shopBgmPlayPending = false;
+let bossKrosBgmAudio = null;
+let bossKrosBgmCurrentVolume = 0;
+let bossKrosBgmUnavailable = false;
+let bossKrosBgmPlayPending = false;
+let lastBgmGameMode = gameMode;
+let worldBgmHasStarted = false;
+let worldBgmStartDelay = 60;
 let menuPulse = 0;
 let selectedStage = 1;
 let dungeonSelected = 0;
@@ -1392,6 +1627,7 @@ let bossHazards = [];
 let krosPhaseTransitionTimer = 0;
 let krosPhaseTransitionPhase = 1;
 let krosPhaseTransitionText = "";
+let krosIntroTimer = 0;
 let playerPoisonTimer = 0;
 let playerPoisonTick = 0;
 let playerBleedTimer = 0;
@@ -1624,29 +1860,20 @@ function cloudPendingSyncKey(){
   return CLOUD_PENDING_SYNC_PREFIX + (cloudUser && cloudUser.uid ? String(cloudUser.uid) : "guest");
 }
 
-const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyCha1gk_D3kqYW63d2AfILy3AoBNv6XyXA",
-  authDomain: "project-zero-256d3.firebaseapp.com",
-  projectId: "project-zero-256d3",
-  storageBucket: "project-zero-256d3.firebasestorage.app",
-  messagingSenderId: "907785881698",
-  appId: "1:907785881698:web:e6c18aa31e2cc94bf5e93b"
-};
-
-function makeFirestoreSafe(value, insideArray=false){
+function makeCloudSaveSafe(value, insideArray=false){
   if(value === undefined || typeof value === "function") return null;
   if(value === null) return null;
   if(typeof value === "number") return Number.isFinite(value) ? value : 0;
   if(typeof value === "string" || typeof value === "boolean") return value;
   if(value instanceof Date) return value.toISOString();
   if(Array.isArray(value)){
-    const arr = value.map(item => makeFirestoreSafe(item, true));
+    const arr = value.map(item => makeCloudSaveSafe(item, true));
     return insideArray ? {items: arr} : arr;
   }
   if(typeof value === "object"){
     const out = {};
     for(const key of Object.keys(value)){
-      const safe = makeFirestoreSafe(value[key], false);
+      const safe = makeCloudSaveSafe(value[key], false);
       if(safe !== undefined) out[key] = safe;
     }
     return out;
@@ -1654,13 +1881,15 @@ function makeFirestoreSafe(value, insideArray=false){
   return String(value);
 }
 
-let cloudAuth = null, cloudDb = null, cloudUser = null;
+let cloudUser = null;
 let cloudReady = false, cloudBusy = false;
 let cloudEmailInput = "", cloudPasswordInput = "";
 let cloudMsg = "", cloudMsgTimer = 0;
 let accountEmail = "";
 let accountPassword = "";
 let accountMode = "login";
+let accountRegisterStep = "email";
+let accountVerificationTicket = "";
 let accountMsg = "";
 let accountBusy = false;
 let accountFocusedField = "email";
@@ -1686,6 +1915,9 @@ let deletionScheduledAtMs = 0;
 let guestCloudOverwritePromptActive = false;
 let discardGuestAfterAccountStart = false;
 const GUEST_MIGRATION_PENDING_KEY = "project_zero_guest_migration_pending_uid";
+let paidContentLockPrompt = false;
+let pendingGuestSupportTier = -1;
+let accountCredentialPanelActive = false;
 
 
 
@@ -1696,20 +1928,7 @@ function legacyCloudSetMsg(text, frames=180){
   if(text) showCenter(text, Math.min(frames, 120));
 }
 function legacyInitCloudSave(){
-  if(cloudReady) return true;
-  try{
-    if(typeof firebase === "undefined"){ cloudSetMsg(cloudTx("cloudUnavailable")); return false; }
-    if(!firebase.apps || firebase.apps.length === 0) firebase.initializeApp(FIREBASE_CONFIG);
-    cloudAuth = firebase.auth();
-    cloudDb = firebase.firestore();
-    cloudAuth.onAuthStateChanged(user => { cloudUser = user || null; });
-    cloudReady = true;
-    return true;
-  }catch(err){
-    console.error(err);
-    cloudSetMsg(cloudTx("cloudInitFail") + ": " + (err && err.message ? err.message : err), 240);
-    return false;
-  }
+  return initCloudSave();
 }
 function legacyGetLocalSaveForCloud(){
   try{
@@ -1741,7 +1960,7 @@ async function legacyCloudUploadSaveSilent(){
   if(!localSave) return;
   cloudBusy = true;
   try{
-    await cloudDb.collection("users").doc(cloudUser.uid).set(buildCloudDocPayloadSafe(localSave), {merge:true});
+    await window.PZAccount.putSave(localSave.parsed,SAVE_VERSION);
     cloudLastAutoSaveAt = now;
     cloudSetMsg(cloudTx("cloudAutoSaveOk"), 70);
   }catch(err){ console.error(err); }
@@ -1756,15 +1975,10 @@ async function legacyCloudRegisterAfterProfile(email, password){
   if(!email || !password){ cloudSetMsg(cloudTx("cloudEmailMissing")); return false; }
   cloudBusy = true;
   try{
-    let cred = null;
-    try{
-      cred = await cloudAuth.createUserWithEmailAndPassword(email.trim(), password);
-      cloudSetMsg(cloudTx("cloudRegisterOk"), 100);
-    }catch(createErr){
-      cred = await cloudAuth.signInWithEmailAndPassword(email.trim(), password);
-      cloudSetMsg(cloudTx("cloudLoginOk"), 100);
-    }
-    cloudUser = cred.user;
+    const result=await window.PZAccount.login(email.trim(),password);
+    const user=result.user;
+    cloudUser={uid:String(user.id),email:String(user.email||""),displayName:String(user.username||"")};
+    cloudSetMsg(cloudTx("cloudLoginOk"),100);
     cloudEmailInput = email.trim();
     cloudPasswordInput = password;
     saveGame();
@@ -1795,12 +2009,12 @@ function legacyCloudPromptCredentials(){
 }
 async function legacyCloudRegister(){
   if(cloudBusy) return; if(!initCloudSave()) return; if(!cloudPromptCredentials()) return; cloudBusy=true;
-  try{ const cred=await cloudAuth.createUserWithEmailAndPassword(cloudEmailInput, cloudPasswordInput); cloudUser=cred.user; cloudSetMsg(cloudTx("cloudRegisterOk")); }
+  try{ throw new Error(language==="en"?"Use the verified registration screen.":"请使用邮箱验证码注册界面。"); }
   catch(err){ cloudSetMsg(err && err.message ? err.message : String(err), 240); } finally{ cloudBusy=false; }
 }
 async function legacyCloudLogin(){
   if(cloudBusy) return; if(!initCloudSave()) return; if(!cloudPromptCredentials()) return; cloudBusy=true;
-  try{ const cred=await cloudAuth.signInWithEmailAndPassword(cloudEmailInput, cloudPasswordInput); cloudUser=cred.user; cloudSetMsg(cloudTx("cloudLoginOk")); }
+  try{ const result=await window.PZAccount.login(cloudEmailInput,cloudPasswordInput); const user=result.user; cloudUser={uid:String(user.id),email:String(user.email||""),displayName:String(user.username||"")}; cloudSetMsg(cloudTx("cloudLoginOk")); }
   catch(err){ cloudSetMsg(err && err.message ? err.message : String(err), 240); } finally{ cloudBusy=false; }
 }
 async function legacyCloudLogout(){
@@ -1813,7 +2027,7 @@ async function legacyCloudUploadSave(){
   if(!localSave){ cloudSetMsg(cloudTx("cloudNoLocalSave")); return; }
   cloudBusy=true; cloudSetMsg(cloudTx("cloudUploading"), 80);
   try{
-    await cloudDb.collection("users").doc(cloudUser.uid).set(buildCloudDocPayloadSafe(localSave), {merge:true});
+    await window.PZAccount.putSave(localSave.parsed,SAVE_VERSION);
     cloudSetMsg(cloudTx("cloudUploadOk"));
   }catch(err){ cloudSetMsg(err && err.message ? err.message : String(err), 240); }
   finally{ cloudBusy=false; }
@@ -1823,9 +2037,8 @@ async function legacyCloudDownloadSave(){
   if(!cloudUser){ cloudSetMsg(cloudTx("cloudNeedLogin")); return; }
   cloudBusy=true; cloudSetMsg(cloudTx("cloudDownloading"), 80);
   try{
-    const snap = await cloudDb.collection("users").doc(cloudUser.uid).get();
-    const data = snap.exists ? snap.data() : null;
-    const saveBox = data && (data.saveData ? {parsed:data.saveData} : data.saveBox);
+    const record=await window.PZAccount.getSave();
+    const saveBox=record&&record.save_data?{parsed:record.save_data}:null;
     if(!saveBox){ cloudSetMsg(cloudTx("cloudNoSave")); return; }
     if(!applyCloudSaveToLocal(saveBox)){ cloudSetMsg(cloudTx("cloudNoSave")); return; }
     cloudSetMsg(cloudTx("cloudDownloadOk"));
@@ -1847,25 +2060,18 @@ function setAccountMsg(text, frames=180){
 
 function initCloudSave(){
   if(cloudReady) return true;
-  try{
-    if(typeof firebase === "undefined"){
-      setAccountMsg(cloudTx("cloudUnavailable"));
-      return false;
-    }
-    if(!firebase.apps || firebase.apps.length === 0) firebase.initializeApp(FIREBASE_CONFIG);
-    cloudAuth = firebase.auth();
-    cloudDb = firebase.firestore();
-    if(!cloudPersistenceReady){
-      cloudPersistenceReady = cloudAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL)
-        .catch(err => console.warn("[CloudAuth]", err));
-    }
-    cloudReady = true;
-    return true;
-  }catch(err){
-    console.error("[CloudInit]", err);
-    setAccountMsg(cloudTx("cloudInitFail") + ": " + accountErrorText(err), 240);
+  if(!window.PZAccount || !window.PZAccount.configured){
+    setAccountMsg(language==="en" ? "Set the SF Account server URL in Launcher settings." : "请先在启动器设置中填写 SF Account 服务器地址。",240);
     return false;
   }
+  cloudReady=true;
+  const u=window.PZAccount.user;
+  cloudUser=u?{uid:String(u.id),email:String(u.email||""),displayName:String(u.username||"")}:null;
+  cloudPersistenceReady=window.PZAccount.restore().then(restored=>{
+    cloudUser=restored?{uid:String(restored.id),email:String(restored.email||""),displayName:String(restored.username||"")}:null;
+    return restored;
+  }).catch(error=>{ console.warn("[SF Account restore]",error); cloudUser=null; return null; });
+  return true;
 }
 
 function getLocalSaveForCloud(forceSave=false){
@@ -1909,7 +2115,7 @@ function applyCloudSaveToLocal(saveBox){
   }
 }
 
-function buildCloudDocPayloadSafe(localSave){
+function buildCloudSavePayload(localSave){
   // Cloud save must be UPDATE/REPLACE, not append.
   // Store only the current parsed saveData in a fixed user document:
   // users/{uid}.saveData
@@ -1918,9 +2124,10 @@ function buildCloudDocPayloadSafe(localSave){
   parsed.accountUid = cloudUser ? cloudUser.uid : (parsed.accountUid || "");
   parsed.updatedAt = Date.now();
 
-  const payload = {
-    saveData: makeFirestoreSafe(parsed),
-    updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+  return {
+    uid: cloudUser ? cloudUser.uid : "",
+    saveData: makeCloudSaveSafe(parsed),
+    updatedAt: new Date().toISOString(),
     buildTarget: BUILD_TARGET || "PC",
     saveKey: activeSaveKey(),
     saveVersion: SAVE_VERSION,
@@ -1932,27 +2139,11 @@ function buildCloudDocPayloadSafe(localSave){
     accountEmail: cloudUser && cloudUser.email ? cloudUser.email : "",
     clientUpdatedAt: new Date().toISOString()
   };
-
-  // Remove older duplicated formats if they exist in Firestore.
-  // This prevents cloud documents from growing by keeping old saveBox/history fields.
-  try{
-    payload.saveBox = firebase.firestore.FieldValue.delete();
-    payload.saves = firebase.firestore.FieldValue.delete();
-    payload.saveHistory = firebase.firestore.FieldValue.delete();
-    payload.history = firebase.firestore.FieldValue.delete();
-  }catch(e){}
-
-  return payload;
 }
 async function fetchCloudSaveBox(){
-  if(!cloudUser || !cloudDb) return null;
-  const snap = await cloudDb.collection("users").doc(cloudUser.uid).get();
-  const data = snap.exists ? snap.data() : null;
-  if(!data) return null;
-  // New compact format
-  if(data.saveData) return {parsed:data.saveData};
-  // Backward compatibility for old builds
-  return data.saveBox || null;
+  if(!window.PZAccount||!window.PZAccount.configured) return null;
+  const record=await window.PZAccount.getSave();
+  return record&&record.save_data?{parsed:record.save_data}:null;
 }
 
 // Guards against wiping a real profile when the cloud document hasn't
@@ -2104,35 +2295,100 @@ async function accountLoginFlow(overwriteConfirmed=false){
   const email = (accountEmail || "").trim();
   const password = accountPassword || "";
   if(!email || !password){ setAccountMsg(accTx("cloudEmailMissing"),150); return; }
-  if(!overwriteConfirmed && guestMode && hasTransferableGuestSave()){
-    guestCloudOverwritePromptActive=true;
-    accountFocusedField="";
-    return;
-  }
+  if(guestMode) saveGame();
+  const guestTransfer=guestMode?readGuestTransferSnapshot():null;
   if(!await ensureCloudPersistenceReady()) return;
   accountBusy = true;
   explicitGuestSession = false;
   const sessionToken = ++cloudSessionToken;
   setAccountMsg(accTx("checkingSave"),120);
   try{
-    const cred = await cloudAuth.signInWithEmailAndPassword(email, password);
+    const result=await window.PZAccount.login(email,password);
+    const apiUser=result.user;
+    const cred={user:{uid:String(apiUser.id),email:String(apiUser.email||""),displayName:String(apiUser.username||"")}};
     if(sessionToken !== cloudSessionToken) return;
     cloudUser = cred.user;
     accountAuthed = true;
-    guestMode = false;
-    setStoredGuestSessionActive(false);
     cloudInitialSyncDone = false;
     cloudPendingSave = false;
-    discardGuestAfterAccountStart=!!(overwriteConfirmed&&hasTransferableGuestSave());
     const meta = await readAccountMeta();
     if(await blockExpiredDeletion(meta)) return;
     if(hasPendingDeletion(meta)){
       openDeletionPrompt(meta);
       return;
     }
+    if(guestTransfer){
+      const remoteSave=await fetchCloudSaveBox();
+      const remoteParsed=remoteSave&&(remoteSave.parsed||remoteSave);
+      const remoteHasProfile=!!(remoteParsed&&typeof remoteParsed==="object"&&!Array.isArray(remoteParsed)&&remoteParsed.hasCreatedProfile);
+      const localMatch=getMatchingLocalSaveForAccount(cloudUser.uid);
+      if(remoteHasProfile||localMatch){
+        try{await window.PZAccount.logout();}catch(e){}
+        cloudUser=null;
+        accountAuthed=false;
+        guestMode=true;
+        explicitGuestSession=true;
+        setStoredGuestSessionActive(true);
+        resetRuntimeDefaults();
+        loadGame();
+        reloadAccountScopedGameplay(false);
+        const boundError=new Error(language==="en"
+          ? "This SF Account already has Project Zero progress and cannot be bound to the current guest save."
+          : "该 SF Account 已注册过游戏进度，无法登录并绑定当前游客存档。");
+        boundError.code="GAME_ACCOUNT_ALREADY_BOUND";
+        throw boundError;
+      }
+      guestMode=false;
+      explicitGuestSession=false;
+      setStoredGuestSessionActive(false);
+      const accountKey=cloudAccountSaveKey(cloudUser.uid);
+      const migrated=JSON.parse(JSON.stringify(guestTransfer.parsed));
+      migrated.accountUid=cloudUser.uid;
+      migrated.updatedAt=Date.now();
+      migrated.saveVersion=SAVE_VERSION;
+      writeSaveRecordSafely(accountKey,migrated);
+      restoreExternalProgress(migrated.externalProgress,accountKey);
+      markGuestMigrationPending(cloudUser.uid);
+      resetRuntimeDefaults();
+      loadGame();
+      reloadAccountScopedGameplay(false);
+      cloudInitialSyncDone=true;
+      const localSave=getLocalSaveForCloud(false);
+      let transferSynced=false;
+      try{
+        await window.PZAccount.putSave(localSave.parsed,SAVE_VERSION);
+        cloudLastSyncedRaw=localSave.raw||"";
+        cloudLastAutoSaveAt=Date.now();
+        finalizeGuestMigration(cloudUser.uid);
+        cloudPendingSave=false;
+        transferSynced=true;
+      }catch(syncErr){
+        console.warn("[GuestLoginTransfer] cloud upload pending",syncErr);
+        cloudPendingSave=true;
+        cloudAutoSaveCooldown=120;
+      }
+      accountPassword="";
+      if(accountCredentialPanelActive){
+        accountCredentialPanelActive=false;
+        settingsTab="account";
+        gameMode="settings";
+      }else gameMode="login";
+      setAccountMsg(transferSynced
+        ? (language==="en"?"Signed in. This unused SF Account is now bound to your guest progress.":"登录成功，该未建立游戏档案的 SF Account 已绑定游客进度。")
+        : (language==="en"?"Account bound locally. Cloud sync will retry automatically.":"账号已在本地完成绑定，云端同步将自动重试。"),180);
+      return;
+    }
+    guestMode = false;
+    explicitGuestSession = false;
+    setStoredGuestSessionActive(false);
+    discardGuestAfterAccountStart=false;
     // Authentication alone does not delete the guest slot. The confirmed
     // overwrite is finalized only after Tap to Start resolves this UID's save.
-    gameMode = "login";
+    if(accountCredentialPanelActive){
+      accountCredentialPanelActive=false;
+      settingsTab="account";
+      gameMode="settings";
+    }else gameMode = "login";
     accountPassword = "";
     setAccountMsg(language==="en" ? "Signed in. Tap to Start to load this account." : "登录成功，请点击开始载入该账号存档。",150);
   }catch(err){ console.error("[AccountLogin]", err); setAccountMsg(accountErrorText(err),240); }
@@ -2143,19 +2399,57 @@ async function accountRegisterFlow(){
   if(accountBusy) return;
   const email = (accountEmail || "").trim();
   const password = accountPassword || "";
-  if(!email || !password){ setAccountMsg(accTx("cloudEmailMissing"),150); return; }
+  if(!email){ setAccountMsg(language==="en"?"Enter a valid email address.":"请输入有效邮箱地址。",150); return; }
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ setAccountMsg(language==="en"?"This email address is not valid.":"邮箱格式不正确。",180); return; }
+  if(accountRegisterStep==="code" && !/^\d{6}$/.test(password)){
+    setAccountMsg(language==="en"?"Enter the 6-digit verification code.":"请输入 6 位数字验证码。",180); return;
+  }
+  if(accountRegisterStep==="password" && password.length<8){
+    setAccountMsg(language==="en"?"Password must contain at least 8 characters.":"密码至少需要 8 个字符。",180); return;
+  }
+  if(!await ensureCloudPersistenceReady()) return;
+  accountBusy=true;
+  try{
+    if(accountRegisterStep==="email"){
+      setAccountMsg(language==="en"?"Sending verification code...":"正在发送验证码……",180);
+      await window.PZAccount.requestCode(email);
+      accountRegisterStep="code";
+      accountPassword="";
+      accountFocusedField="password";
+      setAccountMsg(language==="en"?"Code sent. It expires in 5 minutes.":"验证码已发送，5 分钟内有效。",240);
+      return;
+    }
+    if(accountRegisterStep==="code"){
+      setAccountMsg(language==="en"?"Verifying code...":"正在验证验证码……",180);
+      const verified=await window.PZAccount.verifyCode(email,password);
+      accountVerificationTicket=String(verified.verificationToken||verified.ticket||"");
+      if(!accountVerificationTicket) throw new Error("INVALID_VERIFICATION_RESPONSE");
+      accountRegisterStep="password";
+      accountPassword="";
+      accountFocusedField="password";
+      setAccountMsg(language==="en"?"Email verified. Set your password.":"邮箱验证成功，请设置密码。",240);
+      return;
+    }
+  }catch(err){
+    console.error("[VerifiedRegistration]",err);
+    setAccountMsg(accountFunctionErrorText(err),300);
+    return;
+  }finally{
+    accountBusy=false;
+  }
   // Capture the guest slot before Firebase changes the active namespace.
   // It is only removed after the new account save reaches Firestore.
   if(guestMode)saveGame();
   const guestTransfer=guestMode?readGuestTransferSnapshot():null;
   let guestTransferCloudSynced=!guestTransfer;
-  if(!await ensureCloudPersistenceReady()) return;
   accountBusy = true;
   explicitGuestSession = false;
   const sessionToken = ++cloudSessionToken;
   setAccountMsg(language==="en" ? "Creating account..." : "正在注册账号……",120);
   try{
-    const cred = await cloudAuth.createUserWithEmailAndPassword(email, password);
+    const completed=await window.PZAccount.completeRegistration(accountVerificationTicket,password);
+    const apiUser=completed.user;
+    const cred={user:{uid:String(apiUser.id),email:String(apiUser.email||""),displayName:String(apiUser.username||"")}};
     if(sessionToken !== cloudSessionToken) return;
     cloudUser = cred.user;
     accountAuthed = true;
@@ -2178,7 +2472,7 @@ async function accountRegisterFlow(){
       cloudInitialSyncDone=true;
       const localSave=getLocalSaveForCloud(false);
       try{
-        await cloudDb.collection("users").doc(cloudUser.uid).set(buildCloudDocPayloadSafe(localSave),{merge:true});
+        await window.PZAccount.putSave(localSave.parsed,SAVE_VERSION);
         cloudLastSyncedRaw=localSave&&localSave.raw?localSave.raw:"";
         cloudLastAutoSaveAt=Date.now();
         finalizeGuestMigration(cloudUser.uid);
@@ -2195,31 +2489,67 @@ async function accountRegisterFlow(){
       reloadAccountScopedGameplay(true);
     }
     accountPassword = "";
+    accountRegisterStep="email";
+    accountVerificationTicket="";
     setAccountMsg(guestTransfer
       ? (guestTransferCloudSynced
           ? (language==="en" ? "Account created. Guest progress has been transferred." : "注册成功，游客进度已迁移至该账号。")
           : (language==="en" ? "Account created. Progress is safe locally; cloud sync will retry." : "注册成功，进度已安全迁移到账号本地，云端正在重试同步。"))
       : (language==="en" ? "Account created. Tap to Start for a new game." : "注册成功，请点击开始进入全新进度。"),150);
-    gameMode = "login";
+    if(accountCredentialPanelActive){
+      accountCredentialPanelActive=false;
+      settingsTab="account";
+      gameMode="settings";
+    }else gameMode = "login";
   }catch(err){ console.error("[AccountRegister]", err); setAccountMsg(accountErrorText(err),240); }
   finally{ accountBusy = false; }
+}
+
+function accountFunctionErrorText(err){
+  const code=String(err&&err.message||err||"");
+  const en=language==="en";
+  if(code==="HTTP_404") return en
+    ?"Registration service was not found. Deploy the three account Cloud Functions to this Firebase project."
+    :"找不到注册服务。请将三个账号 Cloud Functions 部署到当前 Firebase 项目。";
+  const map={
+    ACCOUNT_API_NOT_CONFIGURED:en?"Set the account server URL in the launcher settings.":"请先在启动器设置中填写账号服务器地址。",
+    ACCOUNT_API_OFFLINE:en?"The account server is currently unreachable.":"暂时无法连接账号服务器。",
+    ACCOUNT_API_TIMEOUT:en?"The account server timed out. Try again.":"账号服务器响应超时，请重试。",
+    invalid_credentials:en?"Email/username or password is incorrect.":"邮箱、用户名或密码错误。",
+    invalid_email:en?"Enter a valid email address.":"请输入有效邮箱地址。",
+    disposable_email_not_allowed:en?"Disposable email addresses are not supported.":"不支持一次性邮箱。",
+    email_already_registered:en?"This email is already registered.":"该邮箱已注册。",
+    incorrect_code:en?"The verification code is incorrect.":"验证码错误。",
+    code_expired:en?"The verification code expired. Request a new one.":"验证码已过期，请重新获取。",
+    no_pending_code:en?"Request a new verification code first.":"请先重新获取验证码。",
+    too_many_attempts:en?"Too many attempts. Request a new code.":"尝试次数过多，请重新获取验证码。",
+    weak_password:en?"Password must contain at least 8 characters.":"密码至少需要 8 个字符。",
+    FUNCTION_NETWORK_ERROR:en?"Cannot reach registration service. Deploy Cloud Functions and check the Functions base URL.":"无法连接注册服务。请先部署 Cloud Functions，并检查 Functions 地址。",
+    EMAIL_SERVICE_NOT_CONFIGURED:en?"Email service is not configured on the server.":"服务器尚未配置邮件发送服务。",
+    EMAIL_SEND_FAILED:en?"The verification email could not be sent. Try again later.":"验证码邮件发送失败，请稍后重试。",
+    RESEND_COOLDOWN:en?"Please wait 60 seconds before requesting another code.":"同一邮箱 60 秒内不能重复发送。",
+    SEND_TOO_FREQUENT:en?"Please wait 60 seconds before requesting another code.":"同一邮箱 60 秒内不能重复发送。",
+    INVALID_CODE:en?"The verification code is incorrect.":"验证码错误。",
+    TOO_MANY_ATTEMPTS:en?"Too many incorrect attempts. Request a new code.":"输错次数过多，请重新获取验证码。",
+    CODE_EXPIRED:en?"The verification code expired. Request a new one.":"验证码已过期，请重新获取。",
+    EMAIL_ALREADY_EXISTS:en?"This email is already registered.":"该邮箱已注册。",
+    EMAIL_ALREADY_REGISTERED:en?"This email is already registered.":"该邮箱已注册。",
+    CODE_NOT_FOUND:en?"No active code was found. Request a new one.":"没有可用验证码，请重新获取。",
+    VERIFICATION_REQUIRED:en?"Verify the email again before creating the account.":"请重新验证邮箱后再注册。",
+    VERIFICATION_EXPIRED:en?"Email verification expired. Request a new code.":"邮箱验证已过期，请重新获取验证码。",
+    WEAK_PASSWORD:en?"Password must contain at least 8 characters.":"密码至少需要 8 个字符。",
+    INVALID_VERIFICATION_RESPONSE:en?"The verification service returned invalid data.":"验证码服务返回了无效数据。",
+    INVALID_REGISTRATION_RESPONSE:en?"Registration service returned invalid data.":"注册服务返回了无效数据。"
+  };
+  return map[code]||(en?("Registration failed: "+code):("注册失败："+code));
 }
 
 async function accountGuestFlow(){
   if(accountBusy) return;
   accountBusy = true;
   const sessionToken = ++cloudSessionToken;
-  // Firebase Auth persistence may still hold a previous email account. A
-  // guest session must not share that identity or be hijacked by the delayed
-  // onAuthStateChanged callback.
   explicitGuestSession = true;
-  try{
-    if(await ensureCloudPersistenceReady() && cloudAuth && cloudAuth.currentUser){
-      await cloudAuth.signOut();
-    }
-  }catch(err){
-    console.warn("[GuestSignOut]", err);
-  }
+  try{ if(window.PZAccount) window.PZAccount.clear(); }catch(err){ console.warn("[GuestSignOut]", err); }
   if(sessionToken !== cloudSessionToken){ accountBusy = false; return; }
   cloudUser = null;
   guestMode = true;
@@ -2243,8 +2573,8 @@ async function accountGuestFlow(){
 }
 
 function openAccountCredentialPanel(mode="login"){
-  // Preserve the current guest state before leaving it. The account panel is
-  // canvas-native and works in browser/Electron without window.prompt.
+  // Preserve the current guest state. From Settings this opens as an in-game
+  // request overlay instead of sending the player back to the startup screen.
   if(guestMode || !cloudUser) saveGame();
   accountMode = mode === "register" ? "register" : "login";
   accountEmail = "";
@@ -2252,7 +2582,8 @@ function openAccountCredentialPanel(mode="login"){
   accountFocusedField = "email";
   accountMsg = "";
   guestCloudOverwritePromptActive=false;
-  gameMode = "login";
+  accountCredentialPanelActive = gameMode === "settings";
+  if(!accountCredentialPanelActive) gameMode = "login";
 }
 
 function promptAccountCredentials(mode="login"){
@@ -2295,7 +2626,7 @@ async function autoCloudSaveNow(force=false){
   cloudSyncStatus = accTx("syncing");
   cloudSyncTimer = 90;
   try{
-    await cloudDb.collection("users").doc(savingUid).set(buildCloudDocPayloadSafe(localSave), {merge:true});
+    await window.PZAccount.putSave(localSave.parsed,SAVE_VERSION);
     // The write belongs to the captured account, but UI/cache state must not
     // be applied to a different account selected while the request was in flight.
     if(savingSessionToken !== cloudSessionToken || !cloudUser || cloudUser.uid !== savingUid) return;
@@ -2343,9 +2674,8 @@ function clearLocalSaveCache(){
 }
 
 async function readAccountMeta(){
-  if(!cloudUser || !cloudDb) return null;
-  const snap = await cloudDb.collection("users").doc(cloudUser.uid).get();
-  return snap.exists ? snap.data() : null;
+  if(!window.PZAccount||!window.PZAccount.configured||!cloudUser) return null;
+  return window.PZAccount.getAccount();
 }
 
 function deletionTimeMs(value){
@@ -2380,13 +2710,10 @@ function openDeletionPrompt(meta){
   setAccountMsg(language==="en" ? "Account is still in the deletion period." : "账号仍处于注销期。", 240);
 }
 async function cancelDeleteRequest(){
-  if(!cloudUser || !cloudDb) return;
+  if(!cloudUser || !window.PZAccount) return;
   accountBusy = true;
   try{
-    await cloudDb.collection("users").doc(cloudUser.uid).set({
-      deletionRequestedAt: firebase.firestore.FieldValue.delete(),
-      deletionScheduledAt: firebase.firestore.FieldValue.delete()
-    }, {merge:true});
+    await window.PZAccount.cancelDeletion();
     deletionPromptActive = false;
     deletionScheduledAtMs = 0;
     accountBusy = false;
@@ -2400,16 +2727,14 @@ async function checkAndCancelPendingDelete(){
   return hasPendingDeletion(meta);
 }
 async function requestDeleteAccount(){
-  if(!cloudUser || !cloudDb) return;
+  if(!cloudUser || !window.PZAccount) return;
   const now = Date.now();
   const scheduled = now + DELETE_GRACE_MS;
   accountBusy = true;
   try{
     const deletingUid = cloudUser.uid;
-    await cloudDb.collection("users").doc(cloudUser.uid).set({
-      deletionRequestedAt: firebase.firestore.Timestamp.fromMillis(now),
-      deletionScheduledAt: firebase.firestore.Timestamp.fromMillis(scheduled)
-    }, {merge:true});
+    const meta=await window.PZAccount.requestDeletion();
+    deletionScheduledAtMs=deletionTimeMs(meta&&meta.deletionScheduledAt)||scheduled;
     deletionScheduledAtMs = scheduled;
     await signOutAndClearLocal(true);
     try{
@@ -2425,7 +2750,9 @@ async function signOutAndClearLocal(skipCloudSave=false){
   explicitGuestSession = false;
   setStoredGuestSessionActive(false);
   if(!skipCloudSave){ try{ if(cloudUser && hasCreatedProfile) await autoCloudSaveNow(true); }catch(err){ console.warn("[SignOutSave]", err); } }
-  try{ if(cloudAuth) await cloudAuth.signOut(); }catch(err){ console.warn("[SignOut]", err); }
+  try{
+    if(window.PZAccount) await window.PZAccount.logout();
+  }catch(err){ console.warn("[SignOut]", err); }
   cloudUser = null;
   accountAuthed = false;
   guestMode = false;
@@ -2451,39 +2778,18 @@ async function bootAccountSession(){
   if(!initCloudSave()) return;
   if(cloudBootListenerAttached) return;
   cloudBootListenerAttached = true;
-  cloudAuth.onAuthStateChanged(async user => {
+  Promise.resolve(cloudPersistenceReady).then(async restored=>{
     cloudAuthStateResolved = true;
-    // An explicitly selected guest session always wins over a persisted Auth
-    // callback. Do not let it expose or save an email account's runtime data.
-    if(explicitGuestSession && user){
-      try{ await cloudAuth.signOut(); }catch(err){ console.warn("[GuestAuthIsolation]", err); }
-      return;
-    }
-    if(explicitGuestSession && !user){
-      cloudUser = null;
-      accountAuthed = false;
-      return;
-    }
-    const hadActiveAccount = !!(accountAuthed && !guestMode && cloudUser);
-    cloudUser = user || null;
-    accountAuthed = !!cloudUser;
-    if(!cloudUser && hadActiveAccount){
-      cloudSessionToken++;
-      cloudInitialSyncDone = false;
-      cloudPendingSave = false;
-      cloudLastSyncedRaw = "";
-      deletionPromptActive = false;
-      resetRuntimeDefaults();
-      gameMode = "login";
-      setAccountMsg(language === "en" ? "Your session ended. Please sign in again." : "登录状态已失效，请重新登录。", 180);
-      return;
-    }
-    if(cloudUser) restoreCachedAccountLanguage(cloudUser.uid);
-    if(cloudUser) reloadAccountScopedGameplay(false);
-    if(cloudUser && gameMode === "login"){
-      setAccountMsg(language==="en" ? "Signed in. Tap to Start to load this account." : "已登录，点击开始载入该账号存档。",90);
-    }
-  });
+    if(explicitGuestSession){ cloudUser=null; accountAuthed=false; return; }
+    if(!restored){ cloudUser=null; accountAuthed=false; return; }
+    cloudUser={uid:String(restored.id),email:String(restored.email||""),displayName:String(restored.username||"")};
+    accountAuthed=true;
+    restoreCachedAccountLanguage(cloudUser.uid);
+    reloadAccountScopedGameplay(false);
+    const meta=await readAccountMeta();
+    if(hasPendingDeletion(meta)) openDeletionPrompt(meta);
+    else if(gameMode==="login") setAccountMsg(language==="en" ? "Signed in. Tap to Start to load this account." : "已登录，点击开始载入该账号存档。",90);
+  }).catch(err=>console.warn("[SF Account boot]",err));
 }
 
 function resetRuntimeDefaults(){
@@ -3443,7 +3749,7 @@ function localizeText(text){
     "任务失败":"Mission Failed",
     "委托完成":"Mission Complete",
     "前往右侧区域":"Move to the right area",
-    "GUARD! 按R弹刀":"GUARD! Press R to Parry",
+    "GUARD! 按空格弹刀":"GUARD! Press Space to Parry",
     "CHAIN SELECT  左键/右键选择连携":"CHAIN SELECT  Left/Right Click to choose chain",
     "BOSS PHASE 2  护盾展开":"BOSS PHASE 2  Shield Deployed",
     "BOSS PHASE 3  连续红光":"BOSS PHASE 3  Continuous Red Warning",
@@ -4173,7 +4479,7 @@ let teamDamageAmpTimer = 0;
 let chloeElementDamageAmpTimer = 0;
 let chloeTrueDamageTimer = 0;
 let chloeHealingFields = [];
-let chloeAttackCharge = {active:false,dir:1,length:120,width:120};
+let chloeAttackCharge = {active:false,angle:0,length:120,width:120};
 let kaneSigils = [];
 let noxDamageAmpTimer = 0;
 let windFields = [];
@@ -4520,18 +4826,20 @@ function createEnemy(x,y,boss=false,type="normal"){
   type = type || "normal";
   const commissionStage = battleModeSource==="commission" ? currentCommissionStage() : null;
   const stageScale = commissionStage ? commissionStage.lv : (selectedStage || 1);
-  const hp = boss ? 1650 + stageScale*95 : type==="shield" ? 760 + stageScale*45 : type==="berserker" ? 620 + stageScale*38 : type==="ranged" ? 470 + stageScale*30 : type==="elite" ? 820 + stageScale*48 : 560 + stageScale*34;
-  const shield = boss ? 880 + stageScale*65 : type==="shield" ? 520 + stageScale*42 : type==="elite" ? 360 + stageScale*30 : type==="ranged" ? 180 + stageScale*18 : 0;
-  const lv = boss ? stageScale + 7 : type==="elite" ? stageScale + 4 : type==="shield" ? stageScale + 2 : type==="berserker" ? stageScale + 3 : type==="ranged" ? stageScale + 2 : stageScale;
+  const hp = boss ? 1650 + stageScale*95 : type==="shield" ? 760 + stageScale*45 : type==="berserker" ? 620 + stageScale*38 : type==="ranged" ? 470 + stageScale*30 : type==="sniper" ? 430 + stageScale*28 : type==="skirmisher" ? 520 + stageScale*32 : type==="support" ? 620 + stageScale*36 : type==="elite" ? 820 + stageScale*48 : 560 + stageScale*34;
+  const shield = boss ? 880 + stageScale*65 : type==="shield" ? 520 + stageScale*42 : type==="elite" ? 360 + stageScale*30 : type==="support" ? 240 + stageScale*20 : type==="ranged" ? 180 + stageScale*18 : type==="sniper" ? 120 + stageScale*12 : 0;
+  const lv = boss ? stageScale + 7 : type==="elite" ? stageScale + 4 : type==="shield" ? stageScale + 2 : type==="berserker" ? stageScale + 3 : ["ranged","sniper","skirmisher","support"].includes(type) ? stageScale + 2 : stageScale;
   return {
-    x,y,vx:0,vy:0,r:boss?46:type==="shield"?32:type==="ranged"?24:26,
+    x,y,vx:0,vy:0,r:boss?46:type==="shield"?32:type==="support"?29:["ranged","sniper"].includes(type)?24:type==="skirmisher"?23:26,
     hp,maxHp:hp,shield,maxShield:shield,
-    stun:boss?520:type==="shield"?320:type==="elite"?360:220,
-    maxStun:boss?520:type==="shield"?320:type==="elite"?360:220,
+    stun:boss?520:type==="shield"?320:type==="elite"?360:type==="support"?280:220,
+    maxStun:boss?520:type==="shield"?320:type==="elite"?360:type==="support"?280:220,
     alive:true,boss,type,lv,
     phase:1,
     windup:0,attackCd:70+Math.random()*70,hit:0,parried:0,
-    shotCd:type==="ranged"?60:0,
+    shotCd:type==="ranged"?60:type==="sniper"?82:0,
+    supportCd:type==="support"?150:0,
+    strafeSeed:Math.random()<.5?-1:1,
     aiTick: Math.floor(Math.random()*8),
     cachedDx:0,
     cachedDy:0,
@@ -4852,6 +5160,14 @@ function achievementProgressText(a){
   if(a.id==="crystal_10k") return Math.min(totalCrystalsEarned,10000)+"/10000";
   if(a.id==="operators_4") return Math.min(owned.filter(Boolean).length,4)+"/4";
   if(a.id==="weapons_4"){ensureWeaponBag();return Math.min(weaponInventory.filter(v=>v.owned&&!String(v.id).startsWith("training_")).length,4)+"/4";}
+  if(a.id==="all_main_clear") return (([1,2,3,4,5,6,7,8,9,10,11].every(i=>cleared[i])?1:0)+(chapter1Complete()?1:0)+(storyChapterComplete(2)?1:0))+"/3";
+  if(a.id==="kills_500") return Math.min(totalKills,500)+"/500";
+  if(a.id==="parry_100") return Math.min(totalParries,100)+"/100";
+  if(a.id==="chain_100") return Math.min(totalChains,100)+"/100";
+  if(a.id==="boss_25") return Math.min(totalBossKills,25)+"/25";
+  if(a.id==="operators_6") return Math.min(owned.filter(Boolean).length,6)+"/6";
+  if(a.id==="weapon_lv10"){ensureWeaponBag();return Math.min(Math.max(1,...weaponInventory.filter(v=>v.owned).map(v=>v.level||1)),10)+"/10";}
+  if(a.id==="operator_lv30") return Math.min(Math.max(1,...charData.map(c=>c.level||1)),30)+"/30";
   return "";
 }
 
@@ -4931,7 +5247,7 @@ function clearTransientBattleState(){
   projectAreaObjects=[];
   battleExploreObjects=[];
   battleRewardNotices=[];
-  projectiles=[]; frostFields=[]; bossHazards=[]; krosPhaseTransitionTimer=0; krosPhaseTransitionPhase=1; krosPhaseTransitionText=""; playerPoisonTimer=0; playerBleedTimer=0;
+  projectiles=[]; frostFields=[]; bossHazards=[]; krosPhaseTransitionTimer=0; krosPhaseTransitionPhase=1; krosPhaseTransitionText=""; krosIntroTimer=0; playerPoisonTimer=0; playerBleedTimer=0;
   particles=[];
   slashes=[];
   texts=[];
@@ -4962,7 +5278,7 @@ function clearTransientBattleState(){
   chloeElementDamageAmpTimer=0;
   chloeTrueDamageTimer=0;
   chloeHealingFields=[];
-  chloeAttackCharge={active:false,dir:1,length:120,width:120};
+  chloeAttackCharge={active:false,angle:0,length:120,width:120};
   kaneSigils=[];
   noxDamageAmpTimer=0;
   windFields=[];
@@ -5151,7 +5467,8 @@ function startBattle(){
   battlePaused=false;
   battleResumeSnapshot=null;
   clearTransientBattleState();
-  gameMode="battle"; mouseDown=false; clicked=false; mouseAttackConsumed=false; attackInputLock=0; attackBuffer=0; skillBuffer=0; ultBuffer=0; dashBuffer=0; projectiles=[]; lockTarget=null; krosPhaseTransitionTimer=0; krosPhaseTransitionPhase=1; krosPhaseTransitionText=""; hitStop=0; slowMo=0; flash=0; shake=0; ult={active:false,timer:0,role:0,hitDone:false};
+  gameMode="battle"; mouseDown=false; clicked=false; mouseAttackConsumed=false; attackInputLock=0; attackBuffer=0; skillBuffer=0; ultBuffer=0; dashBuffer=0; projectiles=[]; lockTarget=null; krosPhaseTransitionTimer=0; krosPhaseTransitionPhase=1; krosPhaseTransitionText=""; krosIntroTimer=0; hitStop=0; slowMo=0; flash=0; shake=0; ult={active:false,timer:0,role:0,hitDone:false};
+  // Team setup and all stage states intentionally remain silent.
   battleRoleHp = Array.from({length:roles.length}, (_,i)=>roleMaxHpForBattle(i));
   battleRoleEnergy = Array.from({length:roles.length}, ()=>80);
   battleRoleUlt = Array.from({length:roles.length}, ()=>0);
@@ -5223,12 +5540,12 @@ function findParryEnemy(){
 }
 
 
-function showActionPrompt(text, frames=58){
+function showActionPrompt(text, frames=90){
   text = localizeText ? localizeText(text) : text;
   actionPrompt = text;
   actionPromptTimer = frames;
   centerText = text;
-  centerTimer = Math.max(centerTimer || 0, Math.min(frames, 80));
+  centerTimer = Math.max(centerTimer || 0, Math.min(frames, 110));
 }
 
 function addStyle(points){
@@ -5245,10 +5562,28 @@ function triggerBreak(e){
   chainReady = true;
   chainTarget = e;
   chainSelect = true;
-  chainSelectTimer = 75;
-  slowMo = Math.max(slowMo, 14);
-  showActionPrompt(msg("chainSelect"), 80);
+  chainSelectDeadline = performance.now() + CHAIN_SELECT_DURATION_MS;
+  chainSelectTimer = 5;
+  chainSelectChoiceRequested = -1;
+  mouseDown = false;
+  mouseAttackConsumed = true;
+  keys["mouse2"] = false;
+  shake = 0;
+  showActionPrompt(msg("chainSelect"), 300);
   sfx("break");
+}
+
+function cancelChainSelection(message=""){
+  if(!chainSelect) return;
+  chainSelect=false;
+  chainReady=false;
+  chainTarget=null;
+  chainSelectTimer=0;
+  chainSelectDeadline=0;
+  chainSelectChoiceRequested=-1;
+  mouseDown=false;
+  keys["mouse2"]=false;
+  if(message) showActionPrompt(message,110);
 }
 
 function isFloraRole(i=player.role){
@@ -5504,7 +5839,8 @@ function updateAiloCombatEffects(){
 
 function beginChloeAttackCharge(){
   if(player.role!==5 || chloeAttackCharge.active || player.attackCd>0 || attackInputLock>0 || ult.active) return false;
-  chloeAttackCharge={active:true,dir:mouseY>=player.y?1:-1,length:120,width:120};
+  const angle=Math.atan2(mouseY-player.y,mouseX-player.x);
+  chloeAttackCharge={active:true,angle:Number.isFinite(angle)?angle:0,length:120,width:120};
   attackBuffer=0;
   return true;
 }
@@ -5515,31 +5851,34 @@ function updateChloeAttackCharge(){
     chloeAttackCharge.active=false;
     return;
   }
-  chloeAttackCharge.dir=mouseY>=player.y?1:-1;
-  chloeAttackCharge.length=clamp(Math.abs(mouseY-player.y),120,430);
+  const dx=mouseX-player.x,dy=mouseY-player.y;
+  chloeAttackCharge.angle=Math.atan2(dy,dx);
+  chloeAttackCharge.length=clamp(Math.hypot(dx,dy),120,430);
+  player.facing=Math.cos(chloeAttackCharge.angle)>=0?1:-1;
   if(!mouseDown) releaseChloeAttack();
 }
 
 function releaseChloeAttack(){
   if(!chloeAttackCharge.active) return;
-  const dir=chloeAttackCharge.dir;
+  const angle=chloeAttackCharge.angle;
+  const ux=Math.cos(angle),uy=Math.sin(angle),px=-uy,py=ux;
   const len=chloeAttackCharge.length;
   const halfW=chloeAttackCharge.width*.5;
   chloeAttackCharge.active=false;
   player.attackCd=44;attackInputLock=20;
-  const cy=player.y+dir*len*.5;
-  addBladeTrail(player.x-halfW,player.y,player.x+halfW,player.y+dir*len,"#bda7ff",24,18,"windSkill");
-  addSlash(player.x,cy,Math.max(90,len*.48),"#78f0c3",18,"windField");
+  const cx=player.x+ux*len*.5,cy=player.y+uy*len*.5;
+  addBladeTrail(player.x-px*halfW,player.y-py*halfW,player.x+ux*len+px*halfW,player.y+uy*len+py*halfW,"#bda7ff",24,18,"windSkill");
+  addSlash(cx,cy,Math.max(90,len*.48),"#78f0c3",18,"windField");
   for(const e of enemies){
     if(!e.alive) continue;
-    const insideX=Math.abs(e.x-player.x)<=halfW+e.r;
-    const rel=(e.y-player.y)*dir;
-    if(insideX&&rel>=-e.r&&rel<=len+e.r){
+    const ex=e.x-player.x,ey=e.y-player.y;
+    const forward=ex*ux+ey*uy,lateral=Math.abs(ex*px+ey*py);
+    if(lateral<=halfW+e.r&&forward>=-e.r&&forward<=len+e.r){
       e.weathering=Math.max(e.weathering||0,300);
       hitEnemy(e,panelDamage(5,.68,"normal",Math.random()*9)*windDamageScale(e,5),4,panelShieldDamage(5,15,"normal"),"#bda7ff","WEATHERING");
     }
   }
-  addText(player.x,player.y+dir*len,language==="en"?"RECTANGLE "+Math.round(len):"矩形范围 "+Math.round(len),"#bda7ff",false);
+  addText(player.x+ux*len,player.y+uy*len,language==="en"?"RECTANGLE "+Math.round(len):"矩形范围 "+Math.round(len),"#bda7ff",false);
   sfx("skill");doShake(5);
 }
 
@@ -5555,7 +5894,7 @@ function lisaSkill(){
   const aim=getAimPoint(390);
   chloeHealingFields.push({x:aim.x,y:aim.y,size:300,life:480,max:480,tick:0});
   addSlash(aim.x,aim.y,215,"#bda7ff",28,"windSkill");addParticles(aim.x,aim.y,"#78f0c3",22,7);
-  showCenter(language==="en"?"CHLOE FIELD · HP +5/s":"克洛伊领域 · 每秒恢复5生命",65);sfx("skill");
+  showCenter(language==="en"?"CHLOE FIELD · HP +50 / 0.5s":"克洛伊领域 · 每0.5秒恢复50生命",65);sfx("skill");
 }
 
 function updateChloeCombatEffects(){
@@ -5565,12 +5904,12 @@ function updateChloeCombatEffects(){
     field.tick-=frameScale;
     const half=field.size*.5;
     if(field.tick<=0 && Math.abs(player.x-field.x)<=half && Math.abs(player.y-field.y)<=half){
-      field.tick+=60;
+      field.tick+=30;
       const max=playerMaxHp(),before=player.hp;
-      player.hp=Math.min(max,player.hp+5);
+      player.hp=Math.min(max,player.hp+50);
       if(player.hp>before){
         saveCurrentRoleResources();
-        addText(player.x,player.y-42,"+5 HP","#78f0c3",false);
+        addText(player.x,player.y-42,"+50 HP","#78f0c3",false);
         sfx("heal");
       }
     }
@@ -5625,8 +5964,10 @@ function noxSkill(){
 function noxUltimateResolve(){
   noxDamageAmpTimer=480;
   const recoil=Math.floor(playerMaxHp()*.20);
-  player.hp=Math.max(1,player.hp-recoil);saveCurrentRoleHp();
-  addText(player.x,player.y-45,(language==="en"?"OVERLOAD -":"超载损耗 -")+recoil,"#c9a2ff",true);
+  const selfDamageFloor=Math.min(100,player.hp);
+  const actualRecoil=Math.max(0,Math.min(recoil,player.hp-selfDamageFloor));
+  player.hp=Math.max(selfDamageFloor,player.hp-actualRecoil);saveCurrentRoleHp();
+  addText(player.x,player.y-45,(language==="en"?"OVERLOAD -":"超载损耗 -")+actualRecoil,"#c9a2ff",true);
   addSlash(W/2,H/2+60,620,"#b47cff",52,"noxUltimate");
   addSlash(W/2,H/2+60,430,"#15111f",38,"noxUltimate");
   addSlash(W/2,H/2+60,270,"#ffffff",30,"noxUltimate");
@@ -5638,9 +5979,11 @@ function noxUltimateResolve(){
 function applyNoxRuinAttackCost(){
   if(player.role!==2 || noxDamageAmpTimer<=0) return;
   const cost=Math.max(1,Math.floor(playerMaxHp()*.05));
-  player.hp=Math.max(1,player.hp-cost);
+  const selfDamageFloor=Math.min(100,player.hp);
+  const actualCost=Math.max(0,Math.min(cost,player.hp-selfDamageFloor));
+  player.hp=Math.max(selfDamageFloor,player.hp-actualCost);
   saveCurrentRoleResources();
-  addText(player.x,player.y-44,(language==="en"?"RUIN OVERLOAD -":"毁灭过载 -")+cost,"#c9a2ff",true);
+  if(actualCost>0) addText(player.x,player.y-44,(language==="en"?"RUIN OVERLOAD -":"毁灭过载 -")+actualCost,"#c9a2ff",true);
 }
 
 function hitEnemy(e,dmg,knock=8,stunDmg=16,color="#fff",label=null){
@@ -5805,7 +6148,7 @@ function panelDamage(roleId, multiplier, kind="normal", randomBonus=0){
   if(teamDamageAmpTimer>0) setScale+=.18;
   if(chloeElementDamageAmpTimer>0 && roles[roleId] && roles[roleId].element!=="physical") setScale+=.05;
   if(roleId===0 && kaneSigils.some(s=>s.life>0)) setScale+=.05;
-  if(roleId===2 && noxDamageAmpTimer>0) setScale+=.20;
+  if(roleId===2 && noxDamageAmpTimer>0) setScale+=.10;
   if(kind==="skill") setScale+=modules.skillDamagePct||0;
   if(roleId===player.role && playerMaxHp()>0 && player.hp/playerMaxHp()>.70) setScale+=modules.highHpDamagePct||0;
   return Math.max(1, Math.floor((atk * multiplier * growth + randomBonus)*setScale));
@@ -5819,16 +6162,25 @@ function panelShieldDamage(roleId, base=20, kind="normal"){
 }
 
 
-function chainAttack(){
+function availableChainPartners(){
+  return (Array.isArray(team)?team:[]).filter(roleId=>roleId!==player.role && Number.isInteger(roleId) && roleId>=0 && roleId<roles.length && (!Array.isArray(battleRoleHp) || (battleRoleHp[roleId]||0)>0));
+}
+
+function chainAttack(choiceIndex=0){
   if(!chainReady) return;
   const target = chainTarget && chainTarget.alive ? chainTarget : nearestEnemy();
   if(!target){ chainReady=false; return; }
 
   chainReady = false;
   chainTarget = null;
+  chainSelect = false;
+  chainSelectTimer = 0;
+  chainSelectDeadline = 0;
+  chainSelectChoiceRequested = -1;
 
   // A defeated executor cannot be selected by a chain attack either.
-  const assistRole=nextLivingTeamRole(player.role);
+  const partners=availableChainPartners();
+  const assistRole=partners.length?partners[clamp(Math.floor(choiceIndex)||0,0,partners.length-1)]:-1;
   if(assistRole<0){
     showCenter(language==="en"?"No available chain partner":"没有可连携的执行官",28);
     return;
@@ -5842,6 +6194,7 @@ function chainAttack(){
   player.facing = 1;
   player.inv = 30;
   player.attackCd = 28;
+  teamDamageAmpTimer=Math.max(teamDamageAmpTimer,180);
 
   showCenter("CHAIN ATTACK", 52);
   showActionPrompt(roleName(player.role) + msg("chainEntry"), 54);
@@ -5849,9 +6202,10 @@ function chainAttack(){
   checkAchievements();
   sfx("chain");
 
-  addSlash(target.x, target.y, 190, role.color, 28, "chain");
+  addSlash(target.x, target.y, 230, role.color, 34, "chain");
   addSlash(target.x, target.y, 110, "#ffffff", 22, "chain");
-  addParticles(target.x, target.y, role.color, 8, 6);
+  addBladeTrail(player.x-110,player.y-70,target.x+95,target.y+50,role.color,32,24,"heavyTrail");
+  addParticles(target.x, target.y, role.color, 18, 8);
   if(player.role===3){
     addIceCircle(target.x,target.y,170,42,"ice");
     for(const e of enemiesInCircle(target.x,target.y,170)){
@@ -5864,8 +6218,9 @@ function chainAttack(){
   }
   addStyle(120);
   doShake(24);
-  doHitStop(4);
-  flash = Math.max(flash, 15);
+  doHitStop(8);
+  slowMo=Math.max(slowMo,18);
+  flash = Math.max(flash, 20);
 }
 
 function protagonistAttack(){
@@ -6222,6 +6577,15 @@ function switchRole(){
   showCenter(roleName(player.role)+mt("entrySuffix"),35);
   addSlash(player.x+player.facing*54,player.y,110,role.color,16,"entry");
 }
+function switchRoleByTeamSlot(slot){
+  if(ult.active || player.switchCd>0 || !Array.isArray(team)) return false;
+  const roleId=team[slot];
+  if(!Number.isInteger(roleId) || roleId<0 || roleId>=roles.length || roleId===player.role) return false;
+  if(Array.isArray(battleRoleHp) && (battleRoleHp[roleId]||0)<=0){showCenter(language==="en"?"Executor unavailable":"该执行官无法上场",24);return false;}
+  setBattleRole(roleId);player.switchCd=SWITCH_CD_FRAMES;player.chain=0;player.chainTimer=0;player.attackCd=Math.max(player.attackCd,12);
+  const role=roles[player.role];showCenter(roleName(player.role)+mt("entrySuffix"),35);addSlash(player.x+player.facing*54,player.y,110,role.color,16,"entry");
+  return true;
+}
 function tryParry(){
   if(ult.active || player.guardTimer>0) return false;
   const target=findParryEnemy();
@@ -6237,17 +6601,7 @@ function tryParry(){
   checkAchievements();
   return true;
 }
-function handleBattleRAction(){
-  // R is contextual, but mutually exclusive: a valid parry window always wins.
-  // Only when no attack can be parried may the same press switch executor.
-  const parryTarget=findParryEnemy();
-  if(parryTarget){
-    player.parryTarget=parryTarget;
-    return tryParry();
-  }
-  switchRole();
-  return true;
-}
+function handleBattleRAction(){switchRole();return true;}
 function parryCounter(){
   const t=player.parryTarget && player.parryTarget.alive ? player.parryTarget : nearestEnemy(); if(!t)return;
   const role=roles[player.role];
@@ -6713,12 +7067,12 @@ function drawLoading(){
   ctx.fillText(Math.floor(loadingProgress*100)+"%",W/2,by+42);
 
   const loadingTips=language==="en"?[
-    "During an enemy warning, press R to parry the incoming attack.",
+    "During an enemy warning, press Space to parry the incoming attack.",
     "Crystals can be exchanged for limited resources in Permanent Recruitment.",
     "Material Dungeons consume Stamina and unlock higher difficulties with story progress.",
     "New-content diamonds disappear after the related feature is opened once."
   ]:[
-    "敌人出现攻击预警时，按R可以弹刀并打断攻击。",
+    "敌人出现攻击预警时，按空格可以弹刀并打断攻击。",
     "水晶可在常驻招募下方兑换有限次数的培养资源。",
     "材料副本消耗体力，更高难度会随主线进度开放。",
     "新内容菱形提示会在对应功能打开一次后消失。"
@@ -6860,34 +7214,34 @@ function tutorialTextPack(){
   return language === "en" ? {
     area:"AREA",
     click:"Click to continue",
-    area1Title:"AREA 01  Basic Movement",
-    area1Text:"Use WASD to move. Reach the blue marker to continue.",
-    area2Title:"AREA 02  Attack & Exploration",
-    area2Text:"Left click to attack. Break both wooden crates before moving on.",
-    area3Title:"AREA 03  Real Combat",
-    area3Text:"Complete the combat checklist. When the enemy warning appears, press R to parry.",
+    area1Title:"AREA 01  Basic Combat",
+    area1Text:"Defeat the training target. Use normal attacks and complete any two other combat actions.",
+    area2Title:"AREA 01  Basic Combat",
+    area2Text:"Defeat the training target. Use normal attacks and complete any two other combat actions.",
+    area3Title:"AREA 01  Basic Combat",
+    area3Text:"Practice attacks, dodge, skills, ultimate, parry, or chain attacks. Team switching is not required here.",
     completeTitle:"Tutorial Complete",
-    completeText:"You have completed movement, attacks, skill, ultimate, dodge, parry, and chain training.",
+    completeText:"Basic combat training is complete. Unfinished optional actions can be practiced later.",
     moveObj:"Objective: move to the blue marker.",
     crateObj:"Objective: left click near the crates to break them.",
-    combatObj:"Complete the combat checklist, then defeat the training target.",
-    parryHint:"Enemy warning! Press R now to parry.",
+    combatObj:"Use a normal attack, complete any two other actions, then defeat the target.",
+    parryHint:"Enemy warning! Press Space now to parry.",
     continueAfter:"Click to continue the story."
   } : {
     area:"AREA",
     click:"点击继续",
-    area1Title:"AREA 01  基础移动",
-    area1Text:"使用 WASD 移动。到达蓝色光圈后继续。",
-    area2Title:"AREA 02  攻击与探索",
-    area2Text:"点击鼠标左键攻击。先打碎两个训练木箱。",
-    area3Title:"AREA 03  实战教学",
-    area3Text:"完成战斗清单。敌人出现攻击预警时，按R进行弹刀。",
+    area1Title:"AREA 01  基础实战",
+    area1Text:"击败训练目标。需要使用普通攻击，并另外完成任意两项战斗操作。",
+    area2Title:"AREA 01  基础实战",
+    area2Text:"击败训练目标。需要使用普通攻击，并另外完成任意两项战斗操作。",
+    area3Title:"AREA 01  基础实战",
+    area3Text:"可练习普攻、闪避、技能、大招、弹刀或连携；这里不要求切换队伍角色。",
     completeTitle:"教程完成",
-    completeText:"你已经完成移动、普攻、技能、大招、闪避、弹刀与连携教学。",
+    completeText:"基础实战教学已完成。未完成的可选操作可以在后续战斗中继续练习。",
     moveObj:"目标：移动到蓝色光圈。",
     crateObj:"目标：靠近木箱并左键攻击打碎它们。",
-    combatObj:"目标：完成战斗清单后击败训练目标。",
-    parryHint:"敌人预警！现在按R弹刀。",
+    combatObj:"目标：完成普攻和任意另外两项操作，然后击败训练目标。",
+    parryHint:"敌人预警！现在按空格键弹刀。",
     continueAfter:"点击继续剧情。"
   };
 }
@@ -6980,14 +7334,11 @@ function startTutorialBattle(){
   saveGame();
   clearTransientBattleState();
   gameMode="tutorialBattle";
-  tutorialStep=0;
+  tutorialStep=4;
   tutorialArea=1;
   area=1;
-  tutorialTarget={x:360,y:H/2+120};
-  tutorialCrates=[
-    {x:620,y:H/2+130,hp:3,alive:true},
-    {x:715,y:H/2+105,hp:3,alive:true}
-  ];
+  tutorialTarget=null;
+  tutorialCrates=[];
   tutorialEnemy=null;
   tutorialUsedAttack=false;
   tutorialUsedSkill=false;
@@ -6995,13 +7346,28 @@ function startTutorialBattle(){
   tutorialUsedUltimate=false;
   tutorialUsedChain=false;
   tutorialParried=false;
-  team=[PROTAGONIST_ROLE,0];
+  tutorialUsedCycleSwitch=false;
+  tutorialUsedDirectSwitch=false;
+  team=[PROTAGONIST_ROLE,0,1];
   player.role=PROTAGONIST_ROLE;
-  player.x=165; player.y=H/2+120; player.hp=100; player.energy=100; player.ult=ULT_MAX; player.inv=0;
+  battleRoleHp=Array.from({length:roles.length},(_,i)=>roleMaxHpForBattle(i));
+  battleRoleEnergy=Array.from({length:roles.length},()=>100);
+  battleRoleUlt=Array.from({length:roles.length},()=>ULT_MAX);
+  syncPlayerResourcesFromRole();
+  player.x=165; player.y=H/2+120; player.inv=0;
   player.attackCd=0; player.skillCd=0; player.dashCd=0;
   particles=[]; slashes=[]; texts=[]; projectiles=[]; enemies=[];
+  spawnTutorialEnemy();
   const t = tutorialTextPack();
-  openTutorialPanel(t.area1Title, t.area1Text, () => { tutorialStep=1; });
+  openTutorialPanel(t.area1Title, t.area1Text, () => { tutorialStep=5; });
+}
+
+function tutorialCoreActionCount(){
+  return [tutorialUsedAttack,tutorialUsedSkill,tutorialUsedDash,tutorialUsedUltimate,tutorialUsedChain,tutorialParried].filter(Boolean).length;
+}
+
+function tutorialCombatRequirementMet(){
+  return tutorialUsedAttack && tutorialCoreActionCount()>=3;
 }
 function spawnTutorialEnemy(){
   tutorialEnemy = createEnemy(780,H/2+112,false,"normal");
@@ -7127,7 +7493,7 @@ function updateTutorialBattle(){
         ultimate();
       }
 
-      if(justPressed("r")){
+      if(justPressed(" ")){
         // Tutorial parry follows the warning shown on screen instead of the
         // normal close-range detector. This keeps the prompt and input window
         // identical across browsers and frame rates.
@@ -7191,10 +7557,10 @@ function updateTutorialBattle(){
       }
 
       if(e.hp<=0){
-        const checklistDone=tutorialUsedAttack&&tutorialUsedSkill&&tutorialUsedDash&&tutorialUsedUltimate&&tutorialUsedChain&&tutorialParried;
+        const checklistDone=tutorialCombatRequirementMet();
         if(!checklistDone){
           e.alive=true;e.hp=180;e.shield=0;
-          showActionPrompt(language==="en"?"Complete the remaining tutorial actions":"请先完成剩余教学操作",75);
+          showActionPrompt(language==="en"?"Use a normal attack and complete any two other actions":"完成普攻，并另外完成任意两项操作",75);
         }else{
           e.alive=false;
           totalKills++;
@@ -7210,15 +7576,15 @@ function updateTutorialBattle(){
 
   // Real combat effects can defeat the training target after the tutorial input
   // block has already run. Recover it on the next frame until every required
-  // action has been demonstrated, otherwise finish the tutorial normally.
+  // minimum action set has been demonstrated, otherwise finish normally.
   if(tutorialStep>=5 && tutorialStep<8 && tutorialEnemy && !tutorialEnemy.alive){
-    const checklistDone=tutorialUsedAttack&&tutorialUsedSkill&&tutorialUsedDash&&tutorialUsedUltimate&&tutorialUsedChain&&tutorialParried;
+    const checklistDone=tutorialCombatRequirementMet();
     if(!checklistDone){
       tutorialEnemy.alive=true;
       tutorialEnemy.hp=180;
       tutorialEnemy.shield=0;
       enemies=[tutorialEnemy];
-      showActionPrompt(language==="en"?"Complete the remaining tutorial actions":"请先完成剩余教学操作",75);
+      showActionPrompt(language==="en"?"Use a normal attack and complete any two other actions":"完成普攻，并另外完成任意两项操作",75);
     }else{
       tutorialStep=8;
       openTutorialPanel(T.completeTitle,T.completeText,()=>{tutorialStep=9;});
@@ -7265,7 +7631,7 @@ function drawTutorialBattle(){
   ctx.fillStyle="#7cc7ff";
   ctx.font="bold 18px " + FONT_UI;
   ctx.textAlign="center";
-  ctx.fillText(T.area + " 0" + tutorialArea, W/2, 61);
+  ctx.fillText(T.area + " 01", W/2, 61);
   ctx.restore();
 
   if(tutorialStep===1){
@@ -7306,9 +7672,9 @@ function drawTutorialBattle(){
   if(tutorialStep>=5 && tutorialStep<8){
     ctx.save();
     ctx.fillStyle="rgba(0,0,0,.50)";
-    ctx.fillRect(30,94,390,176);
+    ctx.fillRect(30,94,390,178);
     ctx.strokeStyle="rgba(255,255,255,.12)";
-    ctx.strokeRect(30,94,390,176);
+    ctx.strokeRect(30,94,390,178);
     ctx.font="15px " + FONT_UI;
     ctx.textAlign="left";
     ctx.fillStyle=tutorialUsedAttack?"#7cc7ff":"#aaa";
@@ -7320,9 +7686,12 @@ function drawTutorialBattle(){
     ctx.fillStyle=tutorialUsedUltimate?"#7cc7ff":"#aaa";
     ctx.fillText((tutorialUsedUltimate?"✓ ":"□ ") + (language==="en"?"Q: ultimate":"Q：大招"),50,186);
     ctx.fillStyle=tutorialParried?"#7cc7ff":"#aaa";
-    ctx.fillText((tutorialParried?"✓ ":"□ ") + (language==="en"?"R during warning: parry":"预警时按R：弹刀"),50,208);
+    ctx.fillText((tutorialParried?"✓ ":"□ ") + (language==="en"?"Space during warning: parry":"预警时按空格：弹刀"),50,208);
     ctx.fillStyle=tutorialUsedChain?"#7cc7ff":"#aaa";
     ctx.fillText((tutorialUsedChain?"✓ ":"□ ") + (language==="en"?"F after break: chain":"破盾后按F：连携"),50,230);
+    ctx.fillStyle=tutorialCombatRequirementMet()?"#7cffb2":"#ffe066";
+    ctx.font="bold 12px " + FONT_UI;
+    ctx.fillText((language==="en"?"Required: normal attack + any 2 others  ":"要求：普攻 + 任意另外2项  ")+Math.min(3,tutorialCoreActionCount())+" / 3",50,254);
     ctx.restore();
   }
 
@@ -7413,8 +7782,17 @@ function updateLogin(){
     }
     else if(inRect(panelX+70,panelY+300,280,38)){
       accountMode = accountMode==="register" ? "login" : "register";
+      accountRegisterStep="email";
+      accountVerificationTicket="";
+      accountPassword="";
       accountFocusedField = "email";
       accountMsg = "";
+    }
+    else if(accountMode==="login" && inRect(panelX+244,panelY+150,132,22)){
+      const email=(accountEmail||"").trim();
+      if(!email) setAccountMsg(language==="en"?"Enter your email first.":"请先输入邮箱。",150);
+      else if(!initCloudSave()) setAccountMsg(language==="en"?"Account service is unavailable.":"账号服务暂时不可用。",180);
+      else setAccountMsg(language==="en"?"Password reset will be added to SF Account soon.":"SF Account 密码重置功能将在后续接入。",240);
     }
     else if(inRect(W/2-120,H-58,240,40)){
       accountGuestFlow();
@@ -8605,6 +8983,32 @@ const SHOP_PACKS=[
   {id:"monthly_exp",cat:4,accent:"#8fa8ff",zh:"月度经验补给",en:"Monthly EXP Supply",descZh:"经验书×40 · 金币×30000 · 水晶×1880",descEn:"EXP ×40 · Gold ×30,000 · Crystal ×1,880",price:"$29.99",limitZh:"每月限购",limitEn:"MONTHLY"},
   {id:"standard",cat:1,accent:"#d8e1ec",zh:"标准启程包",en:"Standard Starter Pack",descZh:"体力×40 · 经验书×5",descEn:"Stamina ×40 · EXP ×5",limitZh:"永久限购1次",limitEn:"ONE-TIME"}
 ];
+const STRIPE_SUPPORT_TIERS=[
+  {amount:"$0.99",productId:"prod_V1Fj2ky4d3iviA",url:"https://buy.stripe.com/test_dRm7sL06IczN1wm38kdMI00"},
+  {amount:"$9.99",productId:"prod_V1Fji17DSGNNCZ",url:"https://buy.stripe.com/test_6oU3cvaLmfLZ0si24gdMI01"},
+  {amount:"$19.99",productId:"prod_V1Fkes4IPQNNDr",url:"https://buy.stripe.com/test_cNieVd06IgQ34Iy38kdMI02"},
+  {amount:"$29.99",productId:"prod_V1FkauO4IJx99H",url:"https://buy.stripe.com/test_dRm14nf1C0R57UK7oAdMI03"},
+  {amount:"$39.99",productId:"prod_V1FlIqC1T8yEvt",url:"https://buy.stripe.com/test_bJe00j3iU9nB0si9wIdMI04"},
+  {amount:"$49.99",productId:"prod_V1FluepBEqpvbZ",url:"https://buy.stripe.com/test_14A14ncTufLZ8YOaAMdMI05"}
+];
+async function openStripeSupportTier(index){
+  const tier=STRIPE_SUPPORT_TIERS[index];
+  if(!tier)return;
+  shopMsg=language==="en"?"Opening Stripe test checkout…":"正在打开 Stripe 测试付款页面…";
+  try{
+    if(window.ProjectZeroLauncher&&typeof window.ProjectZeroLauncher.openPaymentLink==="function"){
+      const result=await window.ProjectZeroLauncher.openPaymentLink(tier.url);
+      if(!result||result.ok!==true)throw new Error(result&&result.error?result.error:"Unable to open payment link");
+    }else{
+      const opened=window.open(tier.url,"_blank","noopener,noreferrer");
+      if(!opened)throw new Error("Popup blocked");
+    }
+    shopMsg=language==="en"?"Stripe test checkout opened in your browser.":"Stripe 测试付款页面已在系统浏览器中打开。";
+  }catch(error){
+    console.error("Stripe payment link failed",error);
+    shopMsg=language==="en"?"Unable to open Stripe checkout.":"无法打开 Stripe 付款页面，请检查默认浏览器设置。";
+  }
+}
 function crystalTopupCardRect(i){return{x:48+i*174,y:215,w:156,h:318};}
 function visibleShopPacks(){return shopPackCategory===0?SHOP_PACKS:SHOP_PACKS.filter(v=>v.cat===shopPackCategory);}
 function buyCrystalExchange(index){
@@ -8620,6 +9024,27 @@ function buyCrystalExchange(index){
 function updateShop(){
   menuPulse++;
   normalizeMonthlyCardRuntime();
+  if(paidContentLockPrompt){
+    if(justPressed("escape")||justPressed("enter")||clicked) paidContentLockPrompt=false;
+    clicked=false;
+    return;
+  }
+  if(pendingGuestSupportTier>=0){
+    if(justPressed("escape")){pendingGuestSupportTier=-1;clicked=false;return;}
+    if(clicked){
+      if(inRect(W/2-220,H/2+85,205,48)){
+        const tier=pendingGuestSupportTier;
+        pendingGuestSupportTier=-1;
+        openStripeSupportTier(tier);
+      }else if(inRect(W/2+15,H/2+85,205,48)){
+        pendingGuestSupportTier=-1;
+        settingsTab="account";
+        openSettingsFrom("lobby");
+      }
+    }
+    clicked=false;
+    return;
+  }
   if(justPressed("escape")){
     enterLobby();
     clicked=false;
@@ -8635,6 +9060,12 @@ function updateShop(){
     const tabs = ["recommend","recruit","weapon","skin","crystal","monthly","packs","support"];
     for(let i=0;i<tabs.length;i++){
       if(inRect(40+i*132,135,122,42)){
+        if(["crystal","monthly","packs"].includes(tabs[i])){
+          paidContentLockPrompt=true;
+          shopMsg=language==="en"?"Paid content is unavailable during the first test.":"一测期间目前不开放充值内容。";
+          clicked=false;
+          return;
+        }
         shopTab = tabs[i];
         if(shopTab==="recruit") shopSubTab="limited";
         if(shopTab==="weapon") shopSubTab="limited";
@@ -8647,8 +9078,10 @@ function updateShop(){
       for(let i=0;i<4;i++) if(inRect(70,230+i*66,205,54)){shopRecommendIndex=i;shopMsg=language==="en"?"Recommendation selected.":"已切换推荐内容。";}
       if(inRect(830,447,175,42)){
         if(shopRecommendIndex===0){shopTab="recruit";shopSubTab="limited";}
-        else if(shopRecommendIndex===1) shopTab="monthly";
-        else if(shopRecommendIndex===2) shopTab="packs";
+        else if(shopRecommendIndex===1||shopRecommendIndex===2){
+          paidContentLockPrompt=true;
+          shopMsg=language==="en"?"Paid content is unavailable during the first test.":"一测期间目前不开放充值内容。";
+        }
         else {shopTab="recruit";shopSubTab="permanent";}
       }
     }
@@ -8701,14 +9134,8 @@ function updateShop(){
 
     if(shopTab==="monthly"){
       if(inRect(570,305,240,72)){
-        if(!monthlyOwned){
-          monthlyOwned=true; monthlyClaimed=false; monthlyClaimDate="";
-          grantFreeCrystals(300);
-          shopMsg=(language==="en"?"Monthly card activated · Crystal +300":"月卡已开启 · 水晶 +300");
-          sfx("buy"); saveGame(); autoCloudSaveNow(true);
-        }else{
-          claimMonthlyCardReward();
-        }
+        paidContentLockPrompt=true;
+        shopMsg=language==="en"?"Paid content is unavailable during the first test.":"一测期间目前不开放充值内容。";
       }
     }
 
@@ -8728,7 +9155,14 @@ function updateShop(){
       }
     }
     if(shopTab==="support"){
-      shopMsg = tx("supportDemo");
+      for(let i=0;i<STRIPE_SUPPORT_TIERS.length;i++){
+        const x=70+i*163,y=275,w=145,h=185;
+        if(inRect(x,y,w,h)){
+          if(guestMode) pendingGuestSupportTier=i;
+          else openStripeSupportTier(i);
+          break;
+        }
+      }
     }
   }
   clicked=false;
@@ -8762,24 +9196,21 @@ function updateBattle(){
   updateBossHazards();
   updateBossKrosBattleLogic();
   if(chainSelect){
-    chainSelectTimer -= frameScale;
-    if(!chainTarget || !chainTarget.alive){ chainSelect=false; chainReady=false; chainTarget=null; }
-    slowMo = Math.max(slowMo, 4);
-    if(mouseDown && !mouseAttackConsumed){
-      chainAttack(0);
-      mouseAttackConsumed=true;
+    // Real-time countdown while the complete battlefield stays frozen.
+    chainSelectTimer=Math.max(0,(chainSelectDeadline-performance.now())/1000);
+    if(!chainTarget || !chainTarget.alive){
+      cancelChainSelection(language==="en"?"Chain target lost":"连携目标已失效");
+      return;
     }
-    if(keys["mouse2"]){
-      chainAttack(1);
-      keys["mouse2"]=false;
+    if(chainSelectChoiceRequested===0 || chainSelectChoiceRequested===1){
+      const choice=chainSelectChoiceRequested;
+      chainSelectChoiceRequested=-1;
+      chainAttack(choice);
+      return;
     }
     if(chainSelectTimer<=0){
-      chainSelect=false;
-      chainReady=false;
-      chainTarget=null;
-      showActionPrompt("CHAIN TIMEOUT", 35);
+      cancelChainSelection(language==="en"?"Chain timed out":"连携时间结束");
     }
-    updateEffects();
     return;
   }
 
@@ -8800,7 +9231,10 @@ function updateBattle(){
   if(skillBuffer>0 && player.skillCd<=0) { skill(); skillBuffer=0; }
   if(ultBuffer>0 && player.ultCd<=0) { ultimate(); ultBuffer=0; }
   if(dashBuffer>0 && player.dashCd<=0) { dash(); dashBuffer=0; }
-  if(justPressed("r"))handleBattleRAction(); if(justPressed("tab"))toggleLock(); if(justPressed("f")){ if(!battleExploreInteract() && !projectAreaInteract()) chainAttack(); }
+  if(justPressed(" "))tryParry();
+  if(justPressed("r"))handleBattleRAction();
+  if(justPressed("1"))switchRoleByTeamSlot(0);if(justPressed("2"))switchRoleByTeamSlot(1);if(justPressed("3"))switchRoleByTeamSlot(2);
+  if(justPressed("tab"))toggleLock(); if(justPressed("f")){ if(!battleExploreInteract() && !projectAreaInteract()) chainAttack(); }
   let dx=0,dy=0; if(keys.w)dy-=1; if(keys.s)dy+=1; if(keys.a)dx-=1; if(keys.d)dx+=1;
   const role=roles[player.role];
   if(dx||dy){ const l=Math.hypot(dx,dy); dx/=l; dy/=l; player.vx+=dx*role.speed*MOVE_SPEED_MULT*.35*frameScale; player.vy+=dy*role.speed*MOVE_SPEED_MULT*.35*frameScale; if(Math.abs(dx)>.1)player.facing=dx>0?1:-1; }
@@ -8832,18 +9266,52 @@ function updateBattle(){
       if(e.boss && !e.crystalColossus && e.hp < e.maxHp*0.25 && e.phase===2){ e.phase=3; e.rage=true; showActionPrompt(msg("bossPhase3"),90); }
       if(e.type==="berserker" && e.hp < e.maxHp*0.55) e.rage=true;
 
-      if(e.type==="ranged" && !withinDist(player.x,player.y,e.x,e.y,130)){
+      // Basic formation AI: units separate instead of stacking into one point.
+      if(!e.boss){
+        for(const ally of enemies){
+          if(ally===e || !ally.alive) continue;
+          const sx=e.x-ally.x,sy=e.y-ally.y,sd=Math.hypot(sx,sy)||1;
+          if(sd<68){e.vx+=sx/sd*.025*frameScale;e.vy+=sy/sd*.025*frameScale;}
+        }
+      }
+
+      if(e.type==="support"){
+        e.supportCd-=slow;
+        const direction=l<165?-1:l>235?1:0;
+        e.vx+=dx/l*.042*direction*slow*frameScale;
+        e.vy+=dy/l*.042*direction*slow*frameScale;
+        if(e.supportCd<=0){
+          let helped=0;
+          for(const ally of enemies){
+            if(ally===e||!ally.alive||!withinDist(e.x,e.y,ally.x,ally.y,230))continue;
+            ally.maxShield=Math.max(ally.maxShield||0,120);
+            ally.shield=Math.min(ally.maxShield,(ally.shield||0)+90);
+            helped++;
+          }
+          if(helped){addText(e.x,e.y-38,language==="en"?"CRYSTAL SUPPORT":"晶体支援","#7cffd0",true);}
+          e.supportCd=240;
+        }
+      } else if((e.type==="ranged" || e.type==="sniper")){
+        const ideal=e.type==="sniper"?330:235;
         e.shotCd -= slow;
-        e.vx += dx/l*0.018*slow;
-        e.vy += dy/l*0.018*slow;
+        const direction=l<ideal-55?-1:l>ideal+45?1:0;
+        e.vx += dx/l*0.034*direction*slow*frameScale;
+        e.vy += dy/l*0.034*direction*slow*frameScale;
+        e.vx += (-dy/l)*.014*(e.strafeSeed||1)*slow*frameScale;
+        e.vy += (dx/l)*.014*(e.strafeSeed||1)*slow*frameScale;
         if(e.shotCd<=0){
-          projectiles.push({x:e.x,y:e.y,vx:dx/l*4.0,vy:dy/l*4.0,life:90});
-          e.shotCd=105;
-          addText(e.x,e.y-35,"SHOT","#ff8888");
+          const speed=e.type==="sniper"?5.2:4.0;
+          projectiles.push({x:e.x,y:e.y,vx:dx/l*speed,vy:dy/l*speed,life:e.type==="sniper"?115:90});
+          e.shotCd=e.type==="sniper"?145:105;
+          addText(e.x,e.y-35,e.type==="sniper"?"AIMED SHOT":"SHOT",e.type==="sniper"?"#ffcc77":"#ff8888");
         }
       } else {
-        const spd = e.rage ? .095 : (e.boss?.05:.068);
+        const spd = e.rage ? .095 : (e.boss?.05:e.type==="skirmisher"?.086:.068);
         e.vx+=dx/l*spd*slow*frameScale; e.vy+=dy/l*spd*slow*frameScale;
+        if(e.type==="skirmisher" && l>95){
+          e.vx+=(-dy/l)*.055*(e.strafeSeed||1)*slow*frameScale;
+          e.vy+=(dx/l)*.055*(e.strafeSeed||1)*slow*frameScale;
+        }
         e.attackCd-=slow;
         if(e.attackCd<=0&&e.windup<=0&&withinDist(player.x,player.y,e.x,e.y,(e.boss?190:128))){
           e.windup=e.boss?(e.phase===3?32:50):(e.rage?28:38);
@@ -9407,8 +9875,53 @@ function drawAchievements(){
   drawBtn(ui("backLobby"),"ESC",60,560,220,52);
 }
 
+function updateSettingsAccountRequest(){
+  if(justPressed("escape")){
+    accountCredentialPanelActive=false;
+    accountPassword="";
+    accountFocusedField="";
+    return;
+  }
+  if(!clicked)return;
+  const panelX=W/2-210,panelY=132;
+  if(inRect(panelX+45,panelY+103,330,44)){
+    accountFocusedField="email";accountMsg="";
+  }else if(inRect(panelX+45,panelY+175,330,44)){
+    accountFocusedField="password";accountMsg="";
+  }else if(inRect(panelX+70,panelY+245,280,48)){
+    if(accountMode==="register")accountRegisterFlow();else accountLoginFlow();
+  }else if(inRect(panelX+70,panelY+300,280,38)){
+    accountMode=accountMode==="register"?"login":"register";
+    accountRegisterStep="email";
+    accountVerificationTicket="";
+    accountPassword="";
+    accountFocusedField="email";
+    accountMsg="";
+  }else if(inRect(panelX+70,panelY+344,280,34)){
+    accountCredentialPanelActive=false;
+    accountPassword="";
+    accountFocusedField="";
+  }
+}
+
 function updateSettings(){
   menuPulse++;
+  if(accountCredentialPanelActive){
+    updateSettingsAccountRequest();
+    clicked=false;
+    return;
+  }
+  if(accountSignOutPromptActive){
+    if(justPressed("escape")){accountSignOutPromptActive=false;clicked=false;return;}
+    if(clicked){
+      if(inRect(W/2-190,H/2+70,175,48)){
+        accountSignOutPromptActive=false;
+        signOutAndClearLocal();
+      }else if(inRect(W/2+15,H/2+70,175,48)) accountSignOutPromptActive=false;
+    }
+    clicked=false;
+    return;
+  }
   if(clicked){
     if(inRect(70,126,150,44)){ settingsTab="graphics"; logoutConfirm=false; localDeleteConfirm=false; }
     else if(inRect(235,126,150,44)){ settingsTab="audio"; logoutConfirm=false; localDeleteConfirm=false; }
@@ -9457,7 +9970,7 @@ function updateSettings(){
       }
       if(!cloudUser && inRect(720,305,170,46)){ openAccountCredentialPanel("login"); clicked=false; return; }
       if(!cloudUser && inRect(910,305,170,46)){ openAccountCredentialPanel("register"); clicked=false; return; }
-      if(cloudUser && inRect(720,435,170,46)){ signOutAndClearLocal(); }
+      if(cloudUser && inRect(720,435,170,46)){ accountSignOutPromptActive=true; }
       if(cloudUser && inRect(910,435,190,46)){ requestDeleteAccount(); }
     }
   }
@@ -9599,7 +10112,53 @@ function drawSettings(){
   drawBtn(settingsReturnMode==="login" ? ui("backLogin") : ui("backLobby"),"ESC",60,560,220,52);
   if(settingsReturnMode!=="login") drawBtn(ui("backLogin"),"",310,560,220,52);
 
+  if(accountSignOutPromptActive){
+    ctx.fillStyle="rgba(2,5,12,.90)";ctx.fillRect(0,0,W,H);
+    const x=W/2-260,y=H/2-125,w=520,h=250;
+    ctx.fillStyle="rgba(16,24,42,.99)";ctx.fillRect(x,y,w,h);
+    ctx.strokeStyle="rgba(255,150,150,.72)";ctx.lineWidth=2;ctx.strokeRect(x,y,w,h);
+    ctx.textAlign="center";ctx.fillStyle="#fff";ctx.font="bold 25px "+FONT_UI;ctx.fillText(language==="en"?"Sign out of this account?":"确定退出当前账号？",W/2,y+65);
+    ctx.fillStyle="rgba(255,255,255,.62)";ctx.font="14px "+FONT_UI;ctx.fillText(language==="en"?"Cloud progress will remain saved.":"云端进度会继续保留。",W/2,y+105);
+    drawBtn(language==="en"?"Sign Out":"退出登录","",W/2-190,H/2+70,175,48,true,"#ff8888");
+    drawBtn(language==="en"?"Cancel":"取消","ESC",W/2+15,H/2+70,175,48,true,"#7cc7ff");
+  }
 
+  if(accountCredentialPanelActive)drawSettingsAccountRequest();
+
+
+}
+
+function drawSettingsAccountRequest(){
+  ctx.fillStyle="rgba(2,5,12,.92)";ctx.fillRect(0,0,W,H);
+  const panelX=W/2-210,panelY=132,panelW=420,panelH=390;
+  ctx.fillStyle="rgba(13,20,38,.995)";ctx.fillRect(panelX,panelY,panelW,panelH);
+  ctx.strokeStyle="rgba(124,199,255,.72)";ctx.lineWidth=2;ctx.strokeRect(panelX,panelY,panelW,panelH);
+  ctx.textAlign="center";ctx.fillStyle="#fff";ctx.font="bold 25px "+FONT_UI;
+  ctx.fillText(accountMode==="register"?accTx("registerTitle"):accTx("loginTitle"),W/2,panelY+48);
+  ctx.textAlign="left";ctx.fillStyle="rgba(255,255,255,.62)";ctx.font="14px "+FONT_UI;
+  ctx.fillText(accTx("email"),panelX+48,panelY+92);
+  const secondLabel=accountMode==="register"&&accountRegisterStep==="code"
+    ?tr("邮箱验证码","Verification Code")
+    :accountMode==="register"&&accountRegisterStep==="password"?tr("设置密码","Set Password"):accTx("password");
+  ctx.fillText(secondLabel,panelX+48,panelY+164);
+  const emailActive=accountFocusedField==="email",passActive=accountFocusedField==="password";
+  ctx.fillStyle="rgba(255,255,255,.08)";
+  ctx.fillRect(panelX+45,panelY+103,330,44);ctx.fillRect(panelX+45,panelY+175,330,44);
+  ctx.strokeStyle=emailActive?"rgba(124,199,255,.85)":"rgba(255,255,255,.20)";ctx.lineWidth=emailActive?2:1;ctx.strokeRect(panelX+45,panelY+103,330,44);
+  ctx.strokeStyle=passActive?"rgba(124,199,255,.85)":"rgba(255,255,255,.20)";ctx.lineWidth=passActive?2:1;ctx.strokeRect(panelX+45,panelY+175,330,44);ctx.lineWidth=1;
+  ctx.fillStyle=accountEmail?"#fff":"rgba(255,255,255,.42)";ctx.font="16px "+FONT_UI;
+  ctx.fillText(accountEmail||accTx("enterEmail"),panelX+60,panelY+132);
+  ctx.fillStyle=accountPassword?"#fff":"rgba(255,255,255,.42)";
+  const passText=accountPassword
+    ?(accountMode==="register"&&accountRegisterStep==="code"?accountPassword:"●".repeat(Math.min(16,accountPassword.length)))
+    :(accountMode==="register"&&accountRegisterStep==="code"?tr("输入 6 位验证码","Enter 6-digit code"):accTx("enterPassword"));
+  ctx.fillText(passText,panelX+60,panelY+204);
+  const registerAction=accountRegisterStep==="email"?tr("发送验证码","Send Code"):accountRegisterStep==="code"?tr("验证邮箱","Verify Email"):tr("完成注册","Create Account");
+  drawBtn(accountMode==="register"?registerAction:accTx("login"),accountBusy?"...":"",panelX+70,panelY+245,280,48,true,"#ffe066");
+  drawBtn(accountMode==="register"?accTx("haveAccount"):accTx("noAccount"),"",panelX+70,panelY+300,280,38,false,"#7cc7ff");
+  drawBtn(tr("取消并返回账号设置","Cancel and return"),"ESC",panelX+70,panelY+344,280,34,false,"#9aa7bd");
+  ctx.textAlign="center";ctx.fillStyle=accountMsg?"#ffe066":"rgba(255,255,255,.46)";ctx.font="13px "+FONT_UI;
+  ctx.fillText(accountMsg||tr("绑定后将保留当前游客进度","Your current guest progress will be preserved"),W/2,panelY+382);
 }
 
 
@@ -10529,7 +11088,16 @@ function drawLogin(){
   ctx.fillStyle="rgba(255,255,255,.62)";
   ctx.font="14px " + FONT_UI;
   ctx.fillText(accTx("email"), panelX+48, panelY+92);
-  ctx.fillText(accTx("password"), panelX+48, panelY+164);
+  const secondLabel=accountMode==="register"&&accountRegisterStep==="code"
+    ? tr("邮箱验证码","Verification Code")
+    : accountMode==="register"&&accountRegisterStep==="password"
+      ? tr("设置密码","Set Password")
+      : accTx("password");
+  ctx.fillText(secondLabel, panelX+48, panelY+164);
+  if(accountMode==="login"){
+    ctx.textAlign="right";ctx.fillStyle="rgba(124,199,255,.78)";
+    ctx.fillText(tr("忘记密码？","Forgot password?"),panelX+375,panelY+164);ctx.textAlign="left";
+  }
 
   const emailActive = accountFocusedField === "email";
   const passActive = accountFocusedField === "password";
@@ -10549,7 +11117,9 @@ function drawLogin(){
   const emailText = accountEmail || accTx("enterEmail");
   ctx.fillText(emailText, panelX+60, panelY+132);
   ctx.fillStyle=accountPassword ? "#fff" : "rgba(255,255,255,.42)";
-  const passText = accountPassword ? "●".repeat(Math.min(16,accountPassword.length)) : accTx("enterPassword");
+  const passText = accountPassword
+    ? (accountMode==="register"&&accountRegisterStep==="code" ? accountPassword : "●".repeat(Math.min(16,accountPassword.length)))
+    : (accountMode==="register"&&accountRegisterStep==="code" ? tr("输入 6 位验证码","Enter 6-digit code") : accTx("enterPassword"));
   ctx.fillText(passText, panelX+60, panelY+204);
   if(Math.floor(performance.now()/480)%2===0){
     ctx.fillStyle="rgba(124,199,255,.95)";
@@ -10562,7 +11132,8 @@ function drawLogin(){
     }
   }
 
-  drawBtn(accountMode==="register" ? accTx("register") : accTx("login"), accountBusy?"...":"", panelX+70, panelY+245, 280, 48, true, "#ffe066");
+  const registerAction=accountRegisterStep==="email"?tr("发送验证码","Send Code"):accountRegisterStep==="code"?tr("验证邮箱","Verify Email"):tr("完成注册","Create Account");
+  drawBtn(accountMode==="register" ? registerAction : accTx("login"), accountBusy?"...":"", panelX+70, panelY+245, 280, 48, true, "#ffe066");
   drawBtn(accountMode==="register" ? accTx("haveAccount") : accTx("noAccount"), "", panelX+70, panelY+300, 280, 38, false, "#7cc7ff");
 
   ctx.textAlign="center";
@@ -10732,7 +11303,84 @@ function loadTeamPreset(index){
 
 
 function drawFloraLobbyPortraitCentered(){
-  return false;
+  if(!floraExecutorPortraitReady || !floraExecutorPortraitImg.width) return false;
+  const cx=W/2-100;
+  // Match Hermit's lobby composition exactly: the complete transparent artwork
+  // is fitted to the same 840x1208 layer, center point and top offset.
+  if(!floraLobbyBorderlessLayer){
+    const layer=document.createElement("canvas");
+    layer.width=840;layer.height=1208;
+    const lctx=layer.getContext("2d");
+    lctx.imageSmoothingEnabled=true;lctx.imageSmoothingQuality="high";
+    // Use Flora's title-free full artwork without cropping. Match the protagonist
+    // lobby portrait's exact 840x1208 canvas, center point and top offset.
+    lctx.drawImage(floraExecutorPortraitImg,0,0,floraExecutorPortraitImg.width,floraExecutorPortraitImg.height,0,0,840,1208);
+    lctx.globalCompositeOperation="destination-in";
+    const dissolve=lctx.createLinearGradient(0,0,840,0);
+    dissolve.addColorStop(0,"rgba(255,255,255,0)");
+    dissolve.addColorStop(.12,"rgba(255,255,255,1)");
+    dissolve.addColorStop(.88,"rgba(255,255,255,1)");
+    dissolve.addColorStop(1,"rgba(255,255,255,0)");
+    lctx.fillStyle=dissolve;lctx.fillRect(0,0,840,1208);
+    floraLobbyBorderlessLayer=layer;
+  }
+  ctx.save();
+  ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality="high";
+  // Slightly smaller and lower than the previous build so Flora keeps the
+  // protagonist's visual weight without touching the top edge.
+  const scale=.92;
+  const dw=840*scale,dh=1208*scale;
+  ctx.drawImage(floraLobbyBorderlessLayer,cx-dw/2,-105,dw,dh);
+  ctx.restore();
+  return true;
+}
+
+function drawFloraPortrait(x,y,w,h){
+  if(!floraPortraitReady || !floraPortraitImg.width) return false;
+  const scale=Math.min(w/floraPortraitImg.width,h/floraPortraitImg.height);
+  const dw=floraPortraitImg.width*scale,dh=floraPortraitImg.height*scale;
+  ctx.save();
+  ctx.imageSmoothingEnabled=true;
+  ctx.imageSmoothingQuality="high";
+  ctx.drawImage(floraPortraitImg,x+(w-dw)/2,y+(h-dh)/2,dw,dh);
+  ctx.restore();
+  return true;
+}
+
+function drawFloraExecutorPortrait(x,y,w,h,variant="card"){
+  if(!floraExecutorPortraitReady || !floraExecutorPortraitImg.width) return false;
+  const sources={
+    // Match Hermit's card/full crop aspect ratios. Executor pages therefore use
+    // exactly the same destination box, contain-fit and centering rules.
+    card:{x:520,y:250,w:900,h:1613},
+    detail:{x:300,y:230,w:1390,h:1814},
+    lobby:{x:300,y:210,w:1390,h:1900},
+    recommend:{x:430,y:220,w:1130,h:1650}
+  };
+  const source=sources[variant]||sources.card;
+  const matchProtagonist=variant==="card" || variant==="detail";
+  const scale=matchProtagonist
+    ? Math.min(w/source.w,h/source.h)
+    : Math.max(w/source.w,h/source.h);
+  const dw=source.w*scale,dh=source.h*scale;
+  ctx.save();
+  ctx.beginPath();ctx.rect(x,y,w,h);ctx.clip();
+  if(variant==="card" || variant==="detail"){
+    const backdrop=ctx.createLinearGradient(x,y,x,y+h);
+    backdrop.addColorStop(0,"rgba(72,87,120,.88)");
+    backdrop.addColorStop(.55,"rgba(37,53,83,.72)");
+    backdrop.addColorStop(1,"rgba(17,27,47,.45)");
+    ctx.fillStyle=backdrop;ctx.fillRect(x,y,w,h);
+  }
+  ctx.imageSmoothingEnabled=true;
+  ctx.imageSmoothingQuality="high";
+  ctx.drawImage(
+    floraExecutorPortraitImg,
+    source.x,source.y,source.w,source.h,
+    x+(w-dw)/2,y+(h-dh)/2,dw,dh
+  );
+  ctx.restore();
+  return true;
 }
 
 function drawHermitPortrait(x,y,w,h,variant="full"){
@@ -10812,23 +11460,14 @@ function drawLobbyExecutor(){
     drawLobbyHermitPortrait();
     return;
   }
+  if(lobbyExecutor===3 && floraExecutorPortraitReady && drawFloraLobbyPortraitCentered()){
+    return;
+  }
   ctx.save();
   ctx.translate(W/2-100,H/2+30);
   ctx.scale(1.14,1.14);
   ctx.translate(-(W/2-100),-(H/2+30));
-  if(lobbyExecutor === 3 && drawFloraLobbyPortraitCentered()){
-    ctx.save();
-    ctx.fillStyle="#fff";
-    ctx.font="bold 28px " + FONT_UI;
-    ctx.textAlign="center";
-    ctx.fillText(roleName(3), W/2-100, H/2+196);
-    ctx.fillStyle="rgba(255,255,255,.68)";
-    ctx.font="16px " + FONT_UI;
-    ctx.fillText(roleStyle(3), W/2-100, H/2+226);
-    ctx.restore();
-  }else{
-    drawLobbyPlaceholderRole(lobbyExecutor);
-  }
+  drawLobbyPlaceholderRole(lobbyExecutor);
   ctx.restore();
 }
 
@@ -11345,18 +11984,10 @@ function arConfirmWeapon(){
   sfx("reward"); saveGame(); autoCloudSaveNow(true);
 }
 function buyActionRecordAdvanced(){
-  if(actionRecordAdvanced || actionRecordUltimate){ arSetMsg(arText("高级行动记录已解锁","Advanced Action Record unlocked"),60); return; }
-  if(crystals < ACTION_RECORD_ADVANCED_PRICE){ arSetMsg(arText("水晶不足","Not enough Crystals"),70); return; }
-  crystals -= ACTION_RECORD_ADVANCED_PRICE;
-  actionRecordAdvanced = true;
-  arSetMsg(arText("高级行动记录已解锁","Advanced Action Record unlocked"),80);
-  sfx("buy"); saveGame(); autoCloudSaveNow(true);
+  arSetMsg(arText("一测期间目前不开放充值内容","Paid content is unavailable during the first test"),120);
 }
 function buyActionRecordUltimate(){
-  if(actionRecordUltimate){ arSetMsg(arText("顶级行动记录已解锁","Ultimate Action Record unlocked"),60); return; }
-  actionRecordUltimate = true; actionRecordAdvanced = true;
-  arSetMsg(arText("顶级行动记录已解锁（测试版不接真钱）","Ultimate Action Record unlocked (demo only)"),90);
-  sfx("buy"); saveGame(); autoCloudSaveNow(true);
+  arSetMsg(arText("一测期间目前不开放充值内容","Paid content is unavailable during the first test"),120);
 }
 
 // Action Record missions: inside the pass UI. Battle Manual stays unchanged.
@@ -11519,8 +12150,8 @@ function drawActionRecordLeft(){
   ctx.fillStyle="rgba(255,255,255,.12)"; ctx.fillRect(84,260,186,10);
   ctx.fillStyle="#7cc7ff"; ctx.fillRect(84,260,186*clamp(actionRecordExp/actionRecordExpNeed,0,1),10);
   ctx.fillStyle="rgba(255,255,255,.68)"; ctx.font="13px "+FONT_UI; ctx.fillText(actionRecordExp+" / "+actionRecordExpNeed+" EXP",84,292);
-  drawBtn(actionRecordAdvanced||actionRecordUltimate?arText("高级已解锁","Advanced Unlocked"):arText("高级 1500 水晶","Advanced 1500 Crystal"),"",82,342,202,42,!(actionRecordAdvanced||actionRecordUltimate),"#7cc7ff");
-  drawBtn(actionRecordUltimate?arText("顶级已解锁","Ultimate Unlocked"):arText("顶级 "+ACTION_RECORD_ULTIMATE_PRICE_TEXT,"Ultimate "+ACTION_RECORD_ULTIMATE_PRICE_TEXT),"",82,394,202,42,!actionRecordUltimate,"#ffe066");
+  drawBtn(arText("高级 LOCK","Advanced LOCK"),"",82,342,202,42,false,"#687286");
+  drawBtn(arText("顶级 LOCK","Ultimate LOCK"),"",82,394,202,42,false,"#687286");
   ctx.fillStyle="rgba(255,255,255,.48)"; ctx.font="12px "+FONT_UI; wrapText(arText("任务也在通行证内。完成任务获得行动记录EXP，再领取节点奖励。","Missions are inside the pass. Complete missions for Action Record EXP, then claim node rewards."),84,470,194,22);
   drawBtn(arText("返回","Back"),"ESC",82,548,202,42,true,"#fff");
 }
@@ -12141,7 +12772,7 @@ function drawLobby(){
   const vg=ctx.createLinearGradient(28,470,278,604);vg.addColorStop(0,"rgba(35,55,91,.92)");vg.addColorStop(1,"rgba(4,7,15,.98)");
   ctx.beginPath();ctx.roundRect(28,470,250,134,12);ctx.fillStyle=vg;ctx.fill();ctx.strokeStyle="rgba(124,199,255,.42)";ctx.stroke();
   ctx.beginPath();ctx.roundRect(28,470,5,134,3);ctx.fillStyle=versionSlide.color;ctx.fill();
-  ctx.fillStyle="#7cc7ff";ctx.font="bold 11px Arial";ctx.textAlign="left";ctx.fillText("VERSION 49.18.13",44,492);
+  ctx.fillStyle="#7cc7ff";ctx.font="bold 11px Arial";ctx.textAlign="left";ctx.fillText("VERSION 49.19.9",44,492);
   ctx.fillStyle="#fff";ctx.font="bold 23px "+FONT_UI;ctx.fillText(versionSlide.title,44,529);
   ctx.fillStyle=versionSlide.color;ctx.font="bold 16px "+FONT_UI;ctx.fillText(versionSlide.headline,44,555);
   ctx.fillStyle="rgba(255,255,255,.68)";ctx.font="11px "+FONT_UI;ctx.fillText(versionSlide.sub,44,579);
@@ -12207,12 +12838,12 @@ function battleAreaLimit(){
 function dungeonHomeCardsLegacyV42(){
   return language === "en" ? [
     {key:"material", name:"Material Trials", icon:"◆", color:"#7cc7ff", desc:"Gold, Executor EXP, Weapon Ore, and Modules."},
-    {key:"boss", name:"Boss Challenge", icon:"B", color:"#ff6b9b", desc:"Challenge powerful enemies. Coming soon."},
+    {key:"boss", name:"Boss Challenge", icon:"B", color:"#ff6b9b", desc:"Weekly challenge · Kros · phase-based combat."},
     {key:"explore", name:"Exploration", icon:"◇", color:"#7cffb2", desc:"Explore routes and collect one-time rewards."},
     {key:"patrol", name:"Patrol", icon:"P", color:"#ffe066", desc:"Dispatch operators for timed rewards."}
   ] : [
     {key:"material", name:"材料副本", icon:"◆", color:"#7cc7ff", desc:"金币 / 角色升级材料 / 武器强化材料。"},
-    {key:"boss", name:"Boss挑战", icon:"B", color:"#ff6b9b", desc:"强敌挑战。开发中。"},
+    {key:"boss", name:"Boss挑战", icon:"B", color:"#ff6b9b", desc:"每周挑战 · 克罗斯 · 多阶段战斗。"},
     {key:"explore", name:"探索地图", icon:"◇", color:"#7cffb2", desc:"宝箱 / 木箱 / 一次性奖励。开发中。"},
     {key:"patrol", name:"巡逻", icon:"P", color:"#ffe066", desc:"派遣执行官获得定时奖励。"}
   ];
@@ -12953,14 +13584,14 @@ function projectAreaInteract(){
   run.expBooks += r.expBooks||0;
   run.weaponOre += r.weaponOre||0;
   run.expReward += r.expReward||0;
-  if(best.type==="chest") run.crystals=(run.crystals||0)+10;
+  if(best.type==="chest") run.crystals=(run.crystals||0)+(r.crystals||50);
 
   const got=[];
   if(r.gold) got.push((language==="en"?"Gold ":"金币 ")+r.gold);
   if(r.expBooks) got.push((language==="en"?"EXP Book ":"经验书 ")+r.expBooks);
   if(r.weaponOre) got.push((language==="en"?"Weapon Ore ":"武器矿石 ")+r.weaponOre);
   if(r.expReward) got.push("EXP "+r.expReward);
-  if(best.type==="chest") got.push((language==="en"?"Crystal ":"水晶 ")+10);
+  if(best.type==="chest") got.push((language==="en"?"Crystal ":"水晶 ")+(r.crystals||50));
 
   addText(best.x,best.y-42,best.label,"#7cffb2",true);
   addParticles(best.x,best.y,"#7cffb2",10,4);
@@ -13393,7 +14024,8 @@ function createKrosEnemy(){
   e.phase=1;
   e.lv=20;
   e.r=56;
-  e.maxHp=3600;
+  // Light balance pass: retain all three phases while shortening each health bar.
+  e.maxHp=3150;
   e.hp=e.maxHp;
   e.maxShield=0;
   e.shield=0;
@@ -13413,8 +14045,12 @@ function spawnBossKrosArea(){
   area=3;
   const k=createKrosEnemy();
   enemies.push(k);
-  showCenter(language==="en"?"BOSS: KROS":"Boss：克罗斯",90);
-  showActionPrompt(language==="en"?"Crystal Dragon has appeared":"晶体恶龙出现",90);
+  krosIntroTimer=180;
+  k.attackCd=Math.max(k.attackCd||0,210);
+  k.krosPattern=Math.max(k.krosPattern||0,210);
+  showCenter(language==="en"?"CRYSTAL DRAGON · KROS":"晶体恶龙 · 克罗斯",150);
+  showActionPrompt(language==="en"?"Three-phase boss encounter":"三阶段首领作战",120);
+  doShake(18);flash=Math.max(flash,12);
 }
 
 function supportsStageExploration(){
@@ -13454,6 +14090,22 @@ function stageExploreKey(kind,index=0){
   return selectedTab+":"+selectedStage+":"+area+":"+battleRoute+":"+kind+":"+index;
 }
 
+const CHEST_TIERS=[
+  {id:"normal",zh:"普通宝箱",en:"Normal Chest",crystals:50,color:"#c59b5f",weight:65},
+  {id:"advanced",zh:"高级宝箱",en:"Advanced Chest",crystals:100,color:"#7cc7ff",weight:25},
+  {id:"top",zh:"顶级宝箱",en:"Elite Chest",crystals:150,color:"#c98cff",weight:8},
+  {id:"ultimate",zh:"极致宝箱",en:"Ultimate Chest",crystals:200,color:"#ffe066",weight:2}
+];
+function pickChestTier(seed){
+  const roll=Math.abs(Math.trunc(Number(seed)||0))%100;
+  let cursor=0;
+  for(const tier of CHEST_TIERS){
+    cursor+=tier.weight;
+    if(roll<cursor)return tier;
+  }
+  return CHEST_TIERS[0];
+}
+
 function spawnStageExploreContent(){
   battleExploreObjects=[];
   if(!supportsStageExploration()) return;
@@ -13462,7 +14114,15 @@ function spawnStageExploreContent(){
   const addObject=(type,x,y,index,reward={},text="",required=false,label="")=>{
     const key=stageExploreKey(type,index);
     const names={chest:["Area Chest","区域宝箱"],crate:["Wooden Crate","木箱"],reading:["Field Record","现场记录"],npc:["Survivor","幸存者"]};
-    battleExploreObjects.push({key,type,x,y,label:label||(language==="en"?names[type][0]:names[type][1]),done:!!battleExploreOpened[key],hp:type==="crate"?2:0,reward,text,required});
+    let chestTier=null;
+    if(type==="chest"){
+      const weightedSeed=(seed*97)+(index*37)+(battleSideArea?53:0);
+      chestTier=pickChestTier(weightedSeed);
+      reward={...reward,crystals:chestTier.crystals};
+      const tierName=language==="en"?chestTier.en:chestTier.zh;
+      label=label?tierName+" · "+label:tierName;
+    }
+    battleExploreObjects.push({key,type,x,y,label:label||(language==="en"?names[type][0]:names[type][1]),done:!!battleExploreOpened[key],hp:type==="crate"?2:0,reward,text,required,chestTier});
   };
   const records=language==="en"?[
     "Record: the crystal readings rise whenever the street lights flicker.",
@@ -13538,7 +14198,10 @@ function spawnStageExploreContent(){
     }
   }
   if(selectedMainChapter===0 && !battleSideArea){
-    if(selectedStage===2){
+    if(selectedStage===1){
+      const labels=language==="en"?["Outer Crystal Trace","Blocked Street","Evacuation Opening"]:["外围晶体痕迹","封锁街道","撤离缺口"];
+      addObject("reading",810,laneY-50,180+area,{},language==="en"?"The crystal trail confirms another wave passed through this route.":"晶体痕迹表明又一批怪物曾经过这条路线。",true,labels[area-1]);
+    }else if(selectedStage===2){
       const labels=language==="en"?["Emergency Beacon","Evacuation Route","West Gate Signal"]:["应急信标","撤离路线","西区出口信号"];
       const texts=language==="en"?["The beacon confirms that the rear street is no longer safe.","The evacuation route has shifted toward the west gate.","The gate signal is unstable, but the exit is still open."]:["信标确认后街已经无法继续停留。","撤离路线已经变更至西区出口。","出口信号不稳定，但通道仍然开放。"];
       addObject("reading",820,laneY-48,200+area,{},texts[area-1],true,labels[area-1]);
@@ -13546,14 +14209,24 @@ function spawnStageExploreContent(){
       const labels=language==="en"?["Broken Communicator","Kane's Footprint","Distorted Echo"]:["损坏的通讯器","凯恩的脚印","扭曲回声"];
       const texts=language==="en"?["The communicator repeats a message that was never transmitted.","The footprint stops at a wall, then continues on its other side.","Kane's voice can be heard from two directions at once."]:["通讯器正在重复一段从未发送过的讯息。","脚印在墙前消失，却从墙的另一侧继续出现。","凯恩的声音同时从两个方向传来。"];
       addObject("reading",780,laneY-52,220+area,{},texts[area-1],true,labels[area-1]);
+    }else if(selectedStage===5){
+      const labels=language==="en"?["Crystal Shell","Human-shaped Fragment","Residual Signal"]:["晶体外壳","人形碎片","残留信号"];
+      addObject(area===1?"crate":"reading",800,laneY-50,230+area,{},language==="en"?"The figure is crystalized, but the signal inside it is still changing.":"目标已经晶体化，但内部信号仍在变化。",true,labels[area-1]);
+      if(area===1) battleExploreObjects[battleExploreObjects.length-1].hp=3;
     }else if(selectedStage===7){
       const labels=language==="en"?["Unstable Anchor","Reversed Street Sign","Dream Boundary"]:["不稳定锚点","倒置路牌","白日梦边界"];
       const texts=language==="en"?["The anchor reacts to both Hermit and Kane, but at different frequencies.","The sign points toward a road that does not exist in Hermit's view.","The boundary steadies after the surrounding threats are cleared."]:["锚点同时回应隐者和凯恩，却显示出不同频率。","路牌指向一条只存在于凯恩视野中的道路。","清除周围威胁后，白日梦边界暂时稳定。"];
       addObject("reading",800,laneY-50,240+area,{},texts[area-1],true,labels[area-1]);
+    }else if(selectedStage===8){
+      const labels=language==="en"?["Erosion Reading","Broken Landmark","Deep-layer Route"]:["侵蚀读数","损坏地标","深层路线"];
+      addObject("reading",800,laneY-50,250+area,{},language==="en"?"The erosion is increasing. The route must be confirmed before moving deeper.":"侵蚀正在增强，继续深入前必须确认路线。",true,labels[area-1]);
     }else if(selectedStage===9){
       const labels=language==="en"?["Pulse Sample","Hatching Crystal","Core Resonance"]:["脉冲样本","孵化结晶","核心共鸣"];
       const texts=language==="en"?["The crystal pulse accelerates whenever a creature approaches.","A silhouette forms inside the crystal, then dissolves when the pulse is interrupted.","All nearby crystals resonate with a deeper core ahead."]:["每当怪物靠近，结晶脉冲都会加速。","结晶内部正在形成轮廓，脉冲被打断后轮廓随之消散。","附近所有结晶都在回应前方更深处的核心。"];
       addObject("reading",810,laneY-50,260+area,{},texts[area-1],true,labels[area-1]);
+    }else if(selectedStage===10){
+      const labels=language==="en"?["Colossus Footprint","Core Fracture","Final Resonance"]:["巨人足迹","核心裂纹","最终共鸣"];
+      addObject("reading",820,laneY-50,280+area,{},language==="en"?"The giant core is exposed. Clear the area and confirm the resonance point.":"巨人核心已经暴露，清理区域并确认共鸣点。",true,labels[Math.min(area-1,2)]);
     }
   }
   if(selectedMainChapter===1 && battleSideArea){
@@ -13599,6 +14272,7 @@ function battleExploreInteract(){
   if(reward.gold){ gold+=reward.gold; totalGoldEarned+=reward.gold; pushBattleReward(language==="en"?"Gold":"金币",reward.gold,"#ffe066"); }
   if(reward.expBooks){ expBooks+=reward.expBooks; pushBattleReward(language==="en"?"EXP Book":"经验书",reward.expBooks,"#7cc7ff"); }
   if(reward.weaponOre){ weaponOre+=reward.weaponOre; pushBattleReward(language==="en"?"Refined Alloy":"精炼合金",reward.weaponOre,"#c35cff"); }
+  if(reward.crystals){ const gained=Math.max(0,Math.floor(reward.crystals)); grantExactEventCrystals(gained); pushBattleReward(language==="en"?"Crystal":"水晶",gained,"#7cc7ff"); }
   if(target.type==="chest") showActionPrompt(language==="en"?"Chest opened":"宝箱已开启",75);
   else if(target.type==="reading") showActionPrompt(target.text,180);
   else showActionPrompt(target.label+"："+target.text,150);
@@ -13688,8 +14362,8 @@ function spawnArea(){
   const t = commissionStage ? commissionStage.type : (missionTypes[selectedStage-1] || "annihilation");
   if(t==="evacuation"){
     if(area===1) enemies.push(createEnemy(680,H/2+105,false,"normal"));
-    else if(area===2){enemies.push(createEnemy(610,H/2+105,false,"normal"));enemies.push(createEnemy(835,H/2+65,false,"ranged"));}
-    else enemies.push(createEnemy(760,H/2+100,false,"berserker"));
+    else if(area===2){enemies.push(createEnemy(610,H/2+105,false,"skirmisher"));enemies.push(createEnemy(835,H/2+65,false,"ranged"));}
+    else {enemies.push(createEnemy(680,H/2+100,false,"berserker"));enemies.push(createEnemy(875,H/2+70,false,"support"));}
   } else if(t==="search"){
     // Environmental investigation: the player advances by finding the required trace in each Area.
   } else if(t==="duel"){
@@ -13697,19 +14371,19 @@ function spawnArea(){
   } else if(t==="stabilize"){
     if(area===1) enemies.push(createEnemy(680,H/2+105,false,"normal"));
     else if(area===2){enemies.push(createEnemy(550,H/2+115,false,"shield"));enemies.push(createEnemy(820,H/2+70,false,"ranged"));}
-    else{enemies.push(createEnemy(620,H/2+110,false,"elite"));enemies.push(createEnemy(850,H/2+75,false,"berserker"));}
+    else{enemies.push(createEnemy(620,H/2+110,false,"elite"));enemies.push(createEnemy(850,H/2+75,false,"sniper"));}
   } else if(t==="endurance"){
     enemies.push(createEnemy(540,H/2+95,false,area===1?"normal":"berserker"));
     enemies.push(createEnemy(770,H/2+125,false,area===3?"elite":"normal"));
-    if(area>=2) enemies.push(createEnemy(900,H/2+60,false,"ranged"));
+    if(area>=2) enemies.push(createEnemy(900,H/2+60,false,area>=3?"sniper":"ranged"));
   } else if(t==="crystalInvestigation"){
     if(area===1) enemies.push(createEnemy(690,H/2+100,false,"normal"));
     else if(area===2){enemies.push(createEnemy(560,H/2+110,false,"shield"));enemies.push(createEnemy(810,H/2+70,false,"normal"));}
-    else{enemies.push(createEnemy(620,H/2+110,false,"elite"));enemies.push(createEnemy(860,H/2+70,false,"ranged"));}
+    else{enemies.push(createEnemy(560,H/2+110,false,"skirmisher"));enemies.push(createEnemy(720,H/2+110,false,"support"));enemies.push(createEnemy(900,H/2+70,false,"sniper"));}
   } else if(t==="breakthrough"){
     if(area===1){enemies.push(createEnemy(590,H/2+80,false,"normal"));enemies.push(createEnemy(760,H/2+135,false,"shield"));}
     else if(area===2){enemies.push(createEnemy(500,H/2+70,false,"shield"));enemies.push(createEnemy(720,H/2+130,false,"ranged"));}
-    else{enemies.push(createEnemy(500,H/2+120,false,"normal"));enemies.push(createEnemy(700,H/2+75,false,"elite"));enemies.push(createEnemy(860,H/2+135,false,"ranged"));}
+    else{enemies.push(createEnemy(500,H/2+120,false,"skirmisher"));enemies.push(createEnemy(700,H/2+75,false,"support"));enemies.push(createEnemy(860,H/2+135,false,"sniper"));}
   } else if(t==="investigation"){
     if(area===1) enemies.push(createEnemy(610,H/2+95,false,"normal"));
     else if(area===2){enemies.push(createEnemy(540,H/2+110,false,"shield"));enemies.push(createEnemy(790,H/2+75,false,"normal"));}
@@ -13932,11 +14606,34 @@ function drawKrosPhaseTransitionOverlay(){
   ctx.restore();
 }
 
+function drawKrosIntroOverlay(){
+  if(krosIntroTimer<=0 || battleModeSource!=="bossKros") return;
+  const elapsed=180-krosIntroTimer;
+  const alpha=Math.min(clamp(elapsed/34,0,1),clamp(krosIntroTimer/42,0,1));
+  ctx.save();
+  ctx.globalAlpha=.44*alpha;ctx.fillStyle="#030208";ctx.fillRect(0,0,W,H);
+  ctx.globalAlpha=alpha;ctx.textAlign="center";
+  ctx.shadowBlur=30;ctx.shadowColor="#ff4d7d";
+  ctx.fillStyle="#ff5f8d";ctx.font="bold 24px "+FONT_UI;ctx.fillText("WARNING",W/2,H*.29);
+  ctx.fillStyle="#fff";ctx.font="bold 52px "+FONT_UI;
+  ctx.fillText(language==="en"?"CRYSTAL DRAGON · KROS":"晶体恶龙 · 克罗斯",W/2,H*.42);
+  ctx.shadowBlur=0;ctx.fillStyle="rgba(255,255,255,.72)";ctx.font="15px "+FONT_UI;
+  ctx.fillText(language==="en"?"Three-phase boss encounter":"三阶段首领作战",W/2,H*.48);
+  ctx.strokeStyle="#ff5f8d";ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(W*.22,H*.54);ctx.lineTo(W*.78,H*.54);ctx.stroke();
+  ctx.restore();
+}
+
 function updateBossKrosBattleLogic(){
   if(battleModeSource!=="bossKros") return;
   const e=enemies.find(v=>v.alive && v.bossKros);
   if(!e) return;
   e.phase=krosPhaseFromBars(e);
+
+  if(krosIntroTimer>0){
+    krosIntroTimer=Math.max(0,krosIntroTimer-frameScale);
+    e.vx*=.55;e.vy*=.55;e.windup=0;
+    return;
+  }
 
   if(updateKrosPhaseTransition(e)) return;
 
@@ -13953,7 +14650,7 @@ function updateBossKrosBattleLogic(){
         }
         showActionPrompt(language==="en"?"Kros: Dragon Bullets":"克罗斯：龙弹",45);
       }
-      e.krosPattern=115;
+      e.krosPattern=132;
     }else if(e.phase===2){
       if(Math.random()<.55){
         addBossHazard(player.x,player.y,95,42,"circle");
@@ -13965,11 +14662,11 @@ function updateBossKrosBattleLogic(){
         }
         showActionPrompt(language==="en"?"Poison Crystal Zone":"晶体毒区",45);
       }
-      e.krosPattern=95;
+      e.krosPattern=112;
     }else{
       addBossHazard(W/2,H/2+80,520,70,"full");
       showActionPrompt(language==="en"?"Full-field Crystal Blast":"全图晶体爆破",70);
-      e.krosPattern=150;
+      e.krosPattern=175;
     }
   }
 }
@@ -14566,12 +15263,13 @@ function drawOperation(){
     ctx.fillText(tx("typeLabel")+(selectedTab==="combat" ? (language==="en"?st.mechanicEn:st.mechanicZh) : missionLabel()),W-330,315);
     ctx.fillText(tx("statusLabel")+(done?tx("ownedStatus"):locked?ui("locked"):tx("availableStatus")),W-330,350);
     if(selectedTab==="combat") ctx.fillText("Lv."+st.lv+"  ·  "+(language==="en"?"Limit ":"限时 ")+st.time+"s",W-330,382);
-    if(selectedTab==="combat"){
-      ctx.fillStyle="rgba(20,28,43,.96)"; ctx.fillRect(W-338,402,255,66);
-      ctx.strokeStyle="rgba(255,224,102,.42)"; ctx.strokeRect(W-338,402,255,66);
-      ctx.fillStyle="#ffe066"; ctx.font="bold 16px "+FONT_UI; ctx.fillText(language==="en"?"FIRST CLEAR REWARD":"首通奖励",W-320,426);
-      ctx.fillStyle="#7cc7ff"; ctx.font="bold 20px "+FONT_UI; ctx.fillText("◆ 200 "+tx("crystalWord")+"  ·  "+st.exp+" EXP",W-320,454);
-    }
+    ctx.fillStyle="rgba(20,28,43,.96)"; ctx.fillRect(W-338,402,255,66);
+    ctx.strokeStyle="rgba(255,224,102,.42)"; ctx.strokeRect(W-338,402,255,66);
+    ctx.fillStyle="#ffe066"; ctx.font="bold 16px "+FONT_UI; ctx.fillText(language==="en"?"FIRST CLEAR REWARD":"首通奖励",W-320,426);
+    ctx.fillStyle="#7cc7ff"; ctx.font="bold 19px "+FONT_UI;
+    ctx.fillText(selectedTab==="combat"
+      ? ("◆ 200 "+tx("crystalWord")+"  ·  "+st.exp+" EXP")
+      : ("◆ "+(st.reward||0)+" "+tx("crystalWord")+"  ·  500 EXP"),W-320,454);
     drawBtn(locked?ui("locked"):ui("startAction"),locked?"LOCK":"CLICK",W-338,486,255,52,!locked,locked?"#888":"#ffe066");
   }else if(selectedTab!=="dungeon"){
     // V49.13: removed obsolete stage-detail hint text.
@@ -14886,6 +15584,10 @@ function drawProtagonistArtBox(x,y,w,h,large=false){
 function drawExecutorArt(i,x,y,w,h,large=false){
   if(i===PROTAGONIST_ROLE && drawHermitPortrait(x,y,w,h,large?"full":"card")){
     if(!owned[i]){ctx.save();ctx.fillStyle="rgba(0,0,0,.62)";ctx.fillRect(x,y,w,h);ctx.restore();}
+    return;
+  }
+  if(i===3 && drawFloraExecutorPortrait(x,y,w,h,large?"detail":"card")){
+    if(!owned[i]){ctx.save();ctx.fillStyle="rgba(0,0,0,.16)";ctx.fillRect(x,y,w,h);ctx.restore();}
     return;
   }
   drawPortrait(x,y,w,h,roles[i],!owned[i]);
@@ -15326,7 +16028,14 @@ function upgradeWeaponSelected(i){
   const cost=weaponUpgradeCost(i),costGold=cost.gold;
   if((weaponOre||0)<cost.ore || gold<costGold){ showCenter(language==="en"?"Not enough weapon materials":"精炼材料不足",70); return; }
   if((cd.weaponLevel||1)>=60){ showCenter(language==="en"?"Weapon already MAX":"已达上限",70); return; }
-  weaponOre-=cost.ore; gold-=costGold; cd.weaponLevel=(cd.weaponLevel||1)+1;
+  const equippedId=roleEquippedWeaponId(i);
+  const item=weaponInventory.find(w=>w.id===equippedId);
+  if(!item) return;
+  weaponOre-=cost.ore; gold-=costGold;
+  item.level=Math.min(60,(item.level||1)+1);
+  // Keep the legacy field synchronized for old saves, growth tasks and cloud
+  // data, while the weapon page and battle stats use the inventory item.
+  cd.weaponLevel=item.level;
   showCenter(language==="en"?"Weapon upgraded":"精炼完成",70);
   sfx("reward"); saveGame(); autoCloudSaveNow(true);
 }
@@ -15390,6 +16099,11 @@ function ensureWeaponBag(){
   for(let i=0;i<charData.length;i++){
     if(!charData[i]) continue;
     if(!charData[i].equippedWeaponId) charData[i].equippedWeaponId=defaultWeaponIdForRole(i);
+    const equippedItem=weaponInventory.find(w=>w.id===charData[i].equippedWeaponId);
+    if(equippedItem){
+      equippedItem.level=clamp(Math.max(equippedItem.level||1,charData[i].weaponLevel||1),1,60);
+      charData[i].weaponLevel=equippedItem.level;
+    }
   }
 }
 function roleEquippedWeaponId(i){
@@ -15567,7 +16281,7 @@ function drawOperatorBreakTab(i,x=780,y=112,w=302,h=506){
 function drawFloraImageBox(x,y,w,h,alpha=1){
   ctx.save();
   ctx.globalAlpha = alpha;
-  drawPortrait(x+20,y+10,w-40,h-20,roles[3],!owned[3]);
+  if(!drawFloraExecutorPortrait(x,y,w,h,"recommend")) drawPortrait(x+20,y+10,w-40,h-20,roles[3],!owned[3]);
   ctx.restore();
 }
 
@@ -15678,9 +16392,9 @@ function drawShop(){
     ["recruit",ui("shopRecruit")],
     ["weapon",ui("weaponDepot")],
     ["skin",ui("skin")],
-    ["crystal",language==="en"?"Crystals":"水晶"],
-    ["monthly",ui("monthly")],
-    ["packs",ui("packs")],
+    ["crystal",(language==="en"?"Crystals":"水晶")+" LOCK"],
+    ["monthly",ui("monthly")+" LOCK"],
+    ["packs",ui("packs")+" LOCK"],
     ["support",ui("developerSupport")]
   ];
   for(let i=0;i<tabs.length;i++){
@@ -15843,9 +16557,9 @@ function drawShop(){
   }
 
   if(shopTab==="support"){
-    const tiers=["$0.99","$9.99","$19.99","$29.99","$39.99","$49.99"];
+    const tiers=STRIPE_SUPPORT_TIERS.map(v=>v.amount);
     ctx.fillStyle="#fff";ctx.font="bold 28px "+FONT_UI;ctx.textAlign="left";ctx.fillText(ui("developerSupport"),70,225);
-    ctx.fillStyle="rgba(255,255,255,.52)";ctx.font="12px "+FONT_UI;ctx.fillText(language==="en"?"Optional support · no gameplay advantage · billing is not connected":"自愿资助 · 不提供战力优势 · 测试版未接入支付",70,249);
+    ctx.fillStyle="rgba(255,255,255,.52)";ctx.font="12px "+FONT_UI;ctx.fillText(language==="en"?"Optional support · no gameplay advantage · Stripe test mode":"自愿资助 · 不提供战力优势 · Stripe 测试模式",70,249);
     for(let i=0;i<tiers.length;i++){
       const x=70+i*163,y=275,w=145,h=185,hover=inRect(x,y,w,h),sg=ctx.createLinearGradient(x,y,x,y+h);
       sg.addColorStop(0,hover?"rgba(40,69,97,.96)":"rgba(24,34,53,.95)");sg.addColorStop(1,"rgba(7,10,18,.98)");
@@ -15861,6 +16575,29 @@ function drawShop(){
   ctx.fillText(localizeText(shopMsg),78,534);
 
   drawBtn(ui("backLobby"),"ESC",60,560,220,52);
+  if(paidContentLockPrompt){
+    ctx.fillStyle="rgba(2,5,12,.88)";ctx.fillRect(0,0,W,H);
+    const x=W/2-260,y=H/2-125,w=520,h=250;
+    ctx.fillStyle="rgba(16,24,42,.99)";ctx.fillRect(x,y,w,h);
+    ctx.strokeStyle="rgba(255,224,102,.72)";ctx.lineWidth=2;ctx.strokeRect(x,y,w,h);
+    ctx.textAlign="center";ctx.fillStyle="#ffe066";ctx.font="bold 30px "+FONT_UI;ctx.fillText("LOCK",W/2,y+60);
+    ctx.fillStyle="#fff";ctx.font="bold 20px "+FONT_UI;ctx.fillText(language==="en"?"Paid content is currently unavailable":"一测期间目前不开放充值内容",W/2,y+105);
+    ctx.fillStyle="rgba(255,255,255,.60)";ctx.font="14px "+FONT_UI;ctx.fillText(language==="en"?"Developer Support remains available.":"开发者资助仍可正常使用。",W/2,y+137);
+    drawBtn(language==="en"?"OK":"知道了","ENTER",W/2-105,y+175,210,48,true,"#7cc7ff");
+  }
+  if(pendingGuestSupportTier>=0){
+    ctx.fillStyle="rgba(2,5,12,.90)";ctx.fillRect(0,0,W,H);
+    const x=W/2-300,y=H/2-155,w=600,h=310;
+    ctx.fillStyle="rgba(16,24,42,.99)";ctx.fillRect(x,y,w,h);
+    ctx.strokeStyle="rgba(124,199,255,.72)";ctx.lineWidth=2;ctx.strokeRect(x,y,w,h);
+    ctx.textAlign="center";ctx.fillStyle="#fff";ctx.font="bold 25px "+FONT_UI;ctx.fillText(language==="en"?"Support as a Guest?":"是否以游客身份进行资助？",W/2,y+58);
+    ctx.fillStyle="rgba(255,255,255,.68)";ctx.font="15px "+FONT_UI;
+    ctx.fillText(language==="en"?"Guest data is stored only on this device.":"游客数据仅保存在当前设备。",W/2,y+103);
+    ctx.fillText(language==="en"?"Changing devices will not transfer this progress.":"更换设备后，这些进度将无法在另一台设备共用。",W/2,y+132);
+    ctx.fillStyle="#ffe066";ctx.font="bold 18px Arial";ctx.fillText(STRIPE_SUPPORT_TIERS[pendingGuestSupportTier].amount,W/2,y+175);
+    drawBtn(language==="en"?"It's Fine · Support":"没事（充值）","",W/2-220,H/2+85,205,48,true,"#ffe066");
+    drawBtn(language==="en"?"Register / Sign In":"算了，我选择注册/登录","",W/2+15,H/2+85,205,48,true,"#7cc7ff");
+  }
 }
 
 function drawGiftPack(x,y,w,h,title,desc,price,bought){
@@ -15889,7 +16626,7 @@ function drawGiftPack(x,y,w,h,title,desc,price,bought){
   ctx.fillText(bought?"SOLD":"BUY",x+w-22,y+132);
 }
 function drawGrid(){ ctx.strokeStyle="rgba(255,255,255,.035)"; for(let x=0;x<W;x+=80){ctx.beginPath();ctx.moveTo(x,100);ctx.lineTo(x,H);ctx.stroke();} for(let y=100;y<H;y+=80){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();} }
-function drawEnemy(e){ if(!e.alive)return; ctx.save(); ctx.translate(e.x,e.y); if((e.freeze||0)>0){ctx.globalAlpha=.92;} if(e.windup>0){ctx.strokeStyle="#ff3333";ctx.lineWidth=4;ctx.beginPath();ctx.arc(0,0,e.boss?110:82,0,Math.PI*2);ctx.stroke();ctx.fillStyle="#ff3333";ctx.font="bold 18px " + FONT_UI;ctx.textAlign="center";ctx.fillText("R!",0,-e.r-42);} ctx.fillStyle=e.hit>0?"#fff":e.boss?"#5b2d42":"#33384f"; ctx.beginPath();ctx.arc(0,0,e.r,0,Math.PI*2);ctx.fill(); const hw=e.boss?105:62; ctx.fillStyle="#fff";ctx.font="bold 10px " + FONT_UI;ctx.textAlign="right";ctx.fillText("Lv."+((e.lv!==undefined)?e.lv:"?"),-hw/2-6,-e.r-18); ctx.fillStyle="#ff4d4d";ctx.fillRect(-hw/2,-e.r-24,hw,6);ctx.fillStyle="#ffe066";ctx.fillRect(-hw/2,-e.r-24,hw*(e.hp/e.maxHp),6);
+function drawEnemy(e){ if(!e.alive)return; ctx.save(); ctx.translate(e.x,e.y); if((e.freeze||0)>0){ctx.globalAlpha=.92;} if(e.windup>0){ctx.strokeStyle="#ff3333";ctx.lineWidth=4;ctx.beginPath();ctx.arc(0,0,e.boss?110:82,0,Math.PI*2);ctx.stroke();ctx.fillStyle="#ff3333";ctx.font="bold 13px " + FONT_UI;ctx.textAlign="center";ctx.fillText("SPACE",0,-e.r-42);} const enemyTypeColor={normal:"#33384f",shield:"#46506b",berserker:"#6a3f46",ranged:"#4b4568",elite:"#55476b",sniper:"#6c4b63",skirmisher:"#355868",support:"#356054"}; ctx.fillStyle=e.hit>0?"#fff":e.boss?"#5b2d42":(enemyTypeColor[e.type]||"#33384f"); ctx.beginPath();ctx.arc(0,0,e.r,0,Math.PI*2);ctx.fill(); const hw=e.boss?105:62; ctx.fillStyle="#fff";ctx.font="bold 10px " + FONT_UI;ctx.textAlign="right";ctx.fillText("Lv."+((e.lv!==undefined)?e.lv:"?"),-hw/2-6,-e.r-18); ctx.fillStyle="#ff4d4d";ctx.fillRect(-hw/2,-e.r-24,hw,6);ctx.fillStyle="#ffe066";ctx.fillRect(-hw/2,-e.r-24,hw*(e.hp/e.maxHp),6);
   if((e.freeze||0)>0){ ctx.strokeStyle="#88d8ff"; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(0,0,e.r+13,0,Math.PI*2); ctx.stroke(); ctx.fillStyle="#88d8ff"; ctx.font="bold 11px " + FONT_UI; ctx.textAlign="center"; ctx.fillText("FROZEN",0,-e.r-45); }
   else if((e.chill||0)>0){ ctx.strokeStyle="rgba(136,216,255,.55)"; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(0,0,e.r+10,0,Math.PI*2); ctx.stroke(); }
   if(e.maxShield>0){
@@ -16073,10 +16810,10 @@ function drawEffects(){
     ctx.fillStyle="#d9fff0";ctx.font="bold 10px "+FONT_UI;ctx.textAlign="center";ctx.fillText(language==="en"?"HEALING FIELD · +5 HP/s":"治疗领域 · 每秒+5生命",field.x,field.y-half-10);ctx.restore();
   }
   if(chloeAttackCharge.active){
-    const c=chloeAttackCharge,halfW=c.width*.5,y=c.dir>0?player.y:player.y-c.length;
-    ctx.save();ctx.globalAlpha=.18;ctx.fillStyle="#bda7ff";ctx.fillRect(player.x-halfW,y,c.width,c.length);
-    ctx.globalAlpha=.92;ctx.strokeStyle="#78f0c3";ctx.lineWidth=3;ctx.setLineDash([10,6]);ctx.strokeRect(player.x-halfW,y,c.width,c.length);ctx.setLineDash([]);
-    ctx.fillStyle="#e7dcff";ctx.font="bold 10px "+FONT_UI;ctx.textAlign="center";ctx.fillText(language==="en"?"RELEASE TO ATTACK":"松开鼠标攻击",player.x,y+(c.dir>0?c.length+17:-9));ctx.restore();
+    const c=chloeAttackCharge,halfW=c.width*.5;
+    ctx.save();ctx.translate(player.x,player.y);ctx.rotate(c.angle);ctx.globalAlpha=.18;ctx.fillStyle="#bda7ff";ctx.fillRect(0,-halfW,c.length,c.width);
+    ctx.globalAlpha=.92;ctx.strokeStyle="#78f0c3";ctx.lineWidth=3;ctx.setLineDash([10,6]);ctx.strokeRect(0,-halfW,c.length,c.width);ctx.setLineDash([]);
+    ctx.rotate(-c.angle);ctx.fillStyle="#e7dcff";ctx.font="bold 10px "+FONT_UI;ctx.textAlign="center";ctx.fillText(language==="en"?"RELEASE TO ATTACK":"松开鼠标攻击",Math.cos(c.angle)*(c.length+30),Math.sin(c.angle)*(c.length+30));ctx.restore();
   }
   for(const s of slashes){
     ctx.save();
@@ -16288,6 +17025,18 @@ function drawBattleUI(){
     ctx.textAlign="center";ctx.font="bold 13px "+FONT_UI;
     ctx.fillText(language==="en"?"TRAINING TARGET · ∞ HP":"训练目标 · 无限生命",735,108);
   }
+  if(chainSelect){
+    const partners=availableChainPartners();
+    const seconds=Math.max(0,chainSelectTimer).toFixed(1);
+    ctx.fillStyle="rgba(0,0,0,.36)";ctx.fillRect(0,0,W,H);
+    ctx.fillStyle="rgba(3,6,14,.96)";ctx.fillRect(W/2-270,H-184,540,148);
+    ctx.strokeStyle="#ffe066";ctx.lineWidth=2;ctx.strokeRect(W/2-270,H-184,540,148);
+    ctx.textAlign="center";ctx.fillStyle="#ffe066";ctx.font="bold 17px "+FONT_UI;
+    ctx.fillText(language==="en"?`CHAIN DECISION  ${seconds}s`:`连携选择  ${seconds}秒`,W/2,H-154);
+    ctx.fillStyle="rgba(255,255,255,.68)";ctx.font="12px "+FONT_UI;
+    ctx.fillText(language==="en"?"Other keys cancel · timeout ends automatically":"按其他键取消 · 超时自动结束",W/2,H-132);
+    partners.slice(0,2).forEach((roleId,i)=>{const x=W/2-230+i*240;ctx.fillStyle="rgba(255,255,255,.07)";ctx.fillRect(x,H-119,220,62);ctx.strokeStyle=roles[roleId].color;ctx.strokeRect(x,H-119,220,62);ctx.fillStyle=roles[roleId].color;ctx.font="bold 16px "+FONT_UI;fitText((i===0?(language==="en"?"LEFT · ":"左键 · "):(language==="en"?"RIGHT · ":"右键 · "))+roleName(roleId),190,16,"bold",11);ctx.fillText((i===0?(language==="en"?"LEFT · ":"左键 · "):(language==="en"?"RIGHT · ":"右键 · "))+roleName(roleId),x+110,H-82);});
+  }
 
   drawBar(30,78,280,12,player.hp/playerMaxHp(),"#ff4d4d");
   ctx.fillStyle="rgba(255,255,255,.76)";
@@ -16341,13 +17090,18 @@ function drawBattleUI(){
 function drawBar(x,y,w,h,v,c){ctx.fillStyle="rgba(255,255,255,.15)";ctx.fillRect(x,y,w,h);ctx.fillStyle=c;ctx.fillRect(x,y,w*clamp(v,0,1),h);}
 
 function chapter1AreaObjectiveText(){
-  if(battleModeSource!=="main" || (selectedMainChapter!==1&&selectedMainChapter!==2) || battleSideArea) return "";
+  if(battleModeSource!=="main" || ![0,1,2].includes(selectedMainChapter) || battleSideArea) return "";
   const pending=hasPendingChapterAreaObjective();
   const done=language==="en"?"Objective complete — proceed right":"区域目标完成——向右前进";
   if(!pending && areaCleared) return done;
   const zh2={3:"避开警戒，靠近三个盲点按 F 调查",4:"清除威胁并按 F 校准裂隙锚点",5:"与居民交谈，记录他们自己的选择",6:"护送幸存者并确认每段撤离标记",7:"调查小赖留下的三处痕迹",8:"击退追击者并确认狐灵共鸣点",10:"清出道路并确认幸存者通过"};
   const en2={3:"Avoid security and press F at all three blind spots",4:"Clear threats and press F to calibrate each rift anchor",5:"Speak with residents and record their choices",6:"Escort survivors and confirm each evacuation marker",7:"Inspect the three traces left by Lai",8:"Repel the pursuit and confirm each fox resonance point",10:"Open the route and confirm the survivors have passed"};
   if(selectedMainChapter===2) return (language==="en"?en2:zh2)[selectedStage]||"";
+  if(selectedMainChapter===0){
+    const zh0={1:"清理晶体怪并调查本区域异常痕迹",2:"清出撤离路线并确认应急信标",4:"寻找凯恩并调查扭曲痕迹",5:"击败晶体人并检查残留信号",7:"稳定白日梦边界锚点",8:"压制侵蚀并确认深入路线",9:"调查结晶脉冲并阻止增殖",10:"突破巨人防线并确认核心共鸣"};
+    const en0={1:"Clear the Crystal Beasts and inspect the anomaly trace",2:"Open the evacuation route and confirm the beacon",4:"Find Kane and inspect the distorted traces",5:"Defeat the Crystal Man and inspect its residual signal",7:"Stabilize the Daydream boundary anchor",8:"Contain the erosion and confirm the deeper route",9:"Study the crystal pulse and stop the multiplication",10:"Break the Colossus line and confirm its core resonance"};
+    return (language==="en"?en0:zh0)[selectedStage]||"";
+  }
   const zh={
     2:"清理敌人并破坏封锁障碍",
     3:"清理敌人，靠近调查点按 F",
@@ -16393,6 +17147,15 @@ function drawBattleBackground(){
     ctx.fillStyle="rgba(120,120,150,.15)";
     for(let i=0;i<13;i++)ctx.fillRect(60+i*80,130+(i%3)*60,42,150);
   }
+  const seed=selectedStage*19+area*7;
+  ctx.strokeStyle="rgba(124,199,255,.10)";ctx.lineWidth=2;
+  for(let y=150;y<H;y+=92){ctx.beginPath();ctx.moveTo(0,y+(seed%17));ctx.lineTo(W,y-22+(seed%17));ctx.stroke();}
+  ctx.fillStyle="rgba(255,224,102,.12)";
+  for(let i=0;i<6;i++){const x=90+i*190+(seed%23),y=165+(i%3)*135;ctx.fillRect(x,y,8,46);ctx.beginPath();ctx.arc(x+4,y-5,13,0,Math.PI*2);ctx.fill();}
+  if(selectedMainChapter===0){
+    ctx.strokeStyle="rgba(189,167,255,.22)";ctx.lineWidth=3;
+    for(let i=0;i<7;i++){const x=145+i*145+(seed%31),y=210+(i%4)*88;ctx.beginPath();ctx.moveTo(x,y+34);ctx.lineTo(x+12,y);ctx.lineTo(x+25,y+34);ctx.closePath();ctx.stroke();}
+  }
   ctx.fillStyle="rgba(255,255,255,.10)";
   ctx.font="bold 38px " + FONT_UI;
   ctx.textAlign="center";
@@ -16407,9 +17170,11 @@ function drawBattleExploreObjects(){
     ctx.globalAlpha=o.done?.35:1;
     if(o.required&&!o.done){ctx.shadowColor="#ffe066";ctx.shadowBlur=18;}
     if(o.type==="chest"){
+      const chestColor=o.chestTier&&o.chestTier.color?o.chestTier.color:"#ffe066";
+      ctx.shadowColor=chestColor;ctx.shadowBlur=o.chestTier&&o.chestTier.id==="ultimate"?22:10;
       ctx.fillStyle="#6b4a21"; ctx.fillRect(o.x-31,o.y-20,62,40);
-      ctx.fillStyle="#ffe066"; ctx.fillRect(o.x-31,o.y-6,62,8); ctx.fillRect(o.x-5,o.y-20,10,40);
-      ctx.strokeStyle="#fff0a8"; ctx.lineWidth=2; ctx.strokeRect(o.x-31,o.y-20,62,40);
+      ctx.fillStyle=chestColor; ctx.fillRect(o.x-31,o.y-6,62,8); ctx.fillRect(o.x-5,o.y-20,10,40);
+      ctx.strokeStyle=chestColor; ctx.lineWidth=2; ctx.strokeRect(o.x-31,o.y-20,62,40);
     }else if(o.type==="crate"){
       ctx.fillStyle="#76502d"; ctx.fillRect(o.x-30,o.y-28,60,56);
       ctx.strokeStyle="#c59b5f"; ctx.lineWidth=4; ctx.strokeRect(o.x-30,o.y-28,60,56);
@@ -16481,12 +17246,12 @@ function drawBattleRewardNotices(){
   ctx.restore();
 }
 
-function drawBattle(){ const sx=(Math.random()-.5)*shake,sy=(Math.random()-.5)*shake*.7; ctx.save();ctx.translate(sx,sy); const bg=ctx.createLinearGradient(0,0,0,H);bg.addColorStop(0,"#15172a");bg.addColorStop(1,"#090a10");ctx.fillStyle=bg;ctx.fillRect(-50,-50,W+100,H+100); drawBattleBackground();
-  drawGrid(); drawProjectAreaObjects(); drawBattleExploreObjects(); drawEffects(); const objs=enemies.filter(e=>e.alive).map(e=>({t:"e",y:e.y,e})); objs.push({t:"p",y:player.y}); objs.sort((a,b)=>a.y-b.y); for(const o of objs)o.t==="e"?drawEnemy(o.e):drawPlayer(); drawBattleAreaExits(); if(areaCleared&&area<battleAreaLimit()&&!supportsStageExploration()){ctx.fillStyle="#ffe066";ctx.fillRect(W-42,110,22,H-160);ctx.fillStyle="#fff";ctx.font="bold 22px " + FONT_UI;ctx.textAlign="right";ctx.fillText(battleModeSource==="commission"?(language==="en"?"NEXT WAVE →":"下一波 →"):(language==="en"?"NEXT AREA →":"下一区域 →"),W-58,H/2);} if(flash>0){ctx.globalAlpha=flash/35;ctx.fillStyle="#fff";ctx.fillRect(-50,-50,W+100,H+100);ctx.globalAlpha=1;} ctx.restore(); drawUltimateOverlay(); drawKrosPhaseTransitionOverlay(); drawBossKrosTopBar(); drawCrystalColossusTopBar(); drawBattleUI(); drawBattleRewardNotices(); if(centerTimer>0){ctx.fillStyle="#fff";ctx.font="bold 46px " + FONT_UI;ctx.textAlign="center";ctx.fillText(centerText,W/2,H*.43);}
+function drawBattle(){ const sx=chainSelect?0:(Math.random()-.5)*shake,sy=chainSelect?0:(Math.random()-.5)*shake*.7; ctx.save();ctx.translate(sx,sy); const bg=ctx.createLinearGradient(0,0,0,H);bg.addColorStop(0,"#15172a");bg.addColorStop(1,"#090a10");ctx.fillStyle=bg;ctx.fillRect(-50,-50,W+100,H+100); drawBattleBackground();
+  drawGrid(); drawProjectAreaObjects(); drawBattleExploreObjects(); drawEffects(); const objs=enemies.filter(e=>e.alive).map(e=>({t:"e",y:e.y,e})); objs.push({t:"p",y:player.y}); objs.sort((a,b)=>a.y-b.y); for(const o of objs)o.t==="e"?drawEnemy(o.e):drawPlayer(); drawBattleAreaExits(); if(areaCleared&&area<battleAreaLimit()&&!supportsStageExploration()){ctx.fillStyle="#ffe066";ctx.fillRect(W-42,110,22,H-160);ctx.fillStyle="#fff";ctx.font="bold 22px " + FONT_UI;ctx.textAlign="right";ctx.fillText(battleModeSource==="commission"?(language==="en"?"NEXT WAVE →":"下一波 →"):(language==="en"?"NEXT AREA →":"下一区域 →"),W-58,H/2);} if(flash>0){ctx.globalAlpha=flash/35;ctx.fillStyle="#fff";ctx.fillRect(-50,-50,W+100,H+100);ctx.globalAlpha=1;} ctx.restore(); drawUltimateOverlay(); drawKrosPhaseTransitionOverlay(); drawKrosIntroOverlay(); drawBossKrosTopBar(); drawCrystalColossusTopBar(); drawBattleUI(); drawBattleRewardNotices(); if(centerTimer>0){ctx.fillStyle="#fff";ctx.textAlign="center";fitText(centerText,W-150,46,"bold",20);ctx.fillText(centerText,W/2,H*.43);}
   if(actionPromptTimer>0){
     ctx.save();
     ctx.fillStyle="#ffe066";
-    ctx.font="bold 28px " + FONT_UI;
+    fitText(actionPrompt,W-140,28,"bold",15);
     ctx.textAlign="center";
     ctx.shadowBlur=18;
     ctx.shadowColor="#ffe066";
@@ -16744,7 +17509,14 @@ function drawProjectAreaSettlement(){
 
 
 function paMakeObject(type,x,y,w,h,label,reward={},text=''){
-  return {type,x,y,w,h,label,reward,text,done:false,solid:true};
+  let chestTier=null;
+  if(type==="chest"){
+    const weightedSeed=(((paState&&paState.area)||area||1)*101)+(Math.trunc(x)*17)+(Math.trunc(y)*29);
+    chestTier=pickChestTier(weightedSeed);
+    reward={...reward,crystals:chestTier.crystals};
+    label=(language==="en"?chestTier.en:chestTier.zh)+" · "+label;
+  }
+  return {type,x,y,w,h,label,reward,text,done:false,solid:true,chestTier};
 }
 function paMakeBlock(type,x,y,w,h){
   return {type,x,y,w,h,solid:true};
@@ -16931,7 +17703,7 @@ function paCollectObject(o){
     rw.expBooks += r.expBooks||0;
     rw.weaponOre += r.weaponOre||0;
     rw.expReward += r.expReward||0;
-    if(o.type==="chest") rw.crystal += 10;
+    if(o.type==="chest") rw.crystal += r.crystals||50;
   }
 
   addText(o.x,o.y-50,o.label,"#7cffb2",true);
@@ -16944,7 +17716,7 @@ function paCollectObject(o){
     if(r.expBooks) got.push((language==="en"?"EXP Book ":"经验书 ")+r.expBooks);
     if(r.weaponOre) got.push((language==="en"?"Weapon Ore ":"武器矿石 ")+r.weaponOre);
     if(r.expReward) got.push("EXP "+r.expReward);
-    if(o.type==="chest") got.push((language==="en"?"Crystal ":"水晶 ")+10);
+    if(o.type==="chest") got.push((language==="en"?"Crystal ":"水晶 ")+(r.crystals||50));
   }
 
   if(o.text){
@@ -17439,6 +18211,7 @@ function loop(){
     trimRuntimeCollections();
     stabilizePlayerStats();
     updateLoginBgm();
+    updateWorldBgm();
     update();
     draw();
     try{ drawPZCustomCursor(); }catch(e){}

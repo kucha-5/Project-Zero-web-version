@@ -4,11 +4,11 @@ const params=new URL(self.location.href).searchParams;
 const BUILD=params.get("build")||"stable";
 const CACHE_NAME="project-zero-runtime-"+BUILD;
 const CORE_FILES=[
-  "./","./index.html","./style.css","./version.json","./update-client.js",
+  "./","./index.html","./style.css","./version.json","./account-config.js","./pz-account-api.js","./update-client.js",
   "./locales.js","./story_scripts.js","./story_events.js","./story_engine.js",
   "./story_chapter0_zh.js","./story_chapter0_en.js","./story_chapter1_zh.js","./story_chapter1_en.js",
   "./story_chapter2_zh.js","./story_chapter2_en.js","./game_crystal_modules.js","./game.js",
-  "./game_match3.js","./game_patrol.js","./game_side_story.js","./game_daydream.js","./game_daydream_title.js",
+  "./game_match3.js","./game_quality_update.js","./game_patrol.js","./game_side_story.js","./game_daydream.js","./game_daydream_title.js",
   "./assets/ui/project_zero_logo.png","./assets/audio/bgm/login_theme.mp3"
 ];
 

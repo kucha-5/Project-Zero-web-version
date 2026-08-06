@@ -2,7 +2,8 @@
   "use strict";
 
   const VERSION_URL="version.json";
-  const LOCAL_VERSION="49.18.13";
+  const LOCAL_VERSION="49.19.9";
+  const LOCAL_BUILD="2026080620-boss-audio-endless-polish";
   const FILE_RUNTIME=location.protocol==="file:";
   const BUILD_KEY="pz_runtime_build";
   const VERSION_KEY="pz_runtime_version";
@@ -13,15 +14,10 @@
     "story_chapter0_zh.js","story_chapter0_en.js",
     "story_chapter1_zh.js","story_chapter1_en.js",
     "story_chapter2_zh.js","story_chapter2_en.js",
-    "game_crystal_modules.js","game.js","game_match3.js",
+    "game_crystal_modules.js","game.js","game_match3.js","game_quality_update.js",
     "game_patrol.js","game_side_story.js","game_daydream.js","game_daydream_title.js"
   ];
-  const FIREBASE_SCRIPTS=[
-    "https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js",
-    "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js",
-    "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"
-  ];
-  const CRITICAL_FILES=["style.css","assets/ui/project_zero_logo.png","assets/audio/bgm/login_theme.mp3"];
+  const CRITICAL_FILES=["style.css","account-config.js","pz-account-api.js","assets/ui/project_zero_logo.png","assets/audio/bgm/login_theme.mp3","assets/audio/bgm/last_safe_city.mp3","assets/audio/bgm/skyglass_bazaar.mp3","assets/audio/bgm/kros_battle.mp3"];
 
   const screen=document.getElementById("bootScreen");
   const status=document.getElementById("bootStatus");
@@ -84,12 +80,8 @@
   }
 
   async function loadRuntime(build){
-    // Account services are optional at boot. A temporary network or Firebase
-    // outage must not prevent local/guest play from reaching the login screen.
-    for(const src of FIREBASE_SCRIPTS){
-      try{ await loadScript(src,8000); }
-      catch(error){ console.warn("[ProjectZero Boot] optional account service unavailable",src,error); }
-    }
+    // SF Account is shipped with the local runtime. Network access is only
+    // required when the player signs in or synchronizes a cloud save.
     const suffix=build?"?build="+encodeURIComponent(build):"";
     for(const src of LOCAL_SCRIPTS) await loadScript(src+suffix);
   }
@@ -111,7 +103,9 @@
       localStorage.setItem(MANIFEST_KEY,JSON.stringify(manifest));
     }catch(error){
       online=false;
-      manifest=FILE_RUNTIME?{version:LOCAL_VERSION,build:"desktop-"+LOCAL_VERSION,changelog:[]}:readSavedManifest();
+      // file:// cannot fetch version.json. The packaged build id guarantees
+      // that same-version desktop updates do not reuse an older script cache.
+      manifest=FILE_RUNTIME?{version:LOCAL_VERSION,build:LOCAL_BUILD,changelog:[]}:readSavedManifest();
       console.warn("[ProjectZero Update] version check failed; using stable cache",error);
     }
 

@@ -8,12 +8,16 @@
   let board=[],selected=null,dragging=false,dragOrigin=null,moves=25,score=0,status="playing",message="",combo=0,bestCombo=0;
   let mode="campaign",stage=1,target=2200,popFx=[],boardKick=0,stageUnlocked=1;
   let idleFrames=0,hintPair=null,lastPower="";
-  let rewards={campaign:{},endless:{},pending:[]},rewardPopup=false;
+  let rewards={campaign:{},endless:{},endlessDaily:{key:"",claimed:0},pending:[]},rewardPopup=false;
+  let endlessRunRewardTier=0;
   const ENDLESS_REWARDS=[{score:2500,crystals:100},{score:6000,crystals:200},{score:12000,crystals:300},{score:22000,crystals:400}];
+  const ENDLESS_DAILY_STEP=5000,ENDLESS_DAILY_CRYSTALS=50,ENDLESS_DAILY_CAP=5;
 
   function progressKey(){const ns=browser.getProjectZeroSaveNamespace?browser.getProjectZeroSaveNamespace():"guest";return ns+"_match3_progress";}
   function saveProgress(){try{browser.localStorage.setItem(progressKey(),JSON.stringify({stageUnlocked,rewards}));if(host&&typeof host.safeSaveGame==="function")host.safeSaveGame();}catch(e){}}
-  function loadProgress(){try{const raw=browser.localStorage.getItem(progressKey());const parsed=raw&&raw.trim().startsWith("{")?JSON.parse(raw):null;stageUnlocked=Math.max(1,Math.min(MAX_STAGE,parsed?Number(parsed.stageUnlocked)||1:Number(raw)||1));rewards=parsed&&parsed.rewards?parsed.rewards:{campaign:{},endless:{},pending:[]};rewards.campaign=rewards.campaign||{};rewards.endless=rewards.endless||{};rewards.pending=Array.isArray(rewards.pending)?rewards.pending:[];}catch(e){stageUnlocked=1;rewards={campaign:{},endless:{},pending:[]};}}
+  function dailyKey(){return new Date().toISOString().slice(0,10);}
+  function normalizeDailyRewards(){if(!rewards.endlessDaily||rewards.endlessDaily.key!==dailyKey())rewards.endlessDaily={key:dailyKey(),claimed:0};rewards.endlessDaily.claimed=Math.max(0,Math.min(ENDLESS_DAILY_CAP,Number(rewards.endlessDaily.claimed)||0));}
+  function loadProgress(){try{const raw=browser.localStorage.getItem(progressKey());const parsed=raw&&raw.trim().startsWith("{")?JSON.parse(raw):null;stageUnlocked=Math.max(1,Math.min(MAX_STAGE,parsed?Number(parsed.stageUnlocked)||1:Number(raw)||1));rewards=parsed&&parsed.rewards?parsed.rewards:{campaign:{},endless:{},endlessDaily:{key:"",claimed:0},pending:[]};rewards.campaign=rewards.campaign||{};rewards.endless=rewards.endless||{};rewards.pending=Array.isArray(rewards.pending)?rewards.pending:[];normalizeDailyRewards();}catch(e){stageUnlocked=1;rewards={campaign:{},endless:{},endlessDaily:{key:dailyKey(),claimed:0},pending:[]};}}
   function grantCrystal(amount,label){if(amount<=0)return;if(typeof browser.grantExactEventCrystals==="function")browser.grantExactEventCrystals(amount);message=(host.language==="en"?label+" · Crystal +":label+" · 水晶 +")+amount;host.sfx("reward");saveProgress();}
   function queueReward(key,kind,index,crystals,label){
     if(rewards.pending.some(v=>v.key===key))return;
@@ -27,6 +31,12 @@
   function checkRewards(){
     if(mode==="campaign"&&status==="clear"&&!rewards.campaign[stage])queueReward("c"+stage,"campaign",stage,100,host.language==="en"?"FIRST CLEAR":"首通奖励");
     if(mode==="endless") for(let i=0;i<ENDLESS_REWARDS.length;i++){const r=ENDLESS_REWARDS[i];if(score>=r.score&&!rewards.endless[i])queueReward("e"+i,"endless",i,r.crystals,host.language==="en"?"MILESTONE":"无尽里程碑");}
+    if(mode==="endless"){
+      normalizeDailyRewards();
+      const reached=Math.floor(score/ENDLESS_DAILY_STEP);
+      while(endlessRunRewardTier<reached&&rewards.endlessDaily.claimed<ENDLESS_DAILY_CAP){endlessRunRewardTier++;rewards.endlessDaily.claimed++;grantCrystal(ENDLESS_DAILY_CRYSTALS,host.language==="en"?"ENDLESS DAILY":"无尽每日奖励");}
+      endlessRunRewardTier=Math.max(endlessRunRewardTier,reached);
+    }
   }
   function stageTarget(n){return 1800+n*500+Math.floor(n/5)*300;}
   function stageMoves(n){return Math.max(18,27-Math.floor((n-1)/3));}
@@ -91,7 +101,7 @@
     else if(!hasPossibleMove()){makeBoard();message=host.language==="en"?"RESHUFFLED":"棋盘重排！";}
     if(mode==="endless")checkRewards();
   }
-  function newRound(){makeBoard();selected=null;dragging=false;dragOrigin=null;score=0;status="playing";message="";combo=0;bestCombo=0;popFx=[];boardKick=0;idleFrames=0;hintPair=null;lastPower="";moves=mode==="endless"?999:stageMoves(stage);target=mode==="endless"?0:stageTarget(stage);}
+  function newRound(){makeBoard();selected=null;dragging=false;dragOrigin=null;score=0;status="playing";message="";combo=0;bestCombo=0;popFx=[];boardKick=0;idleFrames=0;hintPair=null;lastPower="";endlessRunRewardTier=0;moves=mode==="endless"?999:stageMoves(stage);target=mode==="endless"?0:stageTarget(stage);}
   function start(nextMode){loadProgress();mode=nextMode||"campaign";stage=mode==="campaign"?Math.min(stageUnlocked,MAX_STAGE):1;newRound();host.gameMode="match3";}
   function cellAt(x,y){const c=Math.floor((x-bx)/cell),r=Math.floor((y-by)/cell);return r>=0&&r<ROWS&&c>=0&&c<COLS?{r,c}:null;}
   function attempt(a,b){
@@ -167,7 +177,8 @@
     g.fillStyle="rgba(255,255,255,.55)";g.font="13px "+host.FONT_UI;host.wrapText(host.language==="en"?"Swipe a crystal to swap. Match 4 for a line clear, 5 for a cross, and 6 for a color burst.":"滑动水晶即可交换。4连整行消除，5连十字消除，6连触发同色爆破。",820,360,220,21);
     g.fillStyle="rgba(255,255,255,.42)";g.font="12px "+host.FONT_UI;g.fillText((host.language==="en"?"BEST ":"最佳连消 ")+"X"+Math.max(1,bestCombo),820,425);
     const campaignClaimed=Object.keys(rewards.campaign||{}).length,endlessClaimed=Object.keys(rewards.endless||{}).length;
-    g.fillStyle="rgba(124,255,178,.72)";g.font="11px "+host.FONT_UI;g.fillText(mode==="endless"?((host.language==="en"?"One-time milestones ":"一次性里程碑 ")+endlessClaimed+"/4") : ((host.language==="en"?"First-clear rewards ":"首通奖励 ")+campaignClaimed+"/20"),820,466);
+    normalizeDailyRewards();
+    g.fillStyle="rgba(124,255,178,.72)";g.font="11px "+host.FONT_UI;g.fillText(mode==="endless"?((host.language==="en"?"Daily rewards ":"每日奖励 ")+rewards.endlessDaily.claimed+"/"+ENDLESS_DAILY_CAP+" · "+(host.language==="en"?"50 per 5,000":"每5000分 +50")) : ((host.language==="en"?"First-clear rewards ":"首通奖励 ")+campaignClaimed+"/20"),820,466);
     if(message){g.fillStyle=status==="clear"?"#7cffb2":status==="failed"?"#ff8d8d":"#ffe066";g.font="bold 17px "+host.FONT_UI;g.fillText(message,820,445);}
     if(status==="clear"){host.drawBtn(stage>=MAX_STAGE?(host.language==="en"?"Replay Stage 1":"重新挑战"): (host.language==="en"?"Next Stage":"下一关"),"NEXT",810,492,220,48,true,"#ffe066");host.drawBtn(host.language==="en"?"Retry":"重新挑战","",810,548,220,40,true,"#fff");}
     else if(status==="failed")host.drawBtn(host.language==="en"?"Retry Stage":"重新挑战","",810,520,220,48,true,"#ffe066");
