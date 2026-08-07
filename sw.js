@@ -2,7 +2,7 @@
 
 const params=new URL(self.location.href).searchParams;
 const BUILD=params.get("build")||"stable";
-const CACHE_NAME="project-zero-runtime-"+BUILD;
+const CACHE_NAME="project-zero-web-v2-"+BUILD;
 const CORE_FILES=[
   "./","./index.html","./style.css","./version.json","./account-config.js","./pz-account-api.js","./update-client.js",
   "./locales.js","./story_scripts.js","./story_events.js","./story_engine.js",
@@ -25,7 +25,7 @@ self.addEventListener("install",event=>{
 self.addEventListener("activate",event=>{
   event.waitUntil((async()=>{
     const keys=await caches.keys();
-    await Promise.all(keys.filter(key=>key.startsWith("project-zero-runtime-")&&key!==CACHE_NAME).map(key=>caches.delete(key)));
+    await Promise.all(keys.filter(key=>(key.startsWith("project-zero-runtime-")||key.startsWith("project-zero-web-v2-"))&&key!==CACHE_NAME).map(key=>caches.delete(key)));
     await self.clients.claim();
   })());
 });
@@ -52,7 +52,7 @@ self.addEventListener("fetch",event=>{
     event.respondWith(fetch(request,{cache:"no-store"}));
     return;
   }
-  if(request.mode==="navigate"||/\.(?:js|css|html)$/i.test(url.pathname)){
+  if(request.mode==="navigate"||/\.(?:js|css|html|json)$/i.test(url.pathname)){
     event.respondWith(networkFirst(request));
     return;
   }

@@ -417,7 +417,7 @@ const LANG_CORE = I18N_RES.LANG_CORE || {
     everwinterBought:"购买成功：永冬之歌",
     everwinterLow:"水晶不足：永冬需要1100水晶",
     packDemo:"礼包为真钱购买内容，当前Demo仅展示。",
-    supportDemo:"感谢支持开发。Demo中不会进行真实收费。",
+    supportDemo:"感谢支持 Project Zero 的开发。",
     crystalGainPrefix:"水晶 +",
     rewardLabel:"奖励：",
     missionFailedTitle:"任务失败",
@@ -488,7 +488,7 @@ const LANG_CORE = I18N_RES.LANG_CORE || {
     everwinterBought:"Purchased: Song of Everwinter",
     everwinterLow:"Not enough Crystals. Everwinter requires 1,100.",
     packDemo:"Packs are real-money items. Demo display only.",
-    supportDemo:"Thanks for supporting development. No real payment in this demo.",
+    supportDemo:"Thanks for supporting Project Zero development.",
     crystalGainPrefix:"Crystal +",
     rewardLabel:"Reward: ",
     sfsVersion:"V37.4 Language Patch",
@@ -8946,17 +8946,17 @@ const SHOP_PACKS=[
   {id:"standard",cat:1,accent:"#d8e1ec",zh:"标准启程包",en:"Standard Starter Pack",descZh:"体力×40 · 经验书×5",descEn:"Stamina ×40 · EXP ×5",limitZh:"永久限购1次",limitEn:"ONE-TIME"}
 ];
 const STRIPE_SUPPORT_TIERS=[
-  {amount:"$0.99",productId:"prod_V1Fj2ky4d3iviA",url:"https://buy.stripe.com/test_dRm7sL06IczN1wm38kdMI00"},
-  {amount:"$9.99",productId:"prod_V1Fji17DSGNNCZ",url:"https://buy.stripe.com/test_6oU3cvaLmfLZ0si24gdMI01"},
-  {amount:"$19.99",productId:"prod_V1Fkes4IPQNNDr",url:"https://buy.stripe.com/test_cNieVd06IgQ34Iy38kdMI02"},
-  {amount:"$29.99",productId:"prod_V1FkauO4IJx99H",url:"https://buy.stripe.com/test_dRm14nf1C0R57UK7oAdMI03"},
-  {amount:"$39.99",productId:"prod_V1FlIqC1T8yEvt",url:"https://buy.stripe.com/test_bJe00j3iU9nB0si9wIdMI04"},
-  {amount:"$49.99",productId:"prod_V1FluepBEqpvbZ",url:"https://buy.stripe.com/test_14A14ncTufLZ8YOaAMdMI05"}
+  {amount:"$0.99",productId:"prod_V1Fj2ky4d3iviA",url:"https://buy.stripe.com/bJe00j3iU9nB0si9wIdMI04"},
+  {amount:"$9.99",productId:"prod_V1Fji17DSGNNCZ",url:"https://buy.stripe.com/6oU3cvaLmfLZ0si24gdMI01"},
+  {amount:"$19.99",productId:"prod_V1Fkes4IPQNNDr",url:"https://buy.stripe.com/14A14ncTufLZ8YOaAMdMI05"},
+  {amount:"$29.99",productId:"prod_V1FkauO4IJx99H",url:"https://buy.stripe.com/dRm14nf1C0R57UK7oAdMI03"},
+  {amount:"$39.99",productId:"prod_V1FlIqC1T8yEvt",url:"https://buy.stripe.com/dRm7sL06IczN1wm38kdMI00"},
+  {amount:"$49.99",productId:"prod_V1FluepBEqpvbZ",url:"https://buy.stripe.com/cNieVd06IgQ34Iy38kdMI02"}
 ];
 async function openStripeSupportTier(index){
   const tier=STRIPE_SUPPORT_TIERS[index];
   if(!tier)return;
-  shopMsg=language==="en"?"Opening Stripe test checkout…":"正在打开 Stripe 测试付款页面…";
+  shopMsg=language==="en"?"Opening secure Stripe checkout…":"正在打开 Stripe 安全付款页面…";
   try{
     if(window.ProjectZeroLauncher&&typeof window.ProjectZeroLauncher.openPaymentLink==="function"){
       const result=await window.ProjectZeroLauncher.openPaymentLink(tier.url);
@@ -8965,7 +8965,7 @@ async function openStripeSupportTier(index){
       const opened=window.open(tier.url,"_blank","noopener,noreferrer");
       if(!opened)throw new Error("Popup blocked");
     }
-    shopMsg=language==="en"?"Stripe test checkout opened in your browser.":"Stripe 测试付款页面已在系统浏览器中打开。";
+    shopMsg=language==="en"?"Stripe checkout opened in your browser.":"Stripe 付款页面已在系统浏览器中打开。";
   }catch(error){
     console.error("Stripe payment link failed",error);
     shopMsg=language==="en"?"Unable to open Stripe checkout.":"无法打开 Stripe 付款页面，请检查默认浏览器设置。";
@@ -16521,7 +16521,7 @@ function drawShop(){
   if(shopTab==="support"){
     const tiers=STRIPE_SUPPORT_TIERS.map(v=>v.amount);
     ctx.fillStyle="#fff";ctx.font="bold 28px "+FONT_UI;ctx.textAlign="left";ctx.fillText(ui("developerSupport"),70,225);
-    ctx.fillStyle="rgba(255,255,255,.52)";ctx.font="12px "+FONT_UI;ctx.fillText(language==="en"?"Optional support · no gameplay advantage · Stripe test mode":"自愿资助 · 不提供战力优势 · Stripe 测试模式",70,249);
+    ctx.fillStyle="rgba(255,255,255,.52)";ctx.font="12px "+FONT_UI;ctx.fillText(language==="en"?"Optional support · no gameplay advantage · Secure Stripe checkout":"自愿资助 · 不提供战力优势 · Stripe 安全支付",70,249);
     for(let i=0;i<tiers.length;i++){
       const x=70+i*163,y=275,w=145,h=185,hover=inRect(x,y,w,h),sg=ctx.createLinearGradient(x,y,x,y+h);
       sg.addColorStop(0,hover?"rgba(40,69,97,.96)":"rgba(24,34,53,.95)");sg.addColorStop(1,"rgba(7,10,18,.98)");

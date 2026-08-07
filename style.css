@@ -38,9 +38,34 @@ html,body{
   letter-spacing:.12em;
   text-align:center;
 }
+#bootDetail{
+  max-width:min(620px,82vw);
+  min-height:18px;
+  color:rgba(255,255,255,.68);
+  font-size:12px;
+  line-height:1.65;
+  letter-spacing:.04em;
+  text-align:center;
+}
+.boot-actions{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;}
+.boot-actions.hidden{display:none;}
+.boot-actions button{
+  min-width:210px;
+  padding:11px 16px;
+  border:1px solid rgba(124,199,255,.55);
+  border-radius:8px;
+  background:rgba(9,18,36,.92);
+  color:#fff;
+  font:bold 12px Arial,"Microsoft YaHei",sans-serif;
+  letter-spacing:.06em;
+  cursor:pointer;
+}
+.boot-actions button:hover{background:rgba(124,199,255,.18);border-color:#fff;}
+.boot-actions button:disabled{opacity:.5;cursor:wait;}
 #bootScreen.boot-update .boot-spinner{border-top-color:#ffe066;}
 #bootScreen.boot-update #bootStatus{color:#ffe066;}
 #bootScreen.boot-error #bootStatus{color:#ff9b9b;}
+#bootScreen.boot-error .boot-spinner{animation:none;border-color:rgba(255,139,139,.24);border-top-color:#ff8b8b;}
 #bootScreen.boot-complete{opacity:0;visibility:hidden;pointer-events:none;}
 .boot-spinner{
   width:30px;
