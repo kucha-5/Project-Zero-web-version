@@ -7215,32 +7215,32 @@ function tutorialTextPack(){
     area:"AREA",
     click:"Click to continue",
     area1Title:"AREA 01  Basic Combat",
-    area1Text:"Defeat the training target. Use normal attacks and complete any two other combat actions.",
+    area1Text:"Complete the three core actions, then defeat the training target.",
     area2Title:"AREA 01  Basic Combat",
-    area2Text:"Defeat the training target. Use normal attacks and complete any two other combat actions.",
+    area2Text:"Complete the three core actions, then defeat the training target.",
     area3Title:"AREA 01  Basic Combat",
-    area3Text:"Practice attacks, dodge, skills, ultimate, parry, or chain attacks. Team switching is not required here.",
+    area3Text:"Practice normal attack, skill, and parry. Chain attacks and team switching are taught later.",
     completeTitle:"Tutorial Complete",
-    completeText:"Basic combat training is complete. Unfinished optional actions can be practiced later.",
+    completeText:"Core combat training is complete. Advanced actions are introduced later.",
     moveObj:"Objective: move to the blue marker.",
     crateObj:"Objective: left click near the crates to break them.",
-    combatObj:"Use a normal attack, complete any two other actions, then defeat the target.",
+    combatObj:"Complete: normal attack · skill · parry, then defeat the target.",
     parryHint:"Enemy warning! Press Space now to parry.",
     continueAfter:"Click to continue the story."
   } : {
     area:"AREA",
     click:"点击继续",
     area1Title:"AREA 01  基础实战",
-    area1Text:"击败训练目标。需要使用普通攻击，并另外完成任意两项战斗操作。",
+    area1Text:"完成三项核心操作，然后击败训练目标。",
     area2Title:"AREA 01  基础实战",
-    area2Text:"击败训练目标。需要使用普通攻击，并另外完成任意两项战斗操作。",
+    area2Text:"完成三项核心操作，然后击败训练目标。",
     area3Title:"AREA 01  基础实战",
-    area3Text:"可练习普攻、闪避、技能、大招、弹刀或连携；这里不要求切换队伍角色。",
+    area3Text:"练习普通攻击、技能与弹刀；连携和队伍切换将在后续教学中介绍。",
     completeTitle:"教程完成",
-    completeText:"基础实战教学已完成。未完成的可选操作可以在后续战斗中继续练习。",
+    completeText:"核心战斗教学已完成，高级操作将在后续逐步介绍。",
     moveObj:"目标：移动到蓝色光圈。",
     crateObj:"目标：靠近木箱并左键攻击打碎它们。",
-    combatObj:"目标：完成普攻和任意另外两项操作，然后击败训练目标。",
+    combatObj:"完成：普通攻击 · 技能 · 弹刀，然后击败训练目标。",
     parryHint:"敌人预警！现在按空格键弹刀。",
     continueAfter:"点击继续剧情。"
   };
@@ -7308,16 +7308,27 @@ function drawTutorialPanel(){
 
 function drawTutorialObjective(text){
   ctx.save();
+  const combat=tutorialStep>=5&&tutorialStep<8;
+  const x=24,y=combat?H-126:H-102,w=combat?620:540,h=combat?96:72;
   ctx.fillStyle="rgba(5,10,22,.78)";
-  ctx.fillRect(30,28,640,72);
-  ctx.fillStyle="#7cc7ff";ctx.fillRect(30,28,5,72);
+  ctx.fillRect(x,y,w,h);
+  ctx.fillStyle="#7cc7ff";ctx.fillRect(x,y,5,h);
   ctx.strokeStyle="rgba(124,199,255,.22)";
-  ctx.strokeRect(30,28,640,72);
+  ctx.strokeRect(x,y,w,h);
   ctx.fillStyle="rgba(255,255,255,.42)";ctx.font="bold 10px "+FONT_UI;ctx.textAlign="left";
-  ctx.fillText((language==="en"?"BASIC OPERATION TRAINING  ":"基础行动教学  ")+String(Math.min(3,tutorialArea)).padStart(2,"0")+" / 03",50,49);
+  ctx.fillText(combat?(language==="en"?"CORE COMBAT  ":"核心战斗  ")+(tutorialCoreActionCount()+" / 3"):(language==="en"?"BASIC OPERATION TRAINING":"基础行动教学"),x+20,y+22);
   ctx.fillStyle="#ffe066";
-  ctx.font="bold 18px " + FONT_UI;
-  ctx.fillText(text,50,78);
+  ctx.font="bold 16px " + FONT_UI;
+  ctx.fillText(text,x+20,y+47);
+  if(combat){
+    const items=[
+      [tutorialUsedAttack,language==="en"?"LMB  Attack":"左键  普攻"],
+      [tutorialUsedSkill,language==="en"?"E  Skill":"E  技能"],
+      [tutorialParried,language==="en"?"SPACE  Parry":"SPACE  弹刀"]
+    ];
+    ctx.font="bold 13px "+FONT_UI;
+    items.forEach((item,i)=>{ctx.fillStyle=item[0]?"#7cffb2":"rgba(255,255,255,.58)";ctx.fillText((item[0]?"✓ ":"□ ")+item[1],x+20+i*190,y+76);});
+  }
   ctx.restore();
 }
 
@@ -7363,11 +7374,11 @@ function startTutorialBattle(){
 }
 
 function tutorialCoreActionCount(){
-  return [tutorialUsedAttack,tutorialUsedSkill,tutorialUsedDash,tutorialUsedUltimate,tutorialUsedChain,tutorialParried].filter(Boolean).length;
+  return [tutorialUsedAttack,tutorialUsedSkill,tutorialParried].filter(Boolean).length;
 }
 
 function tutorialCombatRequirementMet(){
-  return tutorialUsedAttack && tutorialCoreActionCount()>=3;
+  return tutorialUsedAttack && tutorialUsedSkill && tutorialParried;
 }
 function spawnTutorialEnemy(){
   tutorialEnemy = createEnemy(780,H/2+112,false,"normal");
@@ -7375,8 +7386,10 @@ function spawnTutorialEnemy(){
   tutorialEnemy.maxHp = 900;
   tutorialEnemy.attackCd = 105;
   tutorialEnemy.tutorial = true;
-  tutorialEnemy.shield = 80;
-  tutorialEnemy.maxShield = 80;
+  // The first combat lesson is intentionally shield-free. Shield break and
+  // chain attacks are advanced systems and no longer compete for attention.
+  tutorialEnemy.shield = 0;
+  tutorialEnemy.maxShield = 0;
   enemies = [tutorialEnemy];
 }
 
@@ -7505,19 +7518,14 @@ function updateTutorialBattle(){
           totalParries++;
           checkAchievements();
           tutorialParried=true;
+          chainReady=false;
+          chainTarget=null;
           e.warning=false;
           e.windup=0;
           e.attackCd=112;
         }else{
           showActionPrompt(language==="en"?"Wait for the enemy warning":"等待敌人攻击预警",28);
         }
-      }
-
-      if(justPressed("f") && chainReady){
-        tutorialUsedChain=true;
-        chainAttack();
-        // The assist demonstration must not leave the player controlling Kane.
-        if(player.role!==PROTAGONIST_ROLE) setBattleRole(PROTAGONIST_ROLE);
       }
 
       if(justPressed("e")){
@@ -7531,7 +7539,6 @@ function updateTutorialBattle(){
         if(withinDist(sx,player.y,e.x,e.y,145)){
           e.hp -= 32;
           e.stun -= 30;
-          e.shield=Math.max(0,(e.shield||0)-30);
           addText(e.x,e.y-38,"SKILL","#7cc7ff",true);
           addText(e.x,e.y-15,"-32","#7cc7ff");
           doShake(8);
@@ -7543,7 +7550,6 @@ function updateTutorialBattle(){
         tutorialUsedAttack=true;
         if(withinDist(player.x,player.y,e.x,e.y,112)){
           e.hp -= 18;
-          e.shield=Math.max(0,(e.shield||0)-20);
           sfx("slash2");
           addSlash(e.x,e.y,90,"#fff",14,"slash");
           addText(e.x,e.y-34,"-18","#fff");
@@ -7551,16 +7557,11 @@ function updateTutorialBattle(){
         }
       }
 
-      if((e.shield||0)<=0 && !tutorialUsedChain && !chainReady){
-        triggerBreak(e);
-        showActionPrompt(language==="en"?"Shield broken — press F for Chain":"护盾已破——按F发动连携",90);
-      }
-
       if(e.hp<=0){
         const checklistDone=tutorialCombatRequirementMet();
         if(!checklistDone){
           e.alive=true;e.hp=180;e.shield=0;
-          showActionPrompt(language==="en"?"Use a normal attack and complete any two other actions":"完成普攻，并另外完成任意两项操作",75);
+          showActionPrompt(language==="en"?"Complete normal attack, skill, and parry":"完成普通攻击、技能与弹刀",75);
         }else{
           e.alive=false;
           totalKills++;
@@ -7584,7 +7585,7 @@ function updateTutorialBattle(){
       tutorialEnemy.hp=180;
       tutorialEnemy.shield=0;
       enemies=[tutorialEnemy];
-      showActionPrompt(language==="en"?"Use a normal attack and complete any two other actions":"完成普攻，并另外完成任意两项操作",75);
+      showActionPrompt(language==="en"?"Complete normal attack, skill, and parry":"完成普通攻击、技能与弹刀",75);
     }else{
       tutorialStep=8;
       openTutorialPanel(T.completeTitle,T.completeText,()=>{tutorialStep=9;});
@@ -7622,18 +7623,6 @@ function drawTutorialBattle(){
 
   const T = tutorialTextPack();
 
-  // Area label
-  ctx.save();
-  ctx.fillStyle="rgba(0,0,0,.50)";
-  ctx.fillRect(W/2-120,28,240,52);
-  ctx.strokeStyle="rgba(124,199,255,.28)";
-  ctx.strokeRect(W/2-120,28,240,52);
-  ctx.fillStyle="#7cc7ff";
-  ctx.font="bold 18px " + FONT_UI;
-  ctx.textAlign="center";
-  ctx.fillText(T.area + " 01", W/2, 61);
-  ctx.restore();
-
   if(tutorialStep===1){
     const pulse=0.55+Math.sin(menuPulse*.12)*.2;
     ctx.strokeStyle="rgba(124,199,255,.85)";
@@ -7667,33 +7656,6 @@ function drawTutorialBattle(){
   for(const e of enemies) if(e.alive) drawEnemy(e);
   drawPlayer();
   drawEffects();
-
-  // combat checklist in Area 03
-  if(tutorialStep>=5 && tutorialStep<8){
-    ctx.save();
-    ctx.fillStyle="rgba(0,0,0,.50)";
-    ctx.fillRect(30,94,390,178);
-    ctx.strokeStyle="rgba(255,255,255,.12)";
-    ctx.strokeRect(30,94,390,178);
-    ctx.font="15px " + FONT_UI;
-    ctx.textAlign="left";
-    ctx.fillStyle=tutorialUsedAttack?"#7cc7ff":"#aaa";
-    ctx.fillText((tutorialUsedAttack?"✓ ":"□ ") + (language==="en"?"Left click: normal attack":"左键：普通攻击"),50,120);
-    ctx.fillStyle=tutorialUsedDash?"#7cc7ff":"#aaa";
-    ctx.fillText((tutorialUsedDash?"✓ ":"□ ") + (language==="en"?"Shift: dodge":"Shift：闪避"),50,142);
-    ctx.fillStyle=tutorialUsedSkill?"#7cc7ff":"#aaa";
-    ctx.fillText((tutorialUsedSkill?"✓ ":"□ ") + (language==="en"?"E: skill":"E：技能"),50,164);
-    ctx.fillStyle=tutorialUsedUltimate?"#7cc7ff":"#aaa";
-    ctx.fillText((tutorialUsedUltimate?"✓ ":"□ ") + (language==="en"?"Q: ultimate":"Q：大招"),50,186);
-    ctx.fillStyle=tutorialParried?"#7cc7ff":"#aaa";
-    ctx.fillText((tutorialParried?"✓ ":"□ ") + (language==="en"?"Space during warning: parry":"预警时按空格：弹刀"),50,208);
-    ctx.fillStyle=tutorialUsedChain?"#7cc7ff":"#aaa";
-    ctx.fillText((tutorialUsedChain?"✓ ":"□ ") + (language==="en"?"F after break: chain":"破盾后按F：连携"),50,230);
-    ctx.fillStyle=tutorialCombatRequirementMet()?"#7cffb2":"#ffe066";
-    ctx.font="bold 12px " + FONT_UI;
-    ctx.fillText((language==="en"?"Required: normal attack + any 2 others  ":"要求：普攻 + 任意另外2项  ")+Math.min(3,tutorialCoreActionCount())+" / 3",50,254);
-    ctx.restore();
-  }
 
   drawBattleUI();
 

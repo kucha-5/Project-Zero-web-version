@@ -3,7 +3,7 @@
 
   const VERSION_URL="version.json";
   const LOCAL_VERSION="49.19.9";
-  const LOCAL_BUILD="2026080620-boss-audio-endless-polish";
+  const LOCAL_BUILD="2026080622-web-tutorial-ui-fix";
   const FILE_RUNTIME=location.protocol==="file:";
   const BUILD_KEY="pz_runtime_build";
   const VERSION_KEY="pz_runtime_version";
@@ -17,7 +17,9 @@
     "game_crystal_modules.js","game.js","game_match3.js","game_quality_update.js",
     "game_patrol.js","game_side_story.js","game_daydream.js","game_daydream_title.js"
   ];
-  const CRITICAL_FILES=["style.css","account-config.js","pz-account-api.js","assets/ui/project_zero_logo.png","assets/audio/bgm/login_theme.mp3","assets/audio/bgm/last_safe_city.mp3","assets/audio/bgm/skyglass_bazaar.mp3","assets/audio/bgm/kros_battle.mp3"];
+  // Only files required to construct the runtime may block startup. Optional
+  // art and audio report their own load failure instead of taking down Pages.
+  const CRITICAL_FILES=["style.css","account-config.js","pz-account-api.js"];
 
   const screen=document.getElementById("bootScreen");
   const status=document.getElementById("bootStatus");
