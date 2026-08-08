@@ -14,9 +14,11 @@
 
 // Build info for quick debugging
 window.PZ_BUILD_INFO = window.PZ_BUILD_INFO || {
-  build: "V49_18_11_COMMERCIAL_SYSTEMS",
+  version: "49.19.9",
+  build: "2026080724-chapter1-ost",
   storyModule: true,
-  optimized: true
+  optimized: true,
+  releaseStage: "FIRST_ALPHA"
 };
 
 const canvas = document.getElementById("game");
@@ -417,7 +419,7 @@ const LANG_CORE = I18N_RES.LANG_CORE || {
     everwinterBought:"购买成功：永冬之歌",
     everwinterLow:"水晶不足：永冬需要1100水晶",
     packDemo:"礼包为真钱购买内容，当前Demo仅展示。",
-    supportDemo:"感谢支持 Project Zero 的开发。",
+    supportDemo:"感谢支持开发。Demo中不会进行真实收费。",
     crystalGainPrefix:"水晶 +",
     rewardLabel:"奖励：",
     missionFailedTitle:"任务失败",
@@ -488,7 +490,7 @@ const LANG_CORE = I18N_RES.LANG_CORE || {
     everwinterBought:"Purchased: Song of Everwinter",
     everwinterLow:"Not enough Crystals. Everwinter requires 1,100.",
     packDemo:"Packs are real-money items. Demo display only.",
-    supportDemo:"Thanks for supporting Project Zero development.",
+    supportDemo:"Thanks for supporting development. No real payment in this demo.",
     crystalGainPrefix:"Crystal +",
     rewardLabel:"Reward: ",
     sfsVersion:"V37.4 Language Patch",
@@ -692,7 +694,13 @@ function playWorldBgmTrack(kind){
 function requestWorldBgmPlay(){
   if(!audioUnlocked) return;
   const isBossKrosBattle=gameMode==="battle" && battleModeSource==="bossKros";
-  if(["story","team","settlement","defeat","projectArea"].includes(gameMode) || (gameMode==="battle"&&!isBossKrosBattle)) return;
+  const chapter0Kind=chapter0BgmKind();
+  const chapter1Kind=chapter1BgmKind();
+  const chapter2Kind=chapter2BgmKind();
+  if(["story","team","settlement","defeat","projectArea"].includes(gameMode) || (gameMode==="battle"&&!isBossKrosBattle&&!chapter0Kind&&!chapter1Kind&&!chapter2Kind)) return;
+  if(chapter0Kind){playChapter0BgmTrack(chapter0Kind);return;}
+  if(chapter1Kind){playChapter1BgmTrack(chapter1Kind);return;}
+  if(chapter2Kind){playChapter2BgmTrack(chapter2Kind);return;}
   if(gameMode==="shop") playWorldBgmTrack("shop");
   if(worldBgmHasStarted && (WORLD_BGM_MODES.has(gameMode) || gameMode==="shop")) playWorldBgmTrack("world");
   if(battleModeSource==="bossKros" && ["battle","settlement","defeat"].includes(gameMode)) playBossKrosBgm();
@@ -735,6 +743,178 @@ function restartBossKrosBgmFromStart(){
   if(audioUnlocked) playBossKrosBgm();
 }
 
+function chapter0BgmKind(){
+  // The chapter selection screen belongs to the lobby music timeline.  The
+  // chapter OST starts only after the player explicitly opens Chapter 0.
+  if(gameMode==="operation" && selectedTab==="main" && mainChapterView==="stages" && selectedMainChapter===0) return "operation";
+  if(gameMode==="battle" && battleModeSource==="main" && selectedMainChapter===0){
+    return selectedStage===10 ? "boss" : "battle";
+  }
+  return "";
+}
+
+function chapter1BgmKind(){
+  // As with Chapter 0, chapter selection remains on the lobby timeline.  The
+  // operation OST begins only after the Chapter 1 card is opened.
+  if(gameMode==="operation" && selectedTab==="main" && mainChapterView==="stages" && selectedMainChapter===1) return "operation";
+  if(gameMode==="battle" && battleModeSource==="main" && selectedMainChapter===1){
+    // Chapter 1 has no narrative boss stage in this build.  Its final combat
+    // mission, 01-09, receives the supplied finale track without changing the
+    // encounter, enemies, rewards, or story flags.
+    return selectedStage===9 ? "boss" : "battle";
+  }
+  return "";
+}
+
+function chapter2BgmKind(){
+  // Chapter selection stays on the lobby timeline. Chapter 2 music begins
+  // only after the player opens its card, matching Chapters 0 and 1.
+  if(gameMode==="operation" && selectedTab==="main" && mainChapterView==="stages" && selectedMainChapter===2) return "operation";
+  if(gameMode==="battle" && battleModeSource==="main" && selectedMainChapter===2) return "battle";
+  return "";
+}
+
+function ensureChapter0BgmTrack(kind){
+  const state=chapter0BgmState[kind];
+  const source=CHAPTER0_BGM_PATHS[kind];
+  if(!state || !source || state.unavailable) return null;
+  if(state.audio) return state.audio;
+  try{
+    const a=new Audio(source);
+    a.loop=true;
+    a.preload="auto";
+    a.volume=0;
+    a.addEventListener("error",()=>{state.unavailable=true;},{once:true});
+    state.audio=a;
+  }catch(e){state.unavailable=true;}
+  return state.audio;
+}
+
+function playChapter0BgmTrack(kind){
+  const state=chapter0BgmState[kind];
+  const a=ensureChapter0BgmTrack(kind);
+  if(!state || !a || state.unavailable || !a.paused || state.pending) return;
+  state.pending=true;
+  const done=()=>{state.pending=false;};
+  try{
+    const p=a.play();
+    if(p&&typeof p.then==="function")p.then(done).catch(done);
+    else done();
+  }catch(e){done();}
+}
+
+function stopChapter0BgmTracks(exceptKind=""){
+  for(const kind of Object.keys(chapter0BgmState)){
+    if(kind===exceptKind) continue;
+    const state=chapter0BgmState[kind];
+    state.volume=0;
+    if(state.audio&&!state.audio.paused){try{state.audio.pause();}catch(e){}}
+  }
+}
+
+function restartChapter0BgmFromStart(kind){
+  const state=chapter0BgmState[kind];
+  const a=ensureChapter0BgmTrack(kind);
+  if(!state || !a) return;
+  restartBgmTrackFromStart(a);
+  state.volume=0;
+  if(audioUnlocked) playChapter0BgmTrack(kind);
+}
+
+function ensureChapter1BgmTrack(kind){
+  const state=chapter1BgmState[kind];
+  const source=CHAPTER1_BGM_PATHS[kind];
+  if(!state || !source || state.unavailable) return null;
+  if(state.audio) return state.audio;
+  try{
+    const a=new Audio(source);
+    a.loop=true;
+    a.preload="auto";
+    a.volume=0;
+    a.addEventListener("error",()=>{state.unavailable=true;},{once:true});
+    state.audio=a;
+  }catch(e){state.unavailable=true;}
+  return state.audio;
+}
+
+function playChapter1BgmTrack(kind){
+  const state=chapter1BgmState[kind];
+  const a=ensureChapter1BgmTrack(kind);
+  if(!state || !a || state.unavailable || !a.paused || state.pending) return;
+  state.pending=true;
+  const done=()=>{state.pending=false;};
+  try{
+    const p=a.play();
+    if(p&&typeof p.then==="function")p.then(done).catch(done);
+    else done();
+  }catch(e){done();}
+}
+
+function stopChapter1BgmTracks(exceptKind=""){
+  for(const kind of Object.keys(chapter1BgmState)){
+    if(kind===exceptKind) continue;
+    const state=chapter1BgmState[kind];
+    state.volume=0;
+    if(state.audio&&!state.audio.paused){try{state.audio.pause();}catch(e){}}
+  }
+}
+
+function restartChapter1BgmFromStart(kind){
+  const state=chapter1BgmState[kind];
+  const a=ensureChapter1BgmTrack(kind);
+  if(!state || !a) return;
+  restartBgmTrackFromStart(a);
+  state.volume=0;
+  if(audioUnlocked) playChapter1BgmTrack(kind);
+}
+
+function ensureChapter2BgmTrack(kind){
+  const state=chapter2BgmState[kind];
+  const source=CHAPTER2_BGM_PATHS[kind];
+  if(!state || !source || state.unavailable) return null;
+  if(state.audio) return state.audio;
+  try{
+    const a=new Audio(source);
+    a.loop=true;
+    a.preload="auto";
+    a.volume=0;
+    a.addEventListener("error",()=>{state.unavailable=true;},{once:true});
+    state.audio=a;
+  }catch(e){state.unavailable=true;}
+  return state.audio;
+}
+
+function playChapter2BgmTrack(kind){
+  const state=chapter2BgmState[kind];
+  const a=ensureChapter2BgmTrack(kind);
+  if(!state || !a || state.unavailable || !a.paused || state.pending) return;
+  state.pending=true;
+  const done=()=>{state.pending=false;};
+  try{
+    const p=a.play();
+    if(p&&typeof p.then==="function")p.then(done).catch(done);
+    else done();
+  }catch(e){done();}
+}
+
+function stopChapter2BgmTracks(exceptKind=""){
+  for(const kind of Object.keys(chapter2BgmState)){
+    if(kind===exceptKind) continue;
+    const state=chapter2BgmState[kind];
+    state.volume=0;
+    if(state.audio&&!state.audio.paused){try{state.audio.pause();}catch(e){}}
+  }
+}
+
+function restartChapter2BgmFromStart(kind){
+  const state=chapter2BgmState[kind];
+  const a=ensureChapter2BgmTrack(kind);
+  if(!state || !a) return;
+  restartBgmTrackFromStart(a);
+  state.volume=0;
+  if(audioUnlocked) playChapter2BgmTrack(kind);
+}
+
 function approachBgmVolume(current,target,seconds){
   const maxStep=(frameScale||1)/Math.max(1,60*seconds);
   if(current<target) return Math.min(target,current+maxStep);
@@ -745,8 +925,12 @@ function updateWorldBgm(){
   const isWorldMode=WORLD_BGM_MODES.has(gameMode);
   const isShop=gameMode==="shop";
   const isBossKrosBattle=gameMode==="battle" && battleModeSource==="bossKros";
+  const chapter0Kind=chapter0BgmKind();
+  const chapter1Kind=chapter1BgmKind();
+  const chapter2Kind=chapter2BgmKind();
+  const hasChapterBgm=!!(chapter0Kind||chapter1Kind||chapter2Kind);
   const isProjectArea=gameMode==="projectArea" || (gameMode==="battle" && battleModeSource==="projectArea");
-  const stageMusicPaused=["story","team","settlement","defeat"].includes(gameMode) || (gameMode==="battle"&&!isBossKrosBattle) || isProjectArea;
+  const stageMusicPaused=["story","team","settlement","defeat"].includes(gameMode) || (gameMode==="battle"&&!isBossKrosBattle&&!hasChapterBgm) || isProjectArea;
   const enabled=!audioMuted ? clamp(bgmVolume,0,1) : 0;
   const isWorldEntryPage=gameMode==="lobby" || gameMode==="operation";
 
@@ -760,15 +944,86 @@ function updateWorldBgm(){
 
   // Boss battles own the complete music bus. `battle` remains in
   // WORLD_BGM_MODES for legacy routing, so explicitly exclude Kros here.
-  const worldTarget=isWorldMode && worldBgmHasStarted && !stageMusicPaused && !isShop && !isBossKrosBattle ? enabled : 0;
+  const worldTarget=isWorldMode && worldBgmHasStarted && !stageMusicPaused && !isShop && !isBossKrosBattle && !hasChapterBgm ? enabled : 0;
   const shopTarget=isShop ? enabled : 0;
   const bossTarget=isBossKrosBattle ? enabled : 0;
 
+  if(chapter0Kind!==lastChapter0BgmKind){
+    stopChapter0BgmTracks();
+    if(chapter0Kind){
+      stopChapter1BgmTracks();
+      stopChapter2BgmTracks();
+      const world=ensureWorldBgmTrack("world"),shop=ensureWorldBgmTrack("shop"),kros=ensureBossKrosBgm();
+      const crossfadeFromWorld=chapter0Kind==="operation" && gameMode==="operation" && selectedTab==="main" && mainChapterView==="stages";
+      for(const track of [world,shop,kros]){
+        if(!track || (track===world && crossfadeFromWorld)) continue;
+        try{track.pause();}catch(e){}
+      }
+      if(!crossfadeFromWorld) worldBgmCurrentVolume=0;
+      shopBgmCurrentVolume=0;bossKrosBgmCurrentVolume=0;
+      restartChapter0BgmFromStart(chapter0Kind);
+    }else if(lastChapter0BgmKind && !chapter1Kind && !chapter2Kind && !stageMusicPaused && !isShop && !isBossKrosBattle){
+      const world=ensureWorldBgmTrack("world");
+      // Returning to chapter selection resumes the same lobby track instead
+      // of restarting it, then fades it back in.
+      worldBgmHasStarted=true;
+      if(audioUnlocked) playWorldBgmTrack("world");
+    }
+    lastChapter0BgmKind=chapter0Kind;
+  }
+
+  if(chapter1Kind!==lastChapter1BgmKind){
+    stopChapter1BgmTracks();
+    if(chapter1Kind){
+      stopChapter0BgmTracks();
+      stopChapter2BgmTracks();
+      const world=ensureWorldBgmTrack("world"),shop=ensureWorldBgmTrack("shop"),kros=ensureBossKrosBgm();
+      const crossfadeFromWorld=chapter1Kind==="operation" && gameMode==="operation" && selectedTab==="main" && mainChapterView==="stages";
+      for(const track of [world,shop,kros]){
+        if(!track || (track===world && crossfadeFromWorld)) continue;
+        try{track.pause();}catch(e){}
+      }
+      if(!crossfadeFromWorld) worldBgmCurrentVolume=0;
+      shopBgmCurrentVolume=0;bossKrosBgmCurrentVolume=0;
+      restartChapter1BgmFromStart(chapter1Kind);
+    }else if(lastChapter1BgmKind && !chapter0Kind && !chapter2Kind && !stageMusicPaused && !isShop && !isBossKrosBattle){
+      const world=ensureWorldBgmTrack("world");
+      worldBgmHasStarted=true;
+      if(audioUnlocked) playWorldBgmTrack("world");
+    }
+    lastChapter1BgmKind=chapter1Kind;
+  }
+
+  if(chapter2Kind!==lastChapter2BgmKind){
+    stopChapter2BgmTracks();
+    if(chapter2Kind){
+      stopChapter0BgmTracks();
+      stopChapter1BgmTracks();
+      const world=ensureWorldBgmTrack("world"),shop=ensureWorldBgmTrack("shop"),kros=ensureBossKrosBgm();
+      const crossfadeFromWorld=chapter2Kind==="operation" && gameMode==="operation" && selectedTab==="main" && mainChapterView==="stages";
+      for(const track of [world,shop,kros]){
+        if(!track || (track===world && crossfadeFromWorld)) continue;
+        try{track.pause();}catch(e){}
+      }
+      if(!crossfadeFromWorld) worldBgmCurrentVolume=0;
+      shopBgmCurrentVolume=0;bossKrosBgmCurrentVolume=0;
+      restartChapter2BgmFromStart(chapter2Kind);
+    }else if(lastChapter2BgmKind && !chapter0Kind && !chapter1Kind && !stageMusicPaused && !isShop && !isBossKrosBattle){
+      const world=ensureWorldBgmTrack("world");
+      worldBgmHasStarted=true;
+      if(audioUnlocked) playWorldBgmTrack("world");
+    }
+    lastChapter2BgmKind=chapter2Kind;
+  }
+
   if(gameMode!==lastBgmGameMode){
-    const leavingStage=["story","team","battle","settlement","defeat"].includes(lastBgmGameMode) && !stageMusicPaused && !isBossKrosBattle;
+    const leavingStage=["story","team","battle","settlement","defeat"].includes(lastBgmGameMode) && !stageMusicPaused && !isBossKrosBattle && !hasChapterBgm;
     if(stageMusicPaused){
       const world=ensureWorldBgmTrack("world"),shop=ensureWorldBgmTrack("shop"),boss=ensureBossKrosBgm();
       for(const track of [world,shop,boss]) if(track){try{track.pause();}catch(e){}}
+      stopChapter0BgmTracks();
+      stopChapter1BgmTracks();
+      stopChapter2BgmTracks();
       worldBgmCurrentVolume=0;shopBgmCurrentVolume=0;bossKrosBgmCurrentVolume=0;
     }else if(leavingStage){
       const world=ensureWorldBgmTrack("world");
@@ -792,12 +1047,39 @@ function updateWorldBgm(){
     lastBgmGameMode=gameMode;
   }
 
-  if(audioUnlocked && !stageMusicPaused && (isWorldMode || isShop || isBossKrosBattle)) requestWorldBgmPlay();
+  if(audioUnlocked && !stageMusicPaused && (isWorldMode || isShop || isBossKrosBattle || hasChapterBgm)) requestWorldBgmPlay();
 
   // Page-entry restarts are handled above; volume changes remain smooth.
   worldBgmCurrentVolume=approachBgmVolume(worldBgmCurrentVolume,worldTarget,2.4);
   shopBgmCurrentVolume=approachBgmVolume(shopBgmCurrentVolume,shopTarget,2.4);
   bossKrosBgmCurrentVolume=approachBgmVolume(bossKrosBgmCurrentVolume,bossTarget,1.6);
+  for(const kind of Object.keys(chapter0BgmState)){
+    const state=chapter0BgmState[kind];
+    state.volume=approachBgmVolume(state.volume,kind===chapter0Kind?enabled:0,1.6);
+    const track=ensureChapter0BgmTrack(kind);
+    if(track){
+      track.volume=clamp(audioEase01(state.volume),0,1);
+      if(kind!==chapter0Kind && state.volume<=.001 && !track.paused){try{track.pause();}catch(e){}}
+    }
+  }
+  for(const kind of Object.keys(chapter1BgmState)){
+    const state=chapter1BgmState[kind];
+    state.volume=approachBgmVolume(state.volume,kind===chapter1Kind?enabled:0,1.6);
+    const track=ensureChapter1BgmTrack(kind);
+    if(track){
+      track.volume=clamp(audioEase01(state.volume),0,1);
+      if(kind!==chapter1Kind && state.volume<=.001 && !track.paused){try{track.pause();}catch(e){}}
+    }
+  }
+  for(const kind of Object.keys(chapter2BgmState)){
+    const state=chapter2BgmState[kind];
+    state.volume=approachBgmVolume(state.volume,kind===chapter2Kind?enabled:0,1.6);
+    const track=ensureChapter2BgmTrack(kind);
+    if(track){
+      track.volume=clamp(audioEase01(state.volume),0,1);
+      if(kind!==chapter2Kind && state.volume<=.001 && !track.paused){try{track.pause();}catch(e){}}
+    }
+  }
 
   const world=ensureWorldBgmTrack("world");
   if(world){
@@ -1544,6 +1826,20 @@ const LOGIN_BGM_PATHS = [
 const WORLD_BGM_PATH = "assets/audio/bgm/last_safe_city.mp3";
 const SHOP_BGM_PATH = "assets/audio/bgm/skyglass_bazaar.mp3";
 const BOSS_KROS_BGM_PATH = "assets/audio/bgm/kros_battle.mp3";
+const CHAPTER0_BGM_PATHS = {
+  operation:"assets/audio/bgm/chapter0_operation.mp3",
+  battle:"assets/audio/bgm/chapter0_battle.mp3",
+  boss:"assets/audio/bgm/chapter0_boss.mp3"
+};
+const CHAPTER1_BGM_PATHS = {
+  operation:"assets/audio/bgm/chapter1_operation.mp3",
+  battle:"assets/audio/bgm/chapter1_battle.mp3",
+  boss:"assets/audio/bgm/chapter1_boss.mp3"
+};
+const CHAPTER2_BGM_PATHS = {
+  operation:"assets/audio/bgm/chapter2_operation.mp3",
+  battle:"assets/audio/bgm/chapter2_battle.mp3"
+};
 const WORLD_BGM_MODES = new Set([
   "lobby","operation","story","settlement","operators","mail","profile",
   "settings","event","match3","warehouse","team","battle","defeat",
@@ -1567,6 +1863,23 @@ let bossKrosBgmAudio = null;
 let bossKrosBgmCurrentVolume = 0;
 let bossKrosBgmUnavailable = false;
 let bossKrosBgmPlayPending = false;
+const chapter0BgmState = {
+  operation:{audio:null,volume:0,unavailable:false,pending:false},
+  battle:{audio:null,volume:0,unavailable:false,pending:false},
+  boss:{audio:null,volume:0,unavailable:false,pending:false}
+};
+const chapter1BgmState = {
+  operation:{audio:null,volume:0,unavailable:false,pending:false},
+  battle:{audio:null,volume:0,unavailable:false,pending:false},
+  boss:{audio:null,volume:0,unavailable:false,pending:false}
+};
+const chapter2BgmState = {
+  operation:{audio:null,volume:0,unavailable:false,pending:false},
+  battle:{audio:null,volume:0,unavailable:false,pending:false}
+};
+let lastChapter0BgmKind = "";
+let lastChapter1BgmKind = "";
+let lastChapter2BgmKind = "";
 let lastBgmGameMode = gameMode;
 let worldBgmHasStarted = false;
 let worldBgmStartDelay = 60;
@@ -8946,17 +9259,17 @@ const SHOP_PACKS=[
   {id:"standard",cat:1,accent:"#d8e1ec",zh:"标准启程包",en:"Standard Starter Pack",descZh:"体力×40 · 经验书×5",descEn:"Stamina ×40 · EXP ×5",limitZh:"永久限购1次",limitEn:"ONE-TIME"}
 ];
 const STRIPE_SUPPORT_TIERS=[
-  {amount:"$0.99",productId:"prod_V1Fj2ky4d3iviA",url:"https://buy.stripe.com/bJe00j3iU9nB0si9wIdMI04"},
-  {amount:"$9.99",productId:"prod_V1Fji17DSGNNCZ",url:"https://buy.stripe.com/6oU3cvaLmfLZ0si24gdMI01"},
-  {amount:"$19.99",productId:"prod_V1Fkes4IPQNNDr",url:"https://buy.stripe.com/14A14ncTufLZ8YOaAMdMI05"},
-  {amount:"$29.99",productId:"prod_V1FkauO4IJx99H",url:"https://buy.stripe.com/dRm14nf1C0R57UK7oAdMI03"},
-  {amount:"$39.99",productId:"prod_V1FlIqC1T8yEvt",url:"https://buy.stripe.com/dRm7sL06IczN1wm38kdMI00"},
-  {amount:"$49.99",productId:"prod_V1FluepBEqpvbZ",url:"https://buy.stripe.com/cNieVd06IgQ34Iy38kdMI02"}
+  {amount:"$0.99",productId:"prod_V1Fj2ky4d3iviA",url:"https://buy.stripe.com/test_dRm7sL06IczN1wm38kdMI00"},
+  {amount:"$9.99",productId:"prod_V1Fji17DSGNNCZ",url:"https://buy.stripe.com/test_6oU3cvaLmfLZ0si24gdMI01"},
+  {amount:"$19.99",productId:"prod_V1Fkes4IPQNNDr",url:"https://buy.stripe.com/test_cNieVd06IgQ34Iy38kdMI02"},
+  {amount:"$29.99",productId:"prod_V1FkauO4IJx99H",url:"https://buy.stripe.com/test_dRm14nf1C0R57UK7oAdMI03"},
+  {amount:"$39.99",productId:"prod_V1FlIqC1T8yEvt",url:"https://buy.stripe.com/test_bJe00j3iU9nB0si9wIdMI04"},
+  {amount:"$49.99",productId:"prod_V1FluepBEqpvbZ",url:"https://buy.stripe.com/test_14A14ncTufLZ8YOaAMdMI05"}
 ];
 async function openStripeSupportTier(index){
   const tier=STRIPE_SUPPORT_TIERS[index];
   if(!tier)return;
-  shopMsg=language==="en"?"Opening secure Stripe checkout…":"正在打开 Stripe 安全付款页面…";
+  shopMsg=language==="en"?"Opening Stripe test checkout…":"正在打开 Stripe 测试付款页面…";
   try{
     if(window.ProjectZeroLauncher&&typeof window.ProjectZeroLauncher.openPaymentLink==="function"){
       const result=await window.ProjectZeroLauncher.openPaymentLink(tier.url);
@@ -8965,7 +9278,7 @@ async function openStripeSupportTier(index){
       const opened=window.open(tier.url,"_blank","noopener,noreferrer");
       if(!opened)throw new Error("Popup blocked");
     }
-    shopMsg=language==="en"?"Stripe checkout opened in your browser.":"Stripe 付款页面已在系统浏览器中打开。";
+    shopMsg=language==="en"?"Stripe test checkout opened in your browser.":"Stripe 测试付款页面已在系统浏览器中打开。";
   }catch(error){
     console.error("Stripe payment link failed",error);
     shopMsg=language==="en"?"Unable to open Stripe checkout.":"无法打开 Stripe 付款页面，请检查默认浏览器设置。";
@@ -16521,7 +16834,7 @@ function drawShop(){
   if(shopTab==="support"){
     const tiers=STRIPE_SUPPORT_TIERS.map(v=>v.amount);
     ctx.fillStyle="#fff";ctx.font="bold 28px "+FONT_UI;ctx.textAlign="left";ctx.fillText(ui("developerSupport"),70,225);
-    ctx.fillStyle="rgba(255,255,255,.52)";ctx.font="12px "+FONT_UI;ctx.fillText(language==="en"?"Optional support · no gameplay advantage · Secure Stripe checkout":"自愿资助 · 不提供战力优势 · Stripe 安全支付",70,249);
+    ctx.fillStyle="rgba(255,255,255,.52)";ctx.font="12px "+FONT_UI;ctx.fillText(language==="en"?"Optional support · no gameplay advantage · Stripe test mode":"自愿资助 · 不提供战力优势 · Stripe 测试模式",70,249);
     for(let i=0;i<tiers.length;i++){
       const x=70+i*163,y=275,w=145,h=185,hover=inRect(x,y,w,h),sg=ctx.createLinearGradient(x,y,x,y+h);
       sg.addColorStop(0,hover?"rgba(40,69,97,.96)":"rgba(24,34,53,.95)");sg.addColorStop(1,"rgba(7,10,18,.98)");

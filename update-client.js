@@ -3,7 +3,7 @@
 
   const VERSION_URL="version.json";
   const LOCAL_VERSION="49.19.9";
-  const LOCAL_BUILD="2026080712-remote-update-web-recovery";
+  const LOCAL_BUILD="2026080724-chapter1-ost";
   const FILE_RUNTIME=location.protocol==="file:";
   const BUILD_KEY="pz_runtime_build";
   const VERSION_KEY="pz_runtime_version";

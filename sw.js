@@ -9,7 +9,10 @@ const CORE_FILES=[
   "./story_chapter0_zh.js","./story_chapter0_en.js","./story_chapter1_zh.js","./story_chapter1_en.js",
   "./story_chapter2_zh.js","./story_chapter2_en.js","./game_crystal_modules.js","./game.js",
   "./game_match3.js","./game_quality_update.js","./game_patrol.js","./game_side_story.js","./game_daydream.js","./game_daydream_title.js",
-  "./assets/ui/project_zero_logo.png","./assets/audio/bgm/login_theme.mp3"
+  "./assets/ui/project_zero_logo.png","./assets/audio/bgm/login_theme.mp3",
+  "./assets/audio/bgm/chapter0_operation.mp3","./assets/audio/bgm/chapter0_battle.mp3","./assets/audio/bgm/chapter0_boss.mp3",
+  "./assets/audio/bgm/chapter1_operation.mp3","./assets/audio/bgm/chapter1_battle.mp3","./assets/audio/bgm/chapter1_boss.mp3",
+  "./assets/audio/bgm/chapter2_operation.mp3","./assets/audio/bgm/chapter2_battle.mp3"
 ];
 
 self.addEventListener("install",event=>{
