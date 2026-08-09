@@ -1,6 +1,6 @@
 {
   "version": "49.19.9",
-  "build": "2026080824-github-pages-lightweight",
+  "build": "2026080825-web-audio-trigger-recovery",
   "publishedAt": "2026-08-08T13:00:00-07:00",
   "mandatory": false,
   "minimumLauncherVersion": "1.0.0",
@@ -79,5 +79,6 @@
     ,"第二章全部战斗关卡接入 Black Iron Siege，并与大厅及关卡页音乐互斥循环"
     ,"开发者资助链接由测试环境切换为法定成年人管理的正式付款页面"
     ,"GitHub Pages 发布包移除临时音频并将大型界面图片改为 WebP，保留完整 OST 音质"
+    ,"修复网页版正式音乐文件存在但未触发：首次交互解锁、活动曲目重试、旧静音状态迁移与缓存刷新"
   ]
 }

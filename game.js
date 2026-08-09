@@ -15,7 +15,7 @@
 // Build info for quick debugging
 window.PZ_BUILD_INFO = window.PZ_BUILD_INFO || {
   version: "49.19.9",
-  build: "2026080824-github-pages-lightweight",
+  build: "2026080825-web-audio-trigger-recovery",
   storyModule: true,
   optimized: true,
   releaseStage: "FIRST_ALPHA"
@@ -569,15 +569,38 @@ function cloudTx(key){ return L(CLOUD_TEXT, key, key); }
 
 
 let audioUnlocked = false;
+const AUDIO_RECOVERY_KEY = "pz_audio_recovery_2026080825";
+
+function recoverWebAudioSettingsOnce(){
+  try{
+    if(localStorage.getItem(AUDIO_RECOVERY_KEY)==="1") return;
+    // Older first-test saves could preserve an unintended muted/zero-volume
+    // state. Recover it once for this build without overriding later choices.
+    audioMuted = false;
+    if(!Number.isFinite(bgmVolume) || bgmVolume < 0.05) bgmVolume = 0.40;
+    localStorage.setItem(AUDIO_RECOVERY_KEY,"1");
+  }catch(_){
+    audioMuted = false;
+    if(!Number.isFinite(bgmVolume) || bgmVolume < 0.05) bgmVolume = 0.40;
+  }
+}
 
 function unlockAudio(){
+  recoverWebAudioSettingsOnce();
   if(!audioCtx){
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   }
-  if(audioCtx.state === "suspended") audioCtx.resume();
+  if(audioCtx.state === "suspended"){
+    try{
+      const resumed=audioCtx.resume();
+      if(resumed&&typeof resumed.catch==="function") resumed.catch(()=>{});
+    }catch(_){}
+  }
   audioUnlocked = true;
-  if(gameMode === "login") requestLoginBgmPlay();
-  else requestWorldBgmPlay();
+  // Start the login element during the actual user gesture. This primes
+  // HTMLMediaElement playback in browsers that reject play() on a later frame.
+  if(gameMode === "boot" || gameMode === "login") requestLoginBgmPlay();
+  requestWorldBgmPlay();
 }
 
 function audioEase01(x){
@@ -1544,6 +1567,10 @@ function handleTeamRenameTextKey(e){
   }
   return false;
 }
+
+// Capture every real pointer gesture before canvas/UI state changes. If a
+// previous play() was blocked, the active route is retried inside this gesture.
+window.addEventListener("pointerdown", () => unlockAudio(), {capture:true,passive:true});
 
 window.addEventListener("keydown", e => {
   if(gameMode === "boot"){
