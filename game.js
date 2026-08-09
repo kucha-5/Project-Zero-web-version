@@ -15,7 +15,7 @@
 // Build info for quick debugging
 window.PZ_BUILD_INFO = window.PZ_BUILD_INFO || {
   version: "49.19.9",
-  build: "2026080724-chapter1-ost",
+  build: "2026080824-github-pages-lightweight",
   storyModule: true,
   optimized: true,
   releaseStage: "FIRST_ALPHA"
@@ -32,15 +32,15 @@ lobbyBackgroundImg.src = "assets/ui/lobby_background.png";
 let lobbyBackgroundReady = false;
 lobbyBackgroundImg.onload = () => { lobbyBackgroundReady = true; };
 const hermitPortraitImg = new Image();
-hermitPortraitImg.src = "assets/ui/hermit_portrait_display.png";
+hermitPortraitImg.src = "assets/ui/hermit_portrait_display.webp";
 let hermitPortraitReady = false;
 hermitPortraitImg.onload = () => { hermitPortraitReady = true; };
 const floraPortraitImg = new Image();
-floraPortraitImg.src = "assets/ui/flora_portrait_display.png";
+floraPortraitImg.src = "assets/ui/flora_portrait_display.webp";
 let floraPortraitReady = false;
 floraPortraitImg.onload = () => { floraPortraitReady = true; };
 const floraExecutorPortraitImg = new Image();
-floraExecutorPortraitImg.src = "assets/ui/flora_portrait_executor.png";
+floraExecutorPortraitImg.src = "assets/ui/flora_portrait_executor.webp";
 let floraExecutorPortraitReady = false;
 floraExecutorPortraitImg.onload = () => { floraExecutorPortraitReady = true; };
 const crystalCurrencyImg = new Image();
@@ -57,11 +57,11 @@ let staminaCurrencyReady = false;
 staminaCurrencyImg.onload = () => { staminaCurrencyReady = true; };
 const CRYSTAL_TOPUP_TIERS = [
   {crystals:70,price:"$0.99",image:""},
-  {crystals:400,price:"$4.99",image:"assets/ui/crystal_topup_400.png"},
-  {crystals:1080,price:"$9.99",image:"assets/ui/crystal_topup_1080.png"},
-  {crystals:2980,price:"$19.99",image:"assets/ui/crystal_topup_2980.png"},
-  {crystals:5280,price:"$29.99",image:"assets/ui/crystal_topup_5280.png"},
-  {crystals:7480,price:"$39.99",image:"assets/ui/crystal_topup_7480.png"}
+  {crystals:400,price:"$4.99",image:"assets/ui/crystal_topup_400.webp"},
+  {crystals:1080,price:"$9.99",image:"assets/ui/crystal_topup_1080.webp"},
+  {crystals:2980,price:"$19.99",image:"assets/ui/crystal_topup_2980.webp"},
+  {crystals:5280,price:"$29.99",image:"assets/ui/crystal_topup_5280.webp"},
+  {crystals:7480,price:"$39.99",image:"assets/ui/crystal_topup_7480.webp"}
 ];
 const crystalTopupTierImgs=CRYSTAL_TOPUP_TIERS.map(t=>{
   if(!t.image)return null;
@@ -9259,12 +9259,12 @@ const SHOP_PACKS=[
   {id:"standard",cat:1,accent:"#d8e1ec",zh:"标准启程包",en:"Standard Starter Pack",descZh:"体力×40 · 经验书×5",descEn:"Stamina ×40 · EXP ×5",limitZh:"永久限购1次",limitEn:"ONE-TIME"}
 ];
 const STRIPE_SUPPORT_TIERS=[
-  {amount:"$0.99",productId:"prod_V1Fj2ky4d3iviA",url:"https://buy.stripe.com/test_dRm7sL06IczN1wm38kdMI00"},
-  {amount:"$9.99",productId:"prod_V1Fji17DSGNNCZ",url:"https://buy.stripe.com/test_6oU3cvaLmfLZ0si24gdMI01"},
-  {amount:"$19.99",productId:"prod_V1Fkes4IPQNNDr",url:"https://buy.stripe.com/test_cNieVd06IgQ34Iy38kdMI02"},
-  {amount:"$29.99",productId:"prod_V1FkauO4IJx99H",url:"https://buy.stripe.com/test_dRm14nf1C0R57UK7oAdMI03"},
-  {amount:"$39.99",productId:"prod_V1FlIqC1T8yEvt",url:"https://buy.stripe.com/test_bJe00j3iU9nB0si9wIdMI04"},
-  {amount:"$49.99",productId:"prod_V1FluepBEqpvbZ",url:"https://buy.stripe.com/test_14A14ncTufLZ8YOaAMdMI05"}
+  {amount:"$0.99",productId:"prod_V1Fj2ky4d3iviA",url:"https://buy.stripe.com/bJe00j3iU9nB0si9wIdMI04"},
+  {amount:"$9.99",productId:"prod_V1Fji17DSGNNCZ",url:"https://buy.stripe.com/6oU3cvaLmfLZ0si24gdMI01"},
+  {amount:"$19.99",productId:"prod_V1Fkes4IPQNNDr",url:"https://buy.stripe.com/14A14ncTufLZ8YOaAMdMI05"},
+  {amount:"$29.99",productId:"prod_V1FkauO4IJx99H",url:"https://buy.stripe.com/dRm14nf1C0R57UK7oAdMI03"},
+  {amount:"$39.99",productId:"prod_V1FlIqC1T8yEvt",url:"https://buy.stripe.com/dRm7sL06IczN1wm38kdMI00"},
+  {amount:"$49.99",productId:"prod_V1FluepBEqpvbZ",url:"https://buy.stripe.com/cNieVd06IgQ34Iy38kdMI02"}
 ];
 async function openStripeSupportTier(index){
   const tier=STRIPE_SUPPORT_TIERS[index];
