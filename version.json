@@ -1,6 +1,6 @@
 {
   "version": "49.19.11",
-  "build": "20260813-web-music-safe",
+  "build": "20260813-web-audio-range-fix",
   "publishedAt": "2026-08-13T12:00:00-07:00",
   "mandatory": false,
   "minimumLauncherVersion": "1.0.0",

@@ -60,11 +60,12 @@ self.addEventListener("fetch",event=>{
     event.respondWith(networkFirst(request));
     return;
   }
-  // Music is network-first so a newly published chapter track cannot be
-  // shadowed by an older partial cache. A validated cached copy remains the
-  // offline fallback.
+  // HTMLAudioElement uses Range requests and receives HTTP 206 responses.
+  // CacheStorage rejects partial responses; routing them through networkFirst
+  // would turn a successful fetch into a playback failure. Pass media requests
+  // straight through so seeking and streaming work in every browser.
   if(/\.(?:mp3|ogg|wav|m4a)$/i.test(url.pathname)){
-    event.respondWith(networkFirst(request));
+    event.respondWith(fetch(request,{cache:"no-store"}));
     return;
   }
   event.respondWith((async()=>{

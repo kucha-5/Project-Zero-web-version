@@ -698,9 +698,11 @@ function requestWorldBgmPlay(){
   const isBossKrosBattle=gameMode==="battle" && battleModeSource==="bossKros";
   const chapter0Kind=chapter0BgmKind();
   const chapter1Kind=chapter1BgmKind();
-  if(["story","team","settlement","defeat","projectArea"].includes(gameMode) || (gameMode==="battle"&&!isBossKrosBattle&&!chapter0Kind&&!chapter1Kind)) return;
+  const chapter2Kind=chapter2BgmKind();
+  if(["story","team","settlement","defeat","projectArea"].includes(gameMode) || (gameMode==="battle"&&!isBossKrosBattle&&!chapter0Kind&&!chapter1Kind&&!chapter2Kind)) return;
   if(chapter0Kind){playChapter0BgmTrack(chapter0Kind);return;}
   if(chapter1Kind){playChapter1BgmTrack(chapter1Kind);return;}
+  if(chapter2Kind){playChapter2BgmTrack(chapter2Kind);return;}
   if(gameMode==="shop") playWorldBgmTrack("shop");
   if(worldBgmHasStarted && (WORLD_BGM_MODES.has(gameMode) || gameMode==="shop")) playWorldBgmTrack("world");
   if(battleModeSource==="bossKros" && ["battle","settlement","defeat"].includes(gameMode)) playBossKrosBgm();
