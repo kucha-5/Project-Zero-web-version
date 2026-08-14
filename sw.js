@@ -4,7 +4,7 @@ const params=new URL(self.location.href).searchParams;
 const BUILD=params.get("build")||"stable";
 const CACHE_NAME="project-zero-web-v3-"+BUILD;
 const CORE_FILES=[
-  "./","./index.html","./style.css","./version.json","./account-config.js","./pz-account-api.js","./update-client.js",
+  "./","./index.html","./style.css","./version.json","./first-test-expiry.js","./account-config.js","./pz-account-api.js","./update-client.js",
   "./locales.js","./story_scripts.js","./story_events.js","./story_engine.js",
   "./story_chapter0_zh.js","./story_chapter0_en.js","./story_chapter1_zh.js","./story_chapter1_en.js",
   "./story_chapter2_zh.js","./story_chapter2_en.js","./game_crystal_modules.js","./game.js",

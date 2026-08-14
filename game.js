@@ -8026,6 +8026,7 @@ function updateLogin(){
   if(cloudUser){
     if(clicked || justPressed("enter") || justPressed(" ")){
       clicked=false;
+      if(window.PZFirstTestExpiry && window.PZFirstTestExpiry.blockStartIfExpired()) return;
       startLoggedInAccountGame();
     }
     clicked=false;
@@ -8035,6 +8036,7 @@ function updateLogin(){
   if(guestMode && hasCreatedProfile && validPlayerName(playerName)){
     if(clicked || justPressed("enter") || justPressed(" ")){
       clicked=false;
+      if(window.PZFirstTestExpiry && window.PZFirstTestExpiry.blockStartIfExpired()) return;
       setStoredGuestSessionActive(true);
       explicitGuestSession=true;
       startLoading(startTargetAfterAuth());

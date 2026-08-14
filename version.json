@@ -1,11 +1,13 @@
 {
   "version": "49.19.11",
-  "build": "20260813-web-audio-range-fix",
-  "publishedAt": "2026-08-13T12:00:00-07:00",
+  "build": "20260813-first-test-expiry",
+  "publishedAt": "2026-08-13T18:00:00-07:00",
   "mandatory": false,
   "minimumLauncherVersion": "1.0.0",
   "saveSchemaVersion": 57,
   "changelog": [
+    "一测临时版：2026年8月20日12:00（太平洋时间）后停止进入游戏",
+    "截止后首次打开网页时仅清除本机 Project Zero 进度，云存档不删除",
     "重构网页版启动流程：附加模块缺失时不再阻止核心游戏启动",
     "Service Worker 改为后台启用，不再阻塞首次进入",
     "启动失败页面新增重新加载与清除旧缓存按钮",
