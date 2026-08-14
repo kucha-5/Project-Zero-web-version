@@ -15,7 +15,7 @@
 // Build info for quick debugging
 window.PZ_BUILD_INFO = window.PZ_BUILD_INFO || {
   version: "49.19.9",
-  build: "2026080825-web-audio-trigger-recovery",
+  build: "2026080724-chapter1-ost",
   storyModule: true,
   optimized: true,
   releaseStage: "FIRST_ALPHA"
@@ -32,15 +32,15 @@ lobbyBackgroundImg.src = "assets/ui/lobby_background.png";
 let lobbyBackgroundReady = false;
 lobbyBackgroundImg.onload = () => { lobbyBackgroundReady = true; };
 const hermitPortraitImg = new Image();
-hermitPortraitImg.src = "assets/ui/hermit_portrait_display.webp";
+hermitPortraitImg.src = "assets/ui/hermit_portrait_display.png";
 let hermitPortraitReady = false;
 hermitPortraitImg.onload = () => { hermitPortraitReady = true; };
 const floraPortraitImg = new Image();
-floraPortraitImg.src = "assets/ui/flora_portrait_display.webp";
+floraPortraitImg.src = "assets/ui/flora_portrait_display.png";
 let floraPortraitReady = false;
 floraPortraitImg.onload = () => { floraPortraitReady = true; };
 const floraExecutorPortraitImg = new Image();
-floraExecutorPortraitImg.src = "assets/ui/flora_portrait_executor.webp";
+floraExecutorPortraitImg.src = "assets/ui/flora_portrait_executor.png";
 let floraExecutorPortraitReady = false;
 floraExecutorPortraitImg.onload = () => { floraExecutorPortraitReady = true; };
 const crystalCurrencyImg = new Image();
@@ -57,11 +57,11 @@ let staminaCurrencyReady = false;
 staminaCurrencyImg.onload = () => { staminaCurrencyReady = true; };
 const CRYSTAL_TOPUP_TIERS = [
   {crystals:70,price:"$0.99",image:""},
-  {crystals:400,price:"$4.99",image:"assets/ui/crystal_topup_400.webp"},
-  {crystals:1080,price:"$9.99",image:"assets/ui/crystal_topup_1080.webp"},
-  {crystals:2980,price:"$19.99",image:"assets/ui/crystal_topup_2980.webp"},
-  {crystals:5280,price:"$29.99",image:"assets/ui/crystal_topup_5280.webp"},
-  {crystals:7480,price:"$39.99",image:"assets/ui/crystal_topup_7480.webp"}
+  {crystals:400,price:"$4.99",image:"assets/ui/crystal_topup_400.png"},
+  {crystals:1080,price:"$9.99",image:"assets/ui/crystal_topup_1080.png"},
+  {crystals:2980,price:"$19.99",image:"assets/ui/crystal_topup_2980.png"},
+  {crystals:5280,price:"$29.99",image:"assets/ui/crystal_topup_5280.png"},
+  {crystals:7480,price:"$39.99",image:"assets/ui/crystal_topup_7480.png"}
 ];
 const crystalTopupTierImgs=CRYSTAL_TOPUP_TIERS.map(t=>{
   if(!t.image)return null;
@@ -158,10 +158,12 @@ function getAutoRenderScale(){
   const rect=wrap&&typeof wrap.getBoundingClientRect==="function"?wrap.getBoundingClientRect():null;
   const cssW=Math.max(1,rect&&rect.width||Math.min(window.innerWidth||LOGICAL_W,(window.innerHeight||LOGICAL_H)*LOGICAL_W/LOGICAL_H));
   const cssH=Math.max(1,rect&&rect.height||Math.min(window.innerHeight||LOGICAL_H,(window.innerWidth||LOGICAL_W)*LOGICAL_H/LOGICAL_W));
-  const dpr=clamp(window.devicePixelRatio||1,1,3);
+  // A 3x backing canvas can exceed seven million pixels and causes avoidable
+  // frame-time spikes on common integrated GPUs. Keep AUTO sharp but bounded.
+  const dpr=clamp(window.devicePixelRatio||1,1,2);
   const desired=Math.max(cssW/LOGICAL_W,cssH/LOGICAL_H)*dpr;
   const cores=navigator.hardwareConcurrency||4,mem=navigator.deviceMemory||4;
-  const cap=(cores>=12&&mem>=12)?3:(cores>=8&&mem>=8)?(1440/LOGICAL_H):(cores>=4&&mem>=4)?(1080/LOGICAL_H):1;
+  const cap=(cores>=12&&mem>=12)?(1440/LOGICAL_H):(cores>=8&&mem>=8)?2:(cores>=4&&mem>=4)?(1080/LOGICAL_H):1;
   return clamp(desired,1,cap);
 }
 
@@ -569,38 +571,15 @@ function cloudTx(key){ return L(CLOUD_TEXT, key, key); }
 
 
 let audioUnlocked = false;
-const AUDIO_RECOVERY_KEY = "pz_audio_recovery_2026080825";
-
-function recoverWebAudioSettingsOnce(){
-  try{
-    if(localStorage.getItem(AUDIO_RECOVERY_KEY)==="1") return;
-    // Older first-test saves could preserve an unintended muted/zero-volume
-    // state. Recover it once for this build without overriding later choices.
-    audioMuted = false;
-    if(!Number.isFinite(bgmVolume) || bgmVolume < 0.05) bgmVolume = 0.40;
-    localStorage.setItem(AUDIO_RECOVERY_KEY,"1");
-  }catch(_){
-    audioMuted = false;
-    if(!Number.isFinite(bgmVolume) || bgmVolume < 0.05) bgmVolume = 0.40;
-  }
-}
 
 function unlockAudio(){
-  recoverWebAudioSettingsOnce();
   if(!audioCtx){
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   }
-  if(audioCtx.state === "suspended"){
-    try{
-      const resumed=audioCtx.resume();
-      if(resumed&&typeof resumed.catch==="function") resumed.catch(()=>{});
-    }catch(_){}
-  }
+  if(audioCtx.state === "suspended") audioCtx.resume();
   audioUnlocked = true;
-  // Start the login element during the actual user gesture. This primes
-  // HTMLMediaElement playback in browsers that reject play() on a later frame.
-  if(gameMode === "boot" || gameMode === "login") requestLoginBgmPlay();
-  requestWorldBgmPlay();
+  if(gameMode === "login") requestLoginBgmPlay();
+  else requestWorldBgmPlay();
 }
 
 function audioEase01(x){
@@ -719,11 +698,9 @@ function requestWorldBgmPlay(){
   const isBossKrosBattle=gameMode==="battle" && battleModeSource==="bossKros";
   const chapter0Kind=chapter0BgmKind();
   const chapter1Kind=chapter1BgmKind();
-  const chapter2Kind=chapter2BgmKind();
-  if(["story","team","settlement","defeat","projectArea"].includes(gameMode) || (gameMode==="battle"&&!isBossKrosBattle&&!chapter0Kind&&!chapter1Kind&&!chapter2Kind)) return;
+  if(["story","team","settlement","defeat","projectArea"].includes(gameMode) || (gameMode==="battle"&&!isBossKrosBattle&&!chapter0Kind&&!chapter1Kind)) return;
   if(chapter0Kind){playChapter0BgmTrack(chapter0Kind);return;}
   if(chapter1Kind){playChapter1BgmTrack(chapter1Kind);return;}
-  if(chapter2Kind){playChapter2BgmTrack(chapter2Kind);return;}
   if(gameMode==="shop") playWorldBgmTrack("shop");
   if(worldBgmHasStarted && (WORLD_BGM_MODES.has(gameMode) || gameMode==="shop")) playWorldBgmTrack("world");
   if(battleModeSource==="bossKros" && ["battle","settlement","defeat"].includes(gameMode)) playBossKrosBgm();
@@ -790,8 +767,8 @@ function chapter1BgmKind(){
 }
 
 function chapter2BgmKind(){
-  // Chapter selection stays on the lobby timeline. Chapter 2 music begins
-  // only after the player opens its card, matching Chapters 0 and 1.
+  // Chapter selection keeps the lobby timeline. Chapter 2 music starts only
+  // after opening its stage page; this chapter currently has no boss track.
   if(gameMode==="operation" && selectedTab==="main" && mainChapterView==="stages" && selectedMainChapter===2) return "operation";
   if(gameMode==="battle" && battleModeSource==="main" && selectedMainChapter===2) return "battle";
   return "";
@@ -899,7 +876,7 @@ function ensureChapter2BgmTrack(kind){
   try{
     const a=new Audio(source);
     a.loop=true;
-    a.preload="auto";
+    a.preload="metadata";
     a.volume=0;
     a.addEventListener("error",()=>{state.unavailable=true;},{once:true});
     state.audio=a;
@@ -1567,10 +1544,6 @@ function handleTeamRenameTextKey(e){
   }
   return false;
 }
-
-// Capture every real pointer gesture before canvas/UI state changes. If a
-// previous play() was blocked, the active route is retried inside this gesture.
-window.addEventListener("pointerdown", () => unlockAudio(), {capture:true,passive:true});
 
 window.addEventListener("keydown", e => {
   if(gameMode === "boot"){
@@ -9286,12 +9259,12 @@ const SHOP_PACKS=[
   {id:"standard",cat:1,accent:"#d8e1ec",zh:"标准启程包",en:"Standard Starter Pack",descZh:"体力×40 · 经验书×5",descEn:"Stamina ×40 · EXP ×5",limitZh:"永久限购1次",limitEn:"ONE-TIME"}
 ];
 const STRIPE_SUPPORT_TIERS=[
-  {amount:"$0.99",productId:"prod_V1Fj2ky4d3iviA",url:"https://buy.stripe.com/bJe00j3iU9nB0si9wIdMI04"},
-  {amount:"$9.99",productId:"prod_V1Fji17DSGNNCZ",url:"https://buy.stripe.com/6oU3cvaLmfLZ0si24gdMI01"},
-  {amount:"$19.99",productId:"prod_V1Fkes4IPQNNDr",url:"https://buy.stripe.com/14A14ncTufLZ8YOaAMdMI05"},
-  {amount:"$29.99",productId:"prod_V1FkauO4IJx99H",url:"https://buy.stripe.com/dRm14nf1C0R57UK7oAdMI03"},
-  {amount:"$39.99",productId:"prod_V1FlIqC1T8yEvt",url:"https://buy.stripe.com/dRm7sL06IczN1wm38kdMI00"},
-  {amount:"$49.99",productId:"prod_V1FluepBEqpvbZ",url:"https://buy.stripe.com/cNieVd06IgQ34Iy38kdMI02"}
+  {amount:"$0.99",productId:"prod_V1Fj2ky4d3iviA",url:"https://buy.stripe.com/test_dRm7sL06IczN1wm38kdMI00"},
+  {amount:"$9.99",productId:"prod_V1Fji17DSGNNCZ",url:"https://buy.stripe.com/test_6oU3cvaLmfLZ0si24gdMI01"},
+  {amount:"$19.99",productId:"prod_V1Fkes4IPQNNDr",url:"https://buy.stripe.com/test_cNieVd06IgQ34Iy38kdMI02"},
+  {amount:"$29.99",productId:"prod_V1FkauO4IJx99H",url:"https://buy.stripe.com/test_dRm14nf1C0R57UK7oAdMI03"},
+  {amount:"$39.99",productId:"prod_V1FlIqC1T8yEvt",url:"https://buy.stripe.com/test_bJe00j3iU9nB0si9wIdMI04"},
+  {amount:"$49.99",productId:"prod_V1FluepBEqpvbZ",url:"https://buy.stripe.com/test_14A14ncTufLZ8YOaAMdMI05"}
 ];
 async function openStripeSupportTier(index){
   const tier=STRIPE_SUPPORT_TIERS[index];

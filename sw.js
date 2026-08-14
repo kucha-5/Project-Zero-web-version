@@ -2,7 +2,7 @@
 
 const params=new URL(self.location.href).searchParams;
 const BUILD=params.get("build")||"stable";
-const CACHE_NAME="project-zero-web-v2-"+BUILD;
+const CACHE_NAME="project-zero-web-v3-"+BUILD;
 const CORE_FILES=[
   "./","./index.html","./style.css","./version.json","./account-config.js","./pz-account-api.js","./update-client.js",
   "./locales.js","./story_scripts.js","./story_events.js","./story_engine.js",
@@ -11,8 +11,9 @@ const CORE_FILES=[
   "./game_match3.js","./game_quality_update.js","./game_patrol.js","./game_side_story.js","./game_daydream.js","./game_daydream_title.js",
   "./assets/ui/project_zero_logo.png","./assets/audio/bgm/login_theme.mp3",
   "./assets/audio/bgm/chapter0_operation.mp3","./assets/audio/bgm/chapter0_battle.mp3","./assets/audio/bgm/chapter0_boss.mp3",
-  "./assets/audio/bgm/chapter1_operation.mp3","./assets/audio/bgm/chapter1_battle.mp3","./assets/audio/bgm/chapter1_boss.mp3",
-  "./assets/audio/bgm/chapter2_operation.mp3","./assets/audio/bgm/chapter2_battle.mp3"
+  "./assets/audio/bgm/chapter1_operation.mp3","./assets/audio/bgm/chapter1_battle.mp3","./assets/audio/bgm/chapter1_boss.mp3"
+  ,"./assets/audio/bgm/chapter2_operation.mp3","./assets/audio/bgm/chapter2_battle.mp3"
+  ,"./assets/audio/bgm/last_safe_city.mp3","./assets/audio/bgm/skyglass_bazaar.mp3","./assets/audio/bgm/kros_battle.mp3"
 ];
 
 self.addEventListener("install",event=>{
@@ -28,7 +29,7 @@ self.addEventListener("install",event=>{
 self.addEventListener("activate",event=>{
   event.waitUntil((async()=>{
     const keys=await caches.keys();
-    await Promise.all(keys.filter(key=>(key.startsWith("project-zero-runtime-")||key.startsWith("project-zero-web-v2-"))&&key!==CACHE_NAME).map(key=>caches.delete(key)));
+    await Promise.all(keys.filter(key=>key.startsWith("project-zero-")&&key!==CACHE_NAME).map(key=>caches.delete(key)));
     await self.clients.claim();
   })());
 });
@@ -56,6 +57,13 @@ self.addEventListener("fetch",event=>{
     return;
   }
   if(request.mode==="navigate"||/\.(?:js|css|html|json)$/i.test(url.pathname)){
+    event.respondWith(networkFirst(request));
+    return;
+  }
+  // Music is network-first so a newly published chapter track cannot be
+  // shadowed by an older partial cache. A validated cached copy remains the
+  // offline fallback.
+  if(/\.(?:mp3|ogg|wav|m4a)$/i.test(url.pathname)){
     event.respondWith(networkFirst(request));
     return;
   }
