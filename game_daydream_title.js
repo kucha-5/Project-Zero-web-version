@@ -218,8 +218,8 @@
     // Living camera: tiny drift after entry, subtle enough that the title screen feels alive.
     // V49.9: ultra-subtle mouse-look parallax. The scene moves opposite the cursor
     // by only a few pixels, so it feels like the camera is slightly looking toward the mouse.
-    const baseCamX = Math.sin(p*.013) * 2.2;
-    const baseCamY = Math.cos(p*.010) * 1.6;
+    const baseCamX = Math.sin(p*.013) * 0.8;
+    const baseCamY = Math.cos(p*.010) * 0.6;
 
     const mx = Number.isFinite(global.mouseX) ? global.mouseX : W/2;
     const my = Number.isFinite(global.mouseY) ? global.mouseY : H/2;
@@ -227,14 +227,14 @@
     const nx = inScene ? clamp((mx - (x0+w0/2)) / (w0/2), -1, 1) : 0;
     const ny = inScene ? clamp((my - (y0+h0/2)) / (h0/2), -1, 1) : 0;
 
-    const targetMouseCamX = -nx * 3.2;
-    const targetMouseCamY = -ny * 1.8;
+    const targetMouseCamX = -nx * 1.5;
+    const targetMouseCamY = -ny * 1.0;
     const smooth = 0.050 * (global.frameScale || 1);
     daydream.titleMouseCamX = (daydream.titleMouseCamX || 0) + (targetMouseCamX - (daydream.titleMouseCamX || 0)) * smooth;
     daydream.titleMouseCamY = (daydream.titleMouseCamY || 0) + (targetMouseCamY - (daydream.titleMouseCamY || 0)) * smooth;
 
-    const camX = baseCamX + daydream.titleMouseCamX;
-    const camY = baseCamY + daydream.titleMouseCamY;
+    const camX = Math.round(baseCamX + daydream.titleMouseCamX);
+    const camY = Math.round(baseCamY + daydream.titleMouseCamY);
     const entryPush = daydream.entryPlaying ? (1-enterT) * 30 : 0;
     ctx.translate(camX, camY + entryPush);
     if(daydream.entryPlaying) ctx.globalAlpha = 0.18 + enterT * 0.82;

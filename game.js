@@ -14,11 +14,9 @@
 
 // Build info for quick debugging
 window.PZ_BUILD_INFO = window.PZ_BUILD_INFO || {
-  version: "49.19.9",
-  build: "2026080724-chapter1-ost",
+  build: "V49_18_11_COMMERCIAL_SYSTEMS",
   storyModule: true,
-  optimized: true,
-  releaseStage: "FIRST_ALPHA"
+  optimized: true
 };
 
 const canvas = document.getElementById("game");
@@ -158,12 +156,10 @@ function getAutoRenderScale(){
   const rect=wrap&&typeof wrap.getBoundingClientRect==="function"?wrap.getBoundingClientRect():null;
   const cssW=Math.max(1,rect&&rect.width||Math.min(window.innerWidth||LOGICAL_W,(window.innerHeight||LOGICAL_H)*LOGICAL_W/LOGICAL_H));
   const cssH=Math.max(1,rect&&rect.height||Math.min(window.innerHeight||LOGICAL_H,(window.innerWidth||LOGICAL_W)*LOGICAL_H/LOGICAL_W));
-  // A 3x backing canvas can exceed seven million pixels and causes avoidable
-  // frame-time spikes on common integrated GPUs. Keep AUTO sharp but bounded.
-  const dpr=clamp(window.devicePixelRatio||1,1,2);
+  const dpr=clamp(window.devicePixelRatio||1,1,3);
   const desired=Math.max(cssW/LOGICAL_W,cssH/LOGICAL_H)*dpr;
   const cores=navigator.hardwareConcurrency||4,mem=navigator.deviceMemory||4;
-  const cap=(cores>=12&&mem>=12)?(1440/LOGICAL_H):(cores>=8&&mem>=8)?2:(cores>=4&&mem>=4)?(1080/LOGICAL_H):1;
+  const cap=(cores>=12&&mem>=12)?3:(cores>=8&&mem>=8)?(1440/LOGICAL_H):(cores>=4&&mem>=4)?(1080/LOGICAL_H):1;
   return clamp(desired,1,cap);
 }
 
@@ -696,13 +692,7 @@ function playWorldBgmTrack(kind){
 function requestWorldBgmPlay(){
   if(!audioUnlocked) return;
   const isBossKrosBattle=gameMode==="battle" && battleModeSource==="bossKros";
-  const chapter0Kind=chapter0BgmKind();
-  const chapter1Kind=chapter1BgmKind();
-  const chapter2Kind=chapter2BgmKind();
-  if(["story","team","settlement","defeat","projectArea"].includes(gameMode) || (gameMode==="battle"&&!isBossKrosBattle&&!chapter0Kind&&!chapter1Kind&&!chapter2Kind)) return;
-  if(chapter0Kind){playChapter0BgmTrack(chapter0Kind);return;}
-  if(chapter1Kind){playChapter1BgmTrack(chapter1Kind);return;}
-  if(chapter2Kind){playChapter2BgmTrack(chapter2Kind);return;}
+  if(["story","team","settlement","defeat","projectArea"].includes(gameMode) || (gameMode==="battle"&&!isBossKrosBattle)) return;
   if(gameMode==="shop") playWorldBgmTrack("shop");
   if(worldBgmHasStarted && (WORLD_BGM_MODES.has(gameMode) || gameMode==="shop")) playWorldBgmTrack("world");
   if(battleModeSource==="bossKros" && ["battle","settlement","defeat"].includes(gameMode)) playBossKrosBgm();
@@ -745,194 +735,54 @@ function restartBossKrosBgmFromStart(){
   if(audioUnlocked) playBossKrosBgm();
 }
 
-function chapter0BgmKind(){
-  // The chapter selection screen belongs to the lobby music timeline.  The
-  // chapter OST starts only after the player explicitly opens Chapter 0.
-  if(gameMode==="operation" && selectedTab==="main" && mainChapterView==="stages" && selectedMainChapter===0) return "operation";
-  if(gameMode==="battle" && battleModeSource==="main" && selectedMainChapter===0){
-    return selectedStage===10 ? "boss" : "battle";
-  }
-  return "";
-}
-
-function chapter1BgmKind(){
-  // As with Chapter 0, chapter selection remains on the lobby timeline.  The
-  // operation OST begins only after the Chapter 1 card is opened.
-  if(gameMode==="operation" && selectedTab==="main" && mainChapterView==="stages" && selectedMainChapter===1) return "operation";
-  if(gameMode==="battle" && battleModeSource==="main" && selectedMainChapter===1){
-    // Chapter 1 has no narrative boss stage in this build.  Its final combat
-    // mission, 01-09, receives the supplied finale track without changing the
-    // encounter, enemies, rewards, or story flags.
-    return selectedStage===9 ? "boss" : "battle";
-  }
-  return "";
-}
-
-function chapter2BgmKind(){
-  // Chapter selection keeps the lobby timeline. Chapter 2 music starts only
-  // after opening its stage page; this chapter currently has no boss track.
-  if(gameMode==="operation" && selectedTab==="main" && mainChapterView==="stages" && selectedMainChapter===2) return "operation";
-  if(gameMode==="battle" && battleModeSource==="main" && selectedMainChapter===2) return "battle";
-  return "";
-}
-
-function ensureChapter0BgmTrack(kind){
-  const state=chapter0BgmState[kind];
-  const source=CHAPTER0_BGM_PATHS[kind];
-  if(!state || !source || state.unavailable) return null;
-  if(state.audio) return state.audio;
-  try{
-    const a=new Audio(source);
-    a.loop=true;
-    a.preload="auto";
-    a.volume=0;
-    a.addEventListener("error",()=>{state.unavailable=true;},{once:true});
-    state.audio=a;
-  }catch(e){state.unavailable=true;}
-  return state.audio;
-}
-
-function playChapter0BgmTrack(kind){
-  const state=chapter0BgmState[kind];
-  const a=ensureChapter0BgmTrack(kind);
-  if(!state || !a || state.unavailable || !a.paused || state.pending) return;
-  state.pending=true;
-  const done=()=>{state.pending=false;};
-  try{
-    const p=a.play();
-    if(p&&typeof p.then==="function")p.then(done).catch(done);
-    else done();
-  }catch(e){done();}
-}
-
-function stopChapter0BgmTracks(exceptKind=""){
-  for(const kind of Object.keys(chapter0BgmState)){
-    if(kind===exceptKind) continue;
-    const state=chapter0BgmState[kind];
-    state.volume=0;
-    if(state.audio&&!state.audio.paused){try{state.audio.pause();}catch(e){}}
-  }
-}
-
-function restartChapter0BgmFromStart(kind){
-  const state=chapter0BgmState[kind];
-  const a=ensureChapter0BgmTrack(kind);
-  if(!state || !a) return;
-  restartBgmTrackFromStart(a);
-  state.volume=0;
-  if(audioUnlocked) playChapter0BgmTrack(kind);
-}
-
-function ensureChapter1BgmTrack(kind){
-  const state=chapter1BgmState[kind];
-  const source=CHAPTER1_BGM_PATHS[kind];
-  if(!state || !source || state.unavailable) return null;
-  if(state.audio) return state.audio;
-  try{
-    const a=new Audio(source);
-    a.loop=true;
-    a.preload="auto";
-    a.volume=0;
-    a.addEventListener("error",()=>{state.unavailable=true;},{once:true});
-    state.audio=a;
-  }catch(e){state.unavailable=true;}
-  return state.audio;
-}
-
-function playChapter1BgmTrack(kind){
-  const state=chapter1BgmState[kind];
-  const a=ensureChapter1BgmTrack(kind);
-  if(!state || !a || state.unavailable || !a.paused || state.pending) return;
-  state.pending=true;
-  const done=()=>{state.pending=false;};
-  try{
-    const p=a.play();
-    if(p&&typeof p.then==="function")p.then(done).catch(done);
-    else done();
-  }catch(e){done();}
-}
-
-function stopChapter1BgmTracks(exceptKind=""){
-  for(const kind of Object.keys(chapter1BgmState)){
-    if(kind===exceptKind) continue;
-    const state=chapter1BgmState[kind];
-    state.volume=0;
-    if(state.audio&&!state.audio.paused){try{state.audio.pause();}catch(e){}}
-  }
-}
-
-function restartChapter1BgmFromStart(kind){
-  const state=chapter1BgmState[kind];
-  const a=ensureChapter1BgmTrack(kind);
-  if(!state || !a) return;
-  restartBgmTrackFromStart(a);
-  state.volume=0;
-  if(audioUnlocked) playChapter1BgmTrack(kind);
-}
-
-function ensureChapter2BgmTrack(kind){
-  const state=chapter2BgmState[kind];
-  const source=CHAPTER2_BGM_PATHS[kind];
-  if(!state || !source || state.unavailable) return null;
-  if(state.audio) return state.audio;
-  try{
-    const a=new Audio(source);
-    a.loop=true;
-    a.preload="metadata";
-    a.volume=0;
-    a.addEventListener("error",()=>{state.unavailable=true;},{once:true});
-    state.audio=a;
-  }catch(e){state.unavailable=true;}
-  return state.audio;
-}
-
-function playChapter2BgmTrack(kind){
-  const state=chapter2BgmState[kind];
-  const a=ensureChapter2BgmTrack(kind);
-  if(!state || !a || state.unavailable || !a.paused || state.pending) return;
-  state.pending=true;
-  const done=()=>{state.pending=false;};
-  try{
-    const p=a.play();
-    if(p&&typeof p.then==="function")p.then(done).catch(done);
-    else done();
-  }catch(e){done();}
-}
-
-function stopChapter2BgmTracks(exceptKind=""){
-  for(const kind of Object.keys(chapter2BgmState)){
-    if(kind===exceptKind) continue;
-    const state=chapter2BgmState[kind];
-    state.volume=0;
-    if(state.audio&&!state.audio.paused){try{state.audio.pause();}catch(e){}}
-  }
-}
-
-function restartChapter2BgmFromStart(kind){
-  const state=chapter2BgmState[kind];
-  const a=ensureChapter2BgmTrack(kind);
-  if(!state || !a) return;
-  restartBgmTrackFromStart(a);
-  state.volume=0;
-  if(audioUnlocked) playChapter2BgmTrack(kind);
-}
-
 function approachBgmVolume(current,target,seconds){
   const maxStep=(frameScale||1)/Math.max(1,60*seconds);
   if(current<target) return Math.min(target,current+maxStep);
   return Math.max(target,current-maxStep);
 }
 
+function desiredChapterBgm(){
+  if(gameMode==="operation" && selectedTab==="main" && mainChapterView==="stages"){
+    return {key:"operation:"+selectedMainChapter,path:CHAPTER_OPERATION_BGM_PATHS[selectedMainChapter]};
+  }
+  if(gameMode==="battle" && battleModeSource==="main"){
+    return {key:"battle:"+selectedMainChapter,path:CHAPTER_BATTLE_BGM_PATHS[selectedMainChapter]};
+  }
+  return null;
+}
+
+function selectChapterBgm(route){
+  const nextKey=route&&route.path?route.key:"";
+  if(nextKey===chapterBgmKey) return;
+  if(chapterBgmAudio){try{chapterBgmAudio.pause();chapterBgmAudio.currentTime=0;}catch(e){}}
+  chapterBgmAudio=null;chapterBgmCurrentVolume=0;chapterBgmPlayPending=false;chapterBgmKey=nextKey;
+  if(!nextKey || chapterBgmUnavailable.has(nextKey)) return;
+  try{
+    const a=new Audio(route.path);
+    a.loop=true;a.preload="auto";a.volume=0;
+    a.addEventListener("error",()=>{chapterBgmUnavailable.add(nextKey);},{once:true});
+    chapterBgmAudio=a;
+  }catch(e){chapterBgmUnavailable.add(nextKey);}
+}
+
+function playChapterBgm(){
+  const a=chapterBgmAudio;
+  if(!audioUnlocked||!a||!a.paused||chapterBgmPlayPending||chapterBgmUnavailable.has(chapterBgmKey)) return;
+  chapterBgmPlayPending=true;
+  const done=()=>{chapterBgmPlayPending=false;};
+  try{const p=a.play();if(p&&typeof p.then==="function")p.then(done).catch(done);else done();}catch(e){done();}
+}
+
 function updateWorldBgm(){
   const isWorldMode=WORLD_BGM_MODES.has(gameMode);
   const isShop=gameMode==="shop";
   const isBossKrosBattle=gameMode==="battle" && battleModeSource==="bossKros";
-  const chapter0Kind=chapter0BgmKind();
-  const chapter1Kind=chapter1BgmKind();
-  const chapter2Kind=chapter2BgmKind();
-  const hasChapterBgm=!!(chapter0Kind||chapter1Kind||chapter2Kind);
   const isProjectArea=gameMode==="projectArea" || (gameMode==="battle" && battleModeSource==="projectArea");
-  const stageMusicPaused=["story","team","settlement","defeat"].includes(gameMode) || (gameMode==="battle"&&!isBossKrosBattle&&!hasChapterBgm) || isProjectArea;
+  const chapterRoute=desiredChapterBgm();
+  selectChapterBgm(chapterRoute);
+  const isSilentCrystalPage=gameMode==="operation" && (selectedTab==="daydream" ||
+    (selectedTab==="dualCrystal" && window.PZCrystalWar && typeof window.PZCrystalWar.isCrystalWarActive==="function" && window.PZCrystalWar.isCrystalWarActive()));
+  const stageMusicPaused=["story","team","settlement","defeat"].includes(gameMode) || (gameMode==="battle"&&!isBossKrosBattle&&!chapterRoute) || isProjectArea || isSilentCrystalPage;
   const enabled=!audioMuted ? clamp(bgmVolume,0,1) : 0;
   const isWorldEntryPage=gameMode==="lobby" || gameMode==="operation";
 
@@ -946,87 +796,17 @@ function updateWorldBgm(){
 
   // Boss battles own the complete music bus. `battle` remains in
   // WORLD_BGM_MODES for legacy routing, so explicitly exclude Kros here.
-  const worldTarget=isWorldMode && worldBgmHasStarted && !stageMusicPaused && !isShop && !isBossKrosBattle && !hasChapterBgm ? enabled : 0;
+  const worldTarget=isWorldMode && worldBgmHasStarted && !stageMusicPaused && !isShop && !isBossKrosBattle && !chapterRoute ? enabled : 0;
   const shopTarget=isShop ? enabled : 0;
   const bossTarget=isBossKrosBattle ? enabled : 0;
-
-  if(chapter0Kind!==lastChapter0BgmKind){
-    stopChapter0BgmTracks();
-    if(chapter0Kind){
-      stopChapter1BgmTracks();
-      stopChapter2BgmTracks();
-      const world=ensureWorldBgmTrack("world"),shop=ensureWorldBgmTrack("shop"),kros=ensureBossKrosBgm();
-      const crossfadeFromWorld=chapter0Kind==="operation" && gameMode==="operation" && selectedTab==="main" && mainChapterView==="stages";
-      for(const track of [world,shop,kros]){
-        if(!track || (track===world && crossfadeFromWorld)) continue;
-        try{track.pause();}catch(e){}
-      }
-      if(!crossfadeFromWorld) worldBgmCurrentVolume=0;
-      shopBgmCurrentVolume=0;bossKrosBgmCurrentVolume=0;
-      restartChapter0BgmFromStart(chapter0Kind);
-    }else if(lastChapter0BgmKind && !chapter1Kind && !chapter2Kind && !stageMusicPaused && !isShop && !isBossKrosBattle){
-      const world=ensureWorldBgmTrack("world");
-      // Returning to chapter selection resumes the same lobby track instead
-      // of restarting it, then fades it back in.
-      worldBgmHasStarted=true;
-      if(audioUnlocked) playWorldBgmTrack("world");
-    }
-    lastChapter0BgmKind=chapter0Kind;
-  }
-
-  if(chapter1Kind!==lastChapter1BgmKind){
-    stopChapter1BgmTracks();
-    if(chapter1Kind){
-      stopChapter0BgmTracks();
-      stopChapter2BgmTracks();
-      const world=ensureWorldBgmTrack("world"),shop=ensureWorldBgmTrack("shop"),kros=ensureBossKrosBgm();
-      const crossfadeFromWorld=chapter1Kind==="operation" && gameMode==="operation" && selectedTab==="main" && mainChapterView==="stages";
-      for(const track of [world,shop,kros]){
-        if(!track || (track===world && crossfadeFromWorld)) continue;
-        try{track.pause();}catch(e){}
-      }
-      if(!crossfadeFromWorld) worldBgmCurrentVolume=0;
-      shopBgmCurrentVolume=0;bossKrosBgmCurrentVolume=0;
-      restartChapter1BgmFromStart(chapter1Kind);
-    }else if(lastChapter1BgmKind && !chapter0Kind && !chapter2Kind && !stageMusicPaused && !isShop && !isBossKrosBattle){
-      const world=ensureWorldBgmTrack("world");
-      worldBgmHasStarted=true;
-      if(audioUnlocked) playWorldBgmTrack("world");
-    }
-    lastChapter1BgmKind=chapter1Kind;
-  }
-
-  if(chapter2Kind!==lastChapter2BgmKind){
-    stopChapter2BgmTracks();
-    if(chapter2Kind){
-      stopChapter0BgmTracks();
-      stopChapter1BgmTracks();
-      const world=ensureWorldBgmTrack("world"),shop=ensureWorldBgmTrack("shop"),kros=ensureBossKrosBgm();
-      const crossfadeFromWorld=chapter2Kind==="operation" && gameMode==="operation" && selectedTab==="main" && mainChapterView==="stages";
-      for(const track of [world,shop,kros]){
-        if(!track || (track===world && crossfadeFromWorld)) continue;
-        try{track.pause();}catch(e){}
-      }
-      if(!crossfadeFromWorld) worldBgmCurrentVolume=0;
-      shopBgmCurrentVolume=0;bossKrosBgmCurrentVolume=0;
-      restartChapter2BgmFromStart(chapter2Kind);
-    }else if(lastChapter2BgmKind && !chapter0Kind && !chapter1Kind && !stageMusicPaused && !isShop && !isBossKrosBattle){
-      const world=ensureWorldBgmTrack("world");
-      worldBgmHasStarted=true;
-      if(audioUnlocked) playWorldBgmTrack("world");
-    }
-    lastChapter2BgmKind=chapter2Kind;
-  }
+  const chapterTarget=chapterRoute ? enabled : 0;
 
   if(gameMode!==lastBgmGameMode){
-    const leavingStage=["story","team","battle","settlement","defeat"].includes(lastBgmGameMode) && !stageMusicPaused && !isBossKrosBattle && !hasChapterBgm;
+    const leavingStage=["story","team","battle","settlement","defeat"].includes(lastBgmGameMode) && !stageMusicPaused && !isBossKrosBattle;
     if(stageMusicPaused){
       const world=ensureWorldBgmTrack("world"),shop=ensureWorldBgmTrack("shop"),boss=ensureBossKrosBgm();
-      for(const track of [world,shop,boss]) if(track){try{track.pause();}catch(e){}}
-      stopChapter0BgmTracks();
-      stopChapter1BgmTracks();
-      stopChapter2BgmTracks();
-      worldBgmCurrentVolume=0;shopBgmCurrentVolume=0;bossKrosBgmCurrentVolume=0;
+      for(const track of [world,shop,boss,chapterBgmAudio]) if(track){try{track.pause();}catch(e){}}
+      worldBgmCurrentVolume=0;shopBgmCurrentVolume=0;bossKrosBgmCurrentVolume=0;chapterBgmCurrentVolume=0;
     }else if(leavingStage){
       const world=ensureWorldBgmTrack("world");
       restartBgmTrackFromStart(world);
@@ -1046,42 +826,24 @@ function updateWorldBgm(){
       shopBgmCurrentVolume=0;
       restartBossKrosBgmFromStart();
     }
+    if(chapterRoute){
+      const world=ensureWorldBgmTrack("world"),shop=ensureWorldBgmTrack("shop"),boss=ensureBossKrosBgm();
+      for(const track of [world,shop,boss]) if(track){try{track.pause();}catch(e){}}
+      worldBgmCurrentVolume=0;shopBgmCurrentVolume=0;bossKrosBgmCurrentVolume=0;
+      restartBgmTrackFromStart(chapterBgmAudio);
+      if(audioUnlocked) playChapterBgm();
+    }
     lastBgmGameMode=gameMode;
   }
 
-  if(audioUnlocked && !stageMusicPaused && (isWorldMode || isShop || isBossKrosBattle || hasChapterBgm)) requestWorldBgmPlay();
+  if(audioUnlocked && chapterRoute) playChapterBgm();
+  else if(audioUnlocked && !stageMusicPaused && (isWorldMode || isShop || isBossKrosBattle)) requestWorldBgmPlay();
 
   // Page-entry restarts are handled above; volume changes remain smooth.
   worldBgmCurrentVolume=approachBgmVolume(worldBgmCurrentVolume,worldTarget,2.4);
   shopBgmCurrentVolume=approachBgmVolume(shopBgmCurrentVolume,shopTarget,2.4);
   bossKrosBgmCurrentVolume=approachBgmVolume(bossKrosBgmCurrentVolume,bossTarget,1.6);
-  for(const kind of Object.keys(chapter0BgmState)){
-    const state=chapter0BgmState[kind];
-    state.volume=approachBgmVolume(state.volume,kind===chapter0Kind?enabled:0,1.6);
-    const track=ensureChapter0BgmTrack(kind);
-    if(track){
-      track.volume=clamp(audioEase01(state.volume),0,1);
-      if(kind!==chapter0Kind && state.volume<=.001 && !track.paused){try{track.pause();}catch(e){}}
-    }
-  }
-  for(const kind of Object.keys(chapter1BgmState)){
-    const state=chapter1BgmState[kind];
-    state.volume=approachBgmVolume(state.volume,kind===chapter1Kind?enabled:0,1.6);
-    const track=ensureChapter1BgmTrack(kind);
-    if(track){
-      track.volume=clamp(audioEase01(state.volume),0,1);
-      if(kind!==chapter1Kind && state.volume<=.001 && !track.paused){try{track.pause();}catch(e){}}
-    }
-  }
-  for(const kind of Object.keys(chapter2BgmState)){
-    const state=chapter2BgmState[kind];
-    state.volume=approachBgmVolume(state.volume,kind===chapter2Kind?enabled:0,1.6);
-    const track=ensureChapter2BgmTrack(kind);
-    if(track){
-      track.volume=clamp(audioEase01(state.volume),0,1);
-      if(kind!==chapter2Kind && state.volume<=.001 && !track.paused){try{track.pause();}catch(e){}}
-    }
-  }
+  chapterBgmCurrentVolume=approachBgmVolume(chapterBgmCurrentVolume,chapterTarget,1.6);
 
   const world=ensureWorldBgmTrack("world");
   if(world){
@@ -1103,6 +865,10 @@ function updateWorldBgm(){
     if(!isBossKrosBattle && bossKrosBgmCurrentVolume<=.001 && !boss.paused){
       try{boss.pause();}catch(e){}
     }
+  }
+  if(chapterBgmAudio){
+    chapterBgmAudio.volume=clamp(audioEase01(chapterBgmCurrentVolume),0,1);
+    if(!chapterRoute && chapterBgmCurrentVolume<=.001 && !chapterBgmAudio.paused){try{chapterBgmAudio.pause();}catch(e){}}
   }
 }
 
@@ -1599,6 +1365,7 @@ canvas.addEventListener("mousemove", e => {
   const r = canvas.getBoundingClientRect();
   mouseX = (e.clientX - r.left) * W / r.width;
   mouseY = (e.clientY - r.top) * H / r.height;
+  if(gameMode==="operation"&&selectedTab==="dualCrystal"&&window.PZCrystalWar&&typeof window.PZCrystalWar.pointerMove==="function")window.PZCrystalWar.pointerMove(mouseX,mouseY);
   if(gameMode === "match3" && mouseDown && window.PZMatch3) window.PZMatch3.pointerMove(mouseX,mouseY);
 });
 canvas.addEventListener("mousedown", e => {
@@ -1613,6 +1380,7 @@ canvas.addEventListener("mousedown", e => {
   const r = canvas.getBoundingClientRect();
   mouseX = (e.clientX - r.left) * W / r.width;
   mouseY = (e.clientY - r.top) * H / r.height;
+  if(gameMode==="operation"&&selectedTab==="dualCrystal"&&e.button===0&&window.PZCrystalWar&&typeof window.PZCrystalWar.pointerDown==="function")window.PZCrystalWar.pointerDown(mouseX,mouseY);
   if(gameMode === "battle" && chainSelect){
     unlockAudio();
     e.preventDefault();
@@ -1633,9 +1401,10 @@ canvas.addEventListener("mousedown", e => {
   if (e.button === 0) { unlockAudio(); mouseDown = true; clicked = true; sfx("ui"); }
   if (e.button === 2) { unlockAudio(); keys["mouse2"] = true; }
 });
-canvas.addEventListener("mouseup", e => { if(e.button===0) { if(gameMode==="match3" && window.PZMatch3) window.PZMatch3.pointerUp(mouseX,mouseY); mouseDown = false; mouseAttackConsumed = false; } if(e.button===2) keys["mouse2"]=false; });
+canvas.addEventListener("mouseup", e => { if(e.button===0) { if(gameMode==="operation"&&selectedTab==="dualCrystal"&&window.PZCrystalWar&&typeof window.PZCrystalWar.pointerUp==="function")window.PZCrystalWar.pointerUp(mouseX,mouseY); if(gameMode==="match3" && window.PZMatch3) window.PZMatch3.pointerUp(mouseX,mouseY); mouseDown = false; mouseAttackConsumed = false; } if(e.button===2) keys["mouse2"]=false; });
 canvas.addEventListener("contextmenu", e => e.preventDefault());
 canvas.addEventListener("wheel", e => {
+  if(gameMode==="operation"&&selectedTab==="dualCrystal"&&window.PZCrystalWar&&typeof window.PZCrystalWar.handleWheel==="function"&&window.PZCrystalWar.handleWheel(e.deltaY||e.deltaX||0,mouseX,mouseY))e.preventDefault();
   if(gameMode === "operators" && operatorPageMode === "list"){
     operatorListWheelDelta += (e.deltaY || e.deltaX || 0);
     e.preventDefault();
@@ -1655,6 +1424,10 @@ canvas.addEventListener("wheel", e => {
   if(gameMode === "operation" && selectedTab === "dungeon" && dungeonPanelMode === "material" && materialDungeonSelected === 3){
     moduleArchiveWheelDelta += (e.deltaY || e.deltaX || 0);
     e.preventDefault();
+  }
+  if(gameMode === "operation" && selectedTab === "dungeon" && dungeonPanelMode === "material" && materialDungeonSelected !== 3 && mouseY>=235 && mouseY<=340){
+    const max=Math.max(0,materialDungeonsV42().length*170-910);
+    materialDungeonScroll=clamp(materialDungeonScroll+(e.deltaY||e.deltaX||0),0,max);safeSaveGame();e.preventDefault();
   }
   if(gameMode === "operators" && operatorPageMode === "detail" && operatorTab === "module" && moduleWarehouseSlot){
     moduleWarehouseWheelDelta += (e.deltaY || e.deltaX || 0);
@@ -1828,20 +1601,16 @@ const LOGIN_BGM_PATHS = [
 const WORLD_BGM_PATH = "assets/audio/bgm/last_safe_city.mp3";
 const SHOP_BGM_PATH = "assets/audio/bgm/skyglass_bazaar.mp3";
 const BOSS_KROS_BGM_PATH = "assets/audio/bgm/kros_battle.mp3";
-const CHAPTER0_BGM_PATHS = {
-  operation:"assets/audio/bgm/chapter0_operation.mp3",
-  battle:"assets/audio/bgm/chapter0_battle.mp3",
-  boss:"assets/audio/bgm/chapter0_boss.mp3"
-};
-const CHAPTER1_BGM_PATHS = {
-  operation:"assets/audio/bgm/chapter1_operation.mp3",
-  battle:"assets/audio/bgm/chapter1_battle.mp3",
-  boss:"assets/audio/bgm/chapter1_boss.mp3"
-};
-const CHAPTER2_BGM_PATHS = {
-  operation:"assets/audio/bgm/chapter2_operation.mp3",
-  battle:"assets/audio/bgm/chapter2_battle.mp3"
-};
+const CHAPTER_OPERATION_BGM_PATHS = [
+  "assets/audio/bgm/chapter0_operation.mp3",
+  "assets/audio/bgm/chapter1_operation.mp3",
+  "assets/audio/bgm/chapter2_operation.mp3"
+];
+const CHAPTER_BATTLE_BGM_PATHS = [
+  "assets/audio/bgm/chapter0_battle.mp3",
+  "assets/audio/bgm/chapter1_battle.mp3",
+  "assets/audio/bgm/chapter2_battle.mp3"
+];
 const WORLD_BGM_MODES = new Set([
   "lobby","operation","story","settlement","operators","mail","profile",
   "settings","event","match3","warehouse","team","battle","defeat",
@@ -1865,23 +1634,11 @@ let bossKrosBgmAudio = null;
 let bossKrosBgmCurrentVolume = 0;
 let bossKrosBgmUnavailable = false;
 let bossKrosBgmPlayPending = false;
-const chapter0BgmState = {
-  operation:{audio:null,volume:0,unavailable:false,pending:false},
-  battle:{audio:null,volume:0,unavailable:false,pending:false},
-  boss:{audio:null,volume:0,unavailable:false,pending:false}
-};
-const chapter1BgmState = {
-  operation:{audio:null,volume:0,unavailable:false,pending:false},
-  battle:{audio:null,volume:0,unavailable:false,pending:false},
-  boss:{audio:null,volume:0,unavailable:false,pending:false}
-};
-const chapter2BgmState = {
-  operation:{audio:null,volume:0,unavailable:false,pending:false},
-  battle:{audio:null,volume:0,unavailable:false,pending:false}
-};
-let lastChapter0BgmKind = "";
-let lastChapter1BgmKind = "";
-let lastChapter2BgmKind = "";
+let chapterBgmAudio = null;
+let chapterBgmKey = "";
+let chapterBgmCurrentVolume = 0;
+let chapterBgmPlayPending = false;
+let chapterBgmUnavailable = new Set();
 let lastBgmGameMode = gameMode;
 let worldBgmHasStarted = false;
 let worldBgmStartDelay = 60;
@@ -1891,7 +1648,7 @@ let dungeonSelected = 0;
 let dungeonPanelMode = "list";
 let materialDungeonSelected = 0;
 let materialDungeonDifficulty = 1;
-let materialDungeonDifficulties = {gold:1,exp:1,weapon:1,module:2,skill:1};
+let materialDungeonDifficulties = {gold:1,exp:1,weapon:1,module:2,skill:1,screw:1};
 let moduleDungeonTarget = "survey";
 let moduleArchiveScroll = 0;
 let moduleArchiveWheelDelta = 0;
@@ -1938,6 +1695,9 @@ let teamRosterWheelDelta = 0;
 let bossMultiplier = 1;
 let bossKrosWeeklyKey = "";
 let dragonClaw = 0;
+let crystalHand = 0;
+let elementalFragments = {fire:0,physical:0,ice:0,wind:0,dark:0,crystal:0};
+let materialDungeonScroll = 0;
 let bossHazards = [];
 let krosPhaseTransitionTimer = 0;
 let krosPhaseTransitionPhase = 1;
@@ -1955,6 +1715,21 @@ let showcaseRole = 0;
 let showcasePreviousState = null;
 let daydreamBattleConfig = null;
 let daydreamTeamSetupPending = false;
+let crystalWarTeamSetupPending = false;
+let crystalWarMines = [];
+let crystalWarMiners = [];
+let crystalWarBuildMenu = false;
+let crystalWarBuildSelected = "mineral";
+let crystalWarOreBuffer = 0;
+let crystalWarResourceBuffer = {rawOre:0,materials:0,scrap:0,fiber:0,wood:0,resin:0,stone:0,herbs:0};
+let crystalWarTerrain = [];
+let crystalWarSectorTheme = 0;
+let crystalWarLastTransferAt = 0;
+const CRYSTAL_WAR_FIELD_DEVICES=[
+  {id:"mineral",z:"矿物采集钻机",e:"MINERAL DRILL",icon:"⚙",color:"#82ffe2",resources:["rawOre","scrap","stone"]},
+  {id:"forestry",z:"树材采集无人机",e:"FORESTRY DRONE",icon:"⌁",color:"#7cffb2",resources:["wood","resin"]},
+  {id:"bio",z:"生态采样器",e:"BIO COLLECTOR",icon:"✣",color:"#c89cff",resources:["materials","fiber","herbs"]}
+];
 let selectedTab = "main";
 let mainChapterView = "chapters"; // chapters -> stage map
 let selectedMainChapter = 0;
@@ -2041,7 +1816,7 @@ window.getProjectZeroSaveNamespace = activeSaveKey;
 function daydreamSaveKeyForNamespace(namespace){ return String(namespace || GUEST_SAVE_KEY) + "_daydream_v49"; }
 function externalProgressKeys(namespace=activeSaveKey()){
   const ns=String(namespace||GUEST_SAVE_KEY);
-  return {daydream:daydreamSaveKeyForNamespace(ns),match3:ns+"_match3_progress",patrol:ns+"_patrol_v462"};
+  return {daydream:daydreamSaveKeyForNamespace(ns),match3:ns+"_match3_progress",patrol:ns+"_patrol_v462",crystalWar:ns+"_crystal_war_v1"};
 }
 function collectExternalProgress(namespace=activeSaveKey()){
   const out={},keys=externalProgressKeys(namespace);let totalBytes=0;
@@ -2082,6 +1857,7 @@ function reloadAccountScopedGameplay(resetDaydream=false){
       localStorage.removeItem(daydreamSaveKeyForNamespace(activeSaveKey()));
     }
     if(window.PZPatrol&&typeof window.PZPatrol.reloadForCurrentAccount==="function")window.PZPatrol.reloadForCurrentAccount(!!resetDaydream);
+    if(window.PZCrystalWar&&typeof window.PZCrystalWar.reloadForCurrentAccount==="function")window.PZCrystalWar.reloadForCurrentAccount(!!resetDaydream);
   }catch(err){ console.warn("[AccountScopedGameplay]", err); }
 }
 // One-time migration: an older shared save becomes the guest/local save only.
@@ -2091,7 +1867,7 @@ try{
     localStorage.setItem(GUEST_SAVE_KEY, localStorage.getItem(LEGACY_SAVE_KEY));
   }
 }catch(e){}
-const SAVE_VERSION = 57;
+const SAVE_VERSION = 62;
 const SAVE_BACKUP_SUFFIX = "_backup_";
 const SAVE_TEMP_SUFFIX = "_writing";
 let saveCooldown = 0;
@@ -3281,9 +3057,10 @@ function resetRuntimeDefaults(){
   dungeonLastStaminaDate = ""; dungeonCandy = 2400; dungeonStimulant = 0;
   dungeonCandyMonthKey = ""; dungeonCandyDailyUsed = 0; dungeonCandyDailyKey = "";
   dungeonRewardMultiplier = 1; materialDungeonDifficulty = 1; materialDungeonSelected = 0;
-  materialDungeonDifficulties = {gold:1,exp:1,weapon:1,module:2,skill:1};
+  materialDungeonDifficulties = {gold:1,exp:1,weapon:1,module:2,skill:1,screw:1};
   moduleDungeonTarget = "survey"; moduleArchiveScroll = 0; moduleArchiveWheelDelta = 0;
-  bossMultiplier = 1; bossKrosWeeklyKey = ""; dragonClaw = 0;
+  bossMultiplier = 1; bossKrosWeeklyKey = ""; dragonClaw = 0; crystalHand = 0;
+  elementalFragments = {fire:0,physical:0,ice:0,wind:0,dark:0,crystal:0}; materialDungeonScroll=0;
   uiGuideSeen = {};
   uiNewSeen = {};
 
@@ -3440,7 +3217,7 @@ function saveGame(){
       accountUid:(!guestMode && cloudUser) ? cloudUser.uid : "",
       crystals, gold, expBooks, weaponOre, skillBooks, skillMaterials, playerLevel, playerExp, playerExpNeed, protagonistStoryLevel, playerName, playerUID, hasCreatedProfile, profileAvatarRole, profileAvatarFrame, profileShowcase,
       owned, cleared, projectAreaCleared, charData, lobbyExecutor, lobbyBackgroundTheme, team, teamPresets, teamPresetNames, renderQuality, targetFPS, monthlyOwned, monthlyClaimed, monthlyClaimDate, mailClaimed, mailDeleted, eventClaimed, lastLoginClaimDate, loginClaimIndex, monthlyLoginCheckin, versionLoginCheckin,
-      loginRewards, levelRewards, boughtPacks, ownedWeapons, weaponInventory, crystalExchangePurchases, dungeonStamina, dungeonWeeklyCrystalLeft, dungeonCrystalWeekKey, dungeonLastStaminaDate, dungeonCandy, dungeonStimulant, dungeonCandyMonthKey, dungeonCandyDailyUsed, dungeonCandyDailyKey, dungeonRewardMultiplier, materialDungeonDifficulty, materialDungeonDifficulties, materialDungeonSelected, moduleDungeonTarget, audioMuted, bgmVolume, sfxVolume, particlesEnabled, damageTextEnabled, tutorialCompleted, tutorialInProgress, tutorialResumeMode, language, prologueDone, lobbyGuideDone, lobbyGuideStep, achievements, totalKills, totalParries, totalChains, totalBossKills, totalGoldEarned, totalCrystalsEarned, growthGuidePage, growthGuidePageClaimed, growthGuideTaskClaimed, bossMultiplier, bossKrosWeeklyKey, dragonClaw, uiGuideSeen, uiNewSeen, actionRecordLevel, actionRecordExp, actionRecordExpNeed, actionRecordPage, actionRecordAdvanced, actionRecordUltimate, actionRecordClaimed, actionRecordWeaponChoice, actionRecordTab, actionRecordTaskTab, actionRecordTaskClaimed, battleManualDailyClaimed,
+      loginRewards, levelRewards, boughtPacks, ownedWeapons, weaponInventory, crystalExchangePurchases, dungeonStamina, dungeonWeeklyCrystalLeft, dungeonCrystalWeekKey, dungeonLastStaminaDate, dungeonCandy, dungeonStimulant, dungeonCandyMonthKey, dungeonCandyDailyUsed, dungeonCandyDailyKey, dungeonRewardMultiplier, materialDungeonDifficulty, materialDungeonDifficulties, materialDungeonSelected, materialDungeonScroll, moduleDungeonTarget, audioMuted, bgmVolume, sfxVolume, particlesEnabled, damageTextEnabled, tutorialCompleted, tutorialInProgress, tutorialResumeMode, language, prologueDone, lobbyGuideDone, lobbyGuideStep, achievements, totalKills, totalParries, totalChains, totalBossKills, totalGoldEarned, totalCrystalsEarned, growthGuidePage, growthGuidePageClaimed, growthGuideTaskClaimed, bossMultiplier, bossKrosWeeklyKey, dragonClaw, crystalHand, elementalFragments, uiGuideSeen, uiNewSeen, actionRecordLevel, actionRecordExp, actionRecordExpNeed, actionRecordPage, actionRecordAdvanced, actionRecordUltimate, actionRecordClaimed, actionRecordWeaponChoice, actionRecordTab, actionRecordTaskTab, actionRecordTaskClaimed, battleManualDailyClaimed,
       battleResume:captureBattleResumeSnapshot()
     };
     current.crystalModuleInventory = crystalModuleInventory;
@@ -3491,7 +3268,7 @@ function migrateSaveData(d){
   addMissing("lobbyBackgroundTheme", "raven");
   addMissing("crystalModuleInventory", []);
   addMissing("moduleDungeonTarget", "survey");
-  addMissing("materialDungeonDifficulties", {gold:d.materialDungeonDifficulty||1,exp:d.materialDungeonDifficulty||1,weapon:d.materialDungeonDifficulty||1,module:Math.max(2,d.materialDungeonDifficulty||2)});
+  addMissing("materialDungeonDifficulties", {gold:d.materialDungeonDifficulty||1,exp:d.materialDungeonDifficulty||1,weapon:d.materialDungeonDifficulty||1,module:Math.max(2,d.materialDungeonDifficulty||2),skill:1,screw:1});
   addMissing("skillBooks", 6);
   addMissing("skillMaterials", {normal:6,skill:4,ultimate:2});
   addMissing("externalProgress", {});
@@ -3532,6 +3309,9 @@ function migrateSaveData(d){
         const oldStage=Math.max(0,Math.min(2,Math.floor(Number(role.breakStage)||0)));
         role.breakStage=oldStage===2?4:oldStage===1?2:0;
       }
+      // Schema 62 inserts the new Lv.10 opening tier. Shift existing caps up
+      // one stage so no upgraded operator loses a previously unlocked cap.
+      if(fromVersion<62) role.breakStage=Math.min(5,Math.max(0,Math.floor(Number(role.breakStage)||0))+1);
     }
   }
   if(fromVersion !== SAVE_VERSION){
@@ -3660,17 +3440,21 @@ function loadGame(){
     if(typeof d.dungeonCandyDailyKey === "string") dungeonCandyDailyKey = d.dungeonCandyDailyKey;
     if(typeof d.dungeonRewardMultiplier === "number") dungeonRewardMultiplier = clamp(Math.floor(d.dungeonRewardMultiplier),1,4);
     if(typeof d.materialDungeonDifficulty === "number") materialDungeonDifficulty = clamp(Math.floor(d.materialDungeonDifficulty),1,6);
-    if(d.materialDungeonDifficulties && typeof d.materialDungeonDifficulties === "object") materialDungeonDifficulties={
+    if(d.materialDungeonDifficulties && typeof d.materialDungeonDifficulties === "object") materialDungeonDifficulties=Object.assign({
       gold:clamp(Math.floor(d.materialDungeonDifficulties.gold||1),1,6),
       exp:clamp(Math.floor(d.materialDungeonDifficulties.exp||1),1,6),
       weapon:clamp(Math.floor(d.materialDungeonDifficulties.weapon||1),1,6),
       module:clamp(Math.floor(d.materialDungeonDifficulties.module||2),2,6),
-      skill:clamp(Math.floor(d.materialDungeonDifficulties.skill||1),1,6)
-    };
-    if(typeof d.materialDungeonSelected === "number") materialDungeonSelected = clamp(Math.floor(d.materialDungeonSelected),0,4);
+      skill:clamp(Math.floor(d.materialDungeonDifficulties.skill||1),1,6),
+      screw:clamp(Math.floor(d.materialDungeonDifficulties.screw||1),1,6)
+    },Object.fromEntries(Object.entries(d.materialDungeonDifficulties).map(([k,v])=>[k,clamp(Math.floor(+v||1),1,6)])));
+    if(typeof d.materialDungeonSelected === "number") materialDungeonSelected = clamp(Math.floor(d.materialDungeonSelected),0,materialDungeonsV42().length-1);
     if(typeof d.bossMultiplier === "number") bossMultiplier = clamp(Math.floor(d.bossMultiplier),1,4);
     if(typeof d.bossKrosWeeklyKey === "string") bossKrosWeeklyKey = d.bossKrosWeeklyKey;
     if(typeof d.dragonClaw === "number") dragonClaw = Math.max(0, Math.floor(d.dragonClaw));
+    if(typeof d.crystalHand === "number") crystalHand = Math.max(0, Math.floor(d.crystalHand));
+    if(d.elementalFragments && typeof d.elementalFragments === "object") elementalFragments=Object.assign({fire:0,physical:0,ice:0,wind:0,dark:0,crystal:0},Object.fromEntries(Object.entries(d.elementalFragments).map(([k,v])=>[k,Math.max(0,Math.floor(+v||0))])));
+    if(typeof d.materialDungeonScroll === "number") materialDungeonScroll=Math.max(0,d.materialDungeonScroll);
     normalizeDungeonRuntime();
     if(typeof d.audioMuted === "boolean") audioMuted = d.audioMuted;
     if(typeof d.bgmVolume === "number") bgmVolume = clamp(d.bgmVolume, 0, 1);
@@ -4114,9 +3898,11 @@ function protagonistName(){
 const PROTAGONIST_STORY_LEVEL_CAPS = [10,10,20,30,40,50,60];
 
 function currentStoryChapterForGrowth(){
-  if(typeof currentChapter === "number") return clamp(currentChapter,0,6);
-  if(typeof progressChapter === "number") return clamp(progressChapter,0,6);
-  return 1;
+  try{
+    if(cleared && (cleared.ch2_complete||cleared.ch2_11)) return 2;
+    if(cleared && cleared["ch1_10"]) return 1;
+  }catch(e){}
+  return 0;
 }
 function protagonistStoryLevelCap(){
   const ch = currentStoryChapterForGrowth();
@@ -4146,7 +3932,9 @@ function protagonistSkillLevelFromLevel(lv){
 function syncProtagonistStoryLevelFromProgress(){
   let lv = 1;
   try{
-    if(cleared && cleared[11]) lv = 10;
+    if(cleared && (cleared.ch2_complete||cleared.ch2_11)) lv = 30;
+    else if(cleared && cleared["ch1_10"]) lv = 20;
+    else if(cleared && cleared[11]) lv = 10;
     else{
       for(let i=1;i<=10;i++){
         if(cleared && cleared[i]) lv = Math.max(lv, Math.min(9, i));
@@ -4319,11 +4107,14 @@ let moduleWarehouseSortMode = "grade";
 let selectedWeaponId = "";
 let shopWeaponSelectedId = "sun_blade";
 let tutorialCompleted = false;
-const BREAK_LEVEL_CAPS=[20,30,40,50,60];
-const BREAK_COSTS=[{mat:8,gold:2000},{mat:12,gold:4000},{mat:16,gold:7000},{mat:24,gold:12000}];
-function roleBreakStage(i){ return Math.max(0,Math.min(4,Math.floor(Number(charData[i]&&charData[i].breakStage)||0))); }
-function roleLevelCap(i){ return isProtagonist(i)?protagonistLevel():BREAK_LEVEL_CAPS[roleBreakStage(i)]; }
-function canBreakthrough(i){ return !isProtagonist(i)&&roleDisplayLevel(i)>=roleLevelCap(i)&&roleBreakStage(i)<4; }
+const BREAK_LEVEL_CAPS=[10,20,30,40,50,60];
+const BREAK_COSTS=[
+  {boss:1,shards:4,gold:2500},{boss:2,shards:8,gold:6000},{boss:3,shards:14,gold:12000},
+  {boss:5,shards:22,gold:22000},{boss:8,shards:34,gold:38000}
+];
+function roleBreakStage(i){ return Math.max(0,Math.min(5,Math.floor(Number(charData[i]&&charData[i].breakStage)||0))); }
+function roleLevelCap(i){ return isProtagonist(i)?protagonistLevel():Math.min(BREAK_LEVEL_CAPS[roleBreakStage(i)],protagonistStoryLevelCap()); }
+function canBreakthrough(i){const st=roleBreakStage(i);return !isProtagonist(i)&&roleDisplayLevel(i)>=roleLevelCap(i)&&st<5&&BREAK_LEVEL_CAPS[st+1]<=protagonistStoryLevelCap();}
 
 let playerName = "PLAYER";
 let playerUID = "";
@@ -5140,7 +4931,10 @@ function drawPageHeader(title, subtitle=""){
 function createEnemy(x,y,boss=false,type="normal"){
   type = type || "normal";
   const commissionStage = battleModeSource==="commission" ? currentCommissionStage() : null;
-  const stageScale = commissionStage ? commissionStage.lv : (selectedStage || 1);
+  const materialScale=battleModeSource==="materialDungeon"?10+Math.max(1,(materialDungeonRun&&materialDungeonRun.difficulty)||materialDungeonDifficulty||1)*10:0;
+  const stageScale = battleModeSource==="crystalWar"
+    ? crystalWarScaledLevel()
+    : ((materialScale||commissionStage) ? (materialScale||(commissionStage&&commissionStage.lv)) : (selectedStage||1));
   const hp = boss ? 1650 + stageScale*95 : type==="shield" ? 760 + stageScale*45 : type==="berserker" ? 620 + stageScale*38 : type==="ranged" ? 470 + stageScale*30 : type==="sniper" ? 430 + stageScale*28 : type==="skirmisher" ? 520 + stageScale*32 : type==="support" ? 620 + stageScale*36 : type==="elite" ? 820 + stageScale*48 : 560 + stageScale*34;
   const shield = boss ? 880 + stageScale*65 : type==="shield" ? 520 + stageScale*42 : type==="elite" ? 360 + stageScale*30 : type==="support" ? 240 + stageScale*20 : type==="ranged" ? 180 + stageScale*18 : type==="sniper" ? 120 + stageScale*12 : 0;
   const lv = boss ? stageScale + 7 : type==="elite" ? stageScale + 4 : type==="shield" ? stageScale + 2 : type==="berserker" ? stageScale + 3 : ["ranged","sniper","skirmisher","support"].includes(type) ? stageScale + 2 : stageScale;
@@ -5163,6 +4957,13 @@ function createEnemy(x,y,boss=false,type="normal"){
     freeze:0,
     chill:0
   };
+}
+
+function crystalWarScaledLevel(){
+  const active=Array.isArray(team)&&team.length?team:[player&&player.role||0];
+  const levels=active.map(i=>Math.max(1,roleDisplayLevel(i)||1));
+  const average=levels.reduce((a,b)=>a+b,0)/Math.max(1,levels.length);
+  return Math.max(1,Math.round(average+Math.max(0,area-1)*1.5));
 }
 
 
@@ -5328,7 +5129,7 @@ function addPlayerExp(amount){
   // Slow only the very early account curve so new players have time to learn
   // each newly introduced system. Character and weapon growth are unchanged.
   const earlyRate=playerLevel<5?.68:playerLevel<10?.82:1;
-  amount=Math.max(1,Math.floor((amount||0)*earlyRate));
+  amount=Math.max(1,Math.floor((amount||0)*earlyRate*3));
   playerExp += amount;
   while(playerExp >= playerExpNeed){
     playerExp -= playerExpNeed;
@@ -5519,9 +5320,21 @@ function grantPZDaydreamReward(pack){
   if(pack.gold){gold+=Math.max(0,Math.floor(pack.gold));totalGoldEarned+=Math.max(0,Math.floor(pack.gold));}
   if(pack.expBooks)expBooks+=Math.max(0,Math.floor(pack.expBooks));
   if(pack.weaponOre)weaponOre+=Math.max(0,Math.floor(pack.weaponOre));
+  if(pack.fragmentAll)for(const key of Object.keys(elementalFragments))elementalFragments[key]+=Math.max(0,Math.floor(pack.fragmentAll));
   saveGame();autoCloudSaveNow(true);checkAchievements();
 }
 window.grantPZDaydreamReward=grantPZDaydreamReward;
+
+function grantPZCrystalWarReward(pack){
+  pack=pack||{};
+  if(pack.crystals)grantFreeCrystals(Math.max(0,Math.floor(pack.crystals)));
+  if(pack.gold){const n=Math.max(0,Math.floor(pack.gold));gold+=n;totalGoldEarned+=n;}
+  if(pack.expBooks)expBooks+=Math.max(0,Math.floor(pack.expBooks));
+  if(pack.weaponOre)weaponOre+=Math.max(0,Math.floor(pack.weaponOre));
+  for(const key of Object.keys(elementalFragments)){const n=Math.max(0,Math.floor(pack["fragment_"+key]||0));if(n)elementalFragments[key]+=n;}
+  saveGame();autoCloudSaveNow(true);checkAchievements();
+}
+window.grantPZCrystalWarReward=grantPZCrystalWarReward;
 
 function rewardText(pack){
   const arr = [];
@@ -5776,6 +5589,124 @@ function setBattleRole(newRole){
   player.role = clamp(newRole, 0, roles.length-1);
   syncPlayerResourcesFromRole();
 }
+
+function resetCrystalWarSector(){
+  crystalWarMines=[];
+  crystalWarMiners=[];
+  crystalWarBuildMenu=false;
+  crystalWarBuildSelected="mineral";
+  crystalWarOreBuffer=0;
+  crystalWarResourceBuffer={rawOre:0,materials:0,scrap:0,fiber:0,wood:0,resin:0,stone:0,herbs:0};
+  crystalWarTerrain=[];
+  crystalWarLastTransferAt=performance.now();
+}
+
+function spawnCrystalWarArea(){
+  enemies=[];projectiles=[];lockTarget=null;areaCleared=false;commissionComplete=false;
+  resetCrystalWarSector();
+  const seed=area*97+selectedStage*13+Math.floor(Math.random()*9973);
+  crystalWarSectorTheme=seed%4;
+  const mineCount=6+Math.min(4,Math.floor(area/4));
+  const resourceTypes=[
+    {resource:"rawOre",device:"mineral",kind:"crystal",z:"晶体原矿",e:"RAW CRYSTAL",color:"#82ffe2",icon:"◆"},
+    {resource:"materials",device:"bio",kind:"growth",z:"基础原料",e:"BASE MATERIAL",color:"#7cc7ff",icon:"▦"},
+    {resource:"scrap",device:"mineral",kind:"metal",z:"废墟合金",e:"RUIN ALLOY",color:"#ffe066",icon:"⬡"},
+    {resource:"fiber",device:"bio",kind:"growth",z:"合成纤维",e:"SYNTH FIBER",color:"#c89cff",icon:"⌁"},
+    {resource:"wood",device:"forestry",kind:"tree",z:"荒地木材",e:"WASTELAND TIMBER",color:"#9bd57d",icon:"♠"},
+    {resource:"resin",device:"forestry",kind:"tree",z:"晶化树脂",e:"CRYSTAL RESIN",color:"#6ff0bd",icon:"♣"},
+    {resource:"stone",device:"mineral",kind:"rock",z:"结构岩",e:"STRUCTURAL STONE",color:"#a8b2c2",icon:"▲"},
+    {resource:"herbs",device:"bio",kind:"growth",z:"复生植株",e:"REVIVAL HERB",color:"#d0ff87",icon:"✣"}
+  ];
+  for(let i=0;i<mineCount;i++){
+    const x=300+((seed+i*211+i*i*17)%690),y=150+((seed*3+i*137+i*i*23)%350),kind=resourceTypes[(seed+i*5)%resourceTypes.length];
+    crystalWarMines.push({id:"cw-"+area+"-"+i,x,y,remaining:55+area*7+((seed+i*31)%25),quality:1+(i+area)%3,...kind});
+  }
+  for(let i=0;i<18;i++)crystalWarTerrain.push({x:245+((seed+i*173)%790),y:120+((seed*7+i*109)%410),kind:(seed+i*3)%4,size:12+((seed+i*19)%28),rot:((seed+i*37)%628)/100});
+  const count=Math.min(8,2+Math.floor(area*.65));
+  const types=["normal","skirmisher","ranged","shield","support","berserker"];
+  for(let i=0;i<count;i++)enemies.push(createEnemy(610+(i%4)*115,H/2+25+(i%3)*70,false,types[(seed+i)%types.length]));
+  if(area%10===0)enemies.push(createEnemy(770,H/2+90,true,"boss"));
+  showCenter((language==="en"?"CRYSTAL FRONT · SECTOR ":"晶体战区 · 区段 ")+area+" · Lv."+crystalWarScaledLevel(),65);
+}
+
+function crystalWarBattleBonuses(){
+  return window.PZCrystalWar&&typeof window.PZCrystalWar.getBattleBonuses==="function"?window.PZCrystalWar.getBattleBonuses():{mining:1,extraOre:0,sectorReward:1};
+}
+
+function settleCrystalWarExit(defeated=false){
+  const pack={};for(const k of Object.keys(crystalWarResourceBuffer||{})){const n=Math.floor(crystalWarResourceBuffer[k]||0);if(n)pack[k]=n;}
+  if(Object.keys(pack).length&&window.PZCrystalWar&&typeof window.PZCrystalWar.grantBattleResources==="function")window.PZCrystalWar.grantBattleResources(pack);
+  if(window.PZCrystalWar&&typeof window.PZCrystalWar.settleBattle==="function")window.PZCrystalWar.settleBattle(area,defeated);
+  crystalWarOreBuffer=0;crystalWarResourceBuffer={rawOre:0,materials:0,scrap:0,fiber:0,wood:0,resin:0,stone:0,herbs:0};
+}
+
+function updateCrystalWarIndustry(){
+  if(battleModeSource!=="crystalWar")return;
+  if(justPressed("b")){
+    crystalWarBuildMenu=!crystalWarBuildMenu;
+    mouseDown=false;mouseAttackConsumed=true;clicked=false;
+    showActionPrompt(crystalWarBuildMenu?(language==="en"?"BUILD MODE · SELECT A CRYSTAL DEPOSIT":"建设模式 · 选择晶体矿脉"):(language==="en"?"BUILD MODE CLOSED":"已关闭建设模式"),55);
+  }
+  if(crystalWarBuildMenu&&clicked){
+    if(inRect(W-235,H-145,195,58)){crystalWarBuildSelected="miner";clicked=false;mouseDown=false;mouseAttackConsumed=true;}
+    else{
+      for(const mine of crystalWarMines){
+        if(!inRect(mine.x-38,mine.y-34,76,68))continue;
+        if(crystalWarMiners.some(m=>m.mineId===mine.id)){showActionPrompt(language==="en"?"A MINER IS ALREADY DEPLOYED":"该矿脉已经部署采集设备",50);}
+        else if(mine.remaining<=0){showActionPrompt(language==="en"?"DEPOSIT DEPLETED":"矿脉已经枯竭",50);}
+        else{crystalWarMiners.push({mineId:mine.id,progress:0});showCenter(language==="en"?"MINER DEPLOYED":"采矿设备已部署",45);}
+        clicked=false;mouseDown=false;mouseAttackConsumed=true;break;
+      }
+    }
+  }
+  const bonus=crystalWarBattleBonuses();
+  for(const miner of crystalWarMiners){const mine=crystalWarMines.find(m=>m.id===miner.mineId);if(!mine||mine.remaining<=0)continue;miner.progress+=frameScale/60*(bonus.mining||1);if(miner.progress>=2.5){miner.progress-=2.5;const amount=Math.min(mine.remaining,mine.quality+(bonus.extraOre||0));mine.remaining-=amount;crystalWarResourceBuffer[mine.resource]=(crystalWarResourceBuffer[mine.resource]||0)+amount;crystalWarOreBuffer+=amount;}}
+  if(crystalWarOreBuffer>0&&performance.now()-crystalWarLastTransferAt>=2500){const pack={};for(const k of Object.keys(crystalWarResourceBuffer)){const n=Math.floor(crystalWarResourceBuffer[k]);if(n){pack[k]=n;crystalWarResourceBuffer[k]-=n;}}const sent=Object.values(pack).reduce((a,b)=>a+b,0);crystalWarOreBuffer=Math.max(0,crystalWarOreBuffer-sent);crystalWarLastTransferAt=performance.now();if(window.PZCrystalWar&&typeof window.PZCrystalWar.grantBattleResources==="function")window.PZCrystalWar.grantBattleResources(pack);else if(window.PZCrystalWar&&typeof window.PZCrystalWar.grantBattleOre==="function")window.PZCrystalWar.grantBattleOre(pack.rawOre||0);addText(170,150,(language==="en"?"HUB TRANSFER +":"中枢回传 +")+sent,"#82ffe2",true);}
+}
+
+function drawCrystalWarIndustry(){
+  if(battleModeSource!=="crystalWar")return;
+  ctx.save();
+  const haze=["rgba(54,68,81,.07)","rgba(90,63,52,.07)","rgba(55,76,63,.07)","rgba(63,55,84,.07)"][crystalWarSectorTheme]||"rgba(54,68,81,.07)";ctx.fillStyle=haze;ctx.fillRect(220,82,W-250,H-110);
+  for(const o of crystalWarTerrain){ctx.save();ctx.translate(o.x,o.y);ctx.rotate(o.rot);ctx.fillStyle=o.kind===0?"rgba(96,111,122,.3)":o.kind===1?"rgba(75,92,105,.28)":o.kind===2?"rgba(111,83,72,.25)":"rgba(91,78,119,.24)";if(o.kind===0)ctx.fillRect(-o.size*.7,-o.size*.16,o.size*1.4,o.size*.32);else{ctx.beginPath();ctx.moveTo(-o.size,8);ctx.lineTo(-o.size*.25,-o.size);ctx.lineTo(o.size*.65,-o.size*.25);ctx.lineTo(o.size,8);ctx.closePath();ctx.fill();}ctx.restore();}
+  for(const mine of crystalWarMines){const active=crystalWarMiners.some(m=>m.mineId===mine.id);ctx.shadowBlur=active?22:12;ctx.shadowColor=mine.color;ctx.fillStyle=mine.remaining>0?(active?mine.color:"#4f5874"):"#333a45";ctx.beginPath();ctx.moveTo(mine.x,mine.y-30);ctx.lineTo(mine.x+30,mine.y+18);ctx.lineTo(mine.x,mine.y+34);ctx.lineTo(mine.x-30,mine.y+18);ctx.closePath();ctx.fill();ctx.strokeStyle=active?"#fff":"rgba(255,255,255,.5)";ctx.lineWidth=2;ctx.stroke();ctx.shadowBlur=0;ctx.fillStyle="#fff";ctx.font="bold 10px "+FONT_UI;ctx.textAlign="center";ctx.fillText((language==="en"?mine.e:mine.z)+" "+Math.floor(mine.remaining),mine.x,mine.y+52);if(active){ctx.strokeStyle=mine.color;ctx.setLineDash([7,7]);ctx.beginPath();ctx.moveTo(mine.x,mine.y);ctx.lineTo(150,150);ctx.stroke();ctx.setLineDash([]);}}
+  ctx.fillStyle="rgba(6,15,26,.94)";ctx.fillRect(82,118,136,65);ctx.strokeStyle="#82ffe2";ctx.strokeRect(82,118,136,65);ctx.fillStyle="#82ffe2";ctx.font="bold 25px "+FONT_UI;ctx.textAlign="center";ctx.fillText("◆",150,150);ctx.fillStyle="#fff";ctx.font="10px "+FONT_UI;ctx.fillText(language==="en"?"FIELD HUB":"战区中枢",150,171);
+  ctx.restore();
+  if(crystalWarBuildMenu){ctx.save();ctx.fillStyle="rgba(4,9,18,.82)";ctx.fillRect(W-250,H-183,220,113);ctx.strokeStyle="#ffe066";ctx.lineWidth=1.5;ctx.strokeRect(W-250,H-183,220,113);ctx.fillStyle="#fff";ctx.font="bold 12px "+FONT_UI;ctx.textAlign="left";ctx.fillText(language==="en"?"DEVICE RACK [B]":"设备栏 [B]",W-235,H-157);ctx.fillStyle="rgba(130,255,226,.14)";ctx.fillRect(W-235,H-145,195,58);ctx.strokeStyle="#82ffe2";ctx.strokeRect(W-235,H-145,195,58);ctx.fillStyle="#82ffe2";ctx.font="bold 19px "+FONT_UI;ctx.fillText("▦",W-222,H-110);ctx.fillStyle="#fff";ctx.font="bold 11px "+FONT_UI;ctx.fillText(language==="en"?"UNIVERSAL MINER":"通用采集设备",W-192,H-121);ctx.fillStyle="rgba(255,255,255,.55)";ctx.font="9px "+FONT_UI;ctx.fillText(language==="en"?"Click any resource node":"点击任意资源点部署",W-192,H-103);ctx.restore();}
+  ctx.save();ctx.fillStyle="rgba(5,10,19,.78)";ctx.fillRect(390,18,330,45);ctx.strokeStyle="rgba(130,255,226,.35)";ctx.strokeRect(390,18,330,45);ctx.fillStyle="#82ffe2";ctx.font="bold 12px "+FONT_UI;ctx.textAlign="center";ctx.fillText((language==="en"?"ENDLESS SECTOR ":"无限区段 ")+area+"  ·  B "+(language==="en"?"DEVICE RACK":"设备栏"),555,46);ctx.restore();
+}
+
+function crystalWarDeviceFor(id){return CRYSTAL_WAR_FIELD_DEVICES.find(v=>v.id===id)||CRYSTAL_WAR_FIELD_DEVICES[0];}
+function harvestCrystalWarNodeByAttack(){
+  if(battleModeSource!=="crystalWar"||crystalWarBuildMenu)return false;
+  const sx=player.x+player.facing*55,sy=player.y;
+  const mine=crystalWarMines.filter(v=>v.remaining>0&&withinDist(sx,sy,v.x,v.y,112)).sort((a,b)=>dist(sx,sy,a.x,a.y)-dist(sx,sy,b.x,b.y))[0];
+  if(!mine)return false;
+  const at=performance.now();if(at-(mine.lastHitAt||0)<260)return false;mine.lastHitAt=at;
+  const amount=Math.min(mine.remaining,Math.max(1,Math.floor(1+roleDisplayLevel(player.role)/20)));mine.remaining-=amount;crystalWarResourceBuffer[mine.resource]=(crystalWarResourceBuffer[mine.resource]||0)+amount;crystalWarOreBuffer+=amount;
+  addParticles(mine.x,mine.y,mine.color,8,4);addText(mine.x,mine.y-38,(language==="en"?"HARVEST +":"采集 +")+amount,mine.color,true);return true;
+}
+function updateCrystalWarIndustryV8(){
+  if(battleModeSource!=="crystalWar")return;
+  if(justPressed("b")){crystalWarBuildMenu=!crystalWarBuildMenu;mouseDown=false;mouseAttackConsumed=true;clicked=false;showActionPrompt(crystalWarBuildMenu?(language==="en"?"DEVICE RACK OPEN · SELECT A DEVICE, THEN A RESOURCE":"设备栏已打开 · 先选设备，再选资源点"):(language==="en"?"DEVICE RACK CLOSED":"设备栏已关闭"),55);}
+  if(crystalWarBuildMenu&&clicked){
+    let handled=false;
+    for(let i=0;i<CRYSTAL_WAR_FIELD_DEVICES.length;i++){const y=112+i*58;if(inRect(W-317,y,272,50)){crystalWarBuildSelected=CRYSTAL_WAR_FIELD_DEVICES[i].id;handled=true;break;}}
+    if(!handled)for(const mine of crystalWarMines){if(!inRect(mine.x-42,mine.y-42,84,84))continue;const device=crystalWarDeviceFor(crystalWarBuildSelected);if(crystalWarMiners.some(m=>m.mineId===mine.id))showActionPrompt(language==="en"?"A DEVICE IS ALREADY WORKING HERE":"该资源点已有设备",50);else if(mine.remaining<=0)showActionPrompt(language==="en"?"RESOURCE DEPLETED":"资源点已经枯竭",50);else if(!device.resources.includes(mine.resource))showActionPrompt((language==="en"?"WRONG DEVICE · USE ":"设备不匹配 · 需要 ")+(language==="en"?crystalWarDeviceFor(mine.device).e:crystalWarDeviceFor(mine.device).z),70);else{crystalWarMiners.push({mineId:mine.id,device:device.id,progress:0,phase:Math.random()*6.28});showCenter((language==="en"?device.e:device.z)+(language==="en"?" DEPLOYED":" 已部署"),45);}handled=true;break;}
+    if(handled){clicked=false;mouseDown=false;mouseAttackConsumed=true;}
+  }
+  const bonus=crystalWarBattleBonuses();
+  for(const miner of crystalWarMiners){const mine=crystalWarMines.find(m=>m.id===miner.mineId);if(!mine||mine.remaining<=0)continue;miner.phase=(miner.phase||0)+frameScale*.06;miner.progress+=frameScale/60*(bonus.mining||1);if(miner.progress>=2.25){miner.progress-=2.25;const amount=Math.min(mine.remaining,mine.quality+(bonus.extraOre||0));mine.remaining-=amount;crystalWarResourceBuffer[mine.resource]=(crystalWarResourceBuffer[mine.resource]||0)+amount;crystalWarOreBuffer+=amount;}}
+  if(crystalWarOreBuffer>0&&performance.now()-crystalWarLastTransferAt>=2500){const pack={};for(const k of Object.keys(crystalWarResourceBuffer)){const n=Math.floor(crystalWarResourceBuffer[k]);if(n){pack[k]=n;crystalWarResourceBuffer[k]-=n;}}const sent=Object.values(pack).reduce((a,b)=>a+b,0);crystalWarOreBuffer=Math.max(0,crystalWarOreBuffer-sent);crystalWarLastTransferAt=performance.now();if(window.PZCrystalWar&&typeof window.PZCrystalWar.grantBattleResources==="function")window.PZCrystalWar.grantBattleResources(pack);addText(185,152,(language==="en"?"REMOTE TRANSFER +":"远程回传 +")+sent,"#82ffe2",true);}
+}
+function drawCrystalWarIndustryV8(){
+  if(battleModeSource!=="crystalWar")return;ctx.save();const haze=["rgba(54,68,81,.08)","rgba(90,63,52,.08)","rgba(55,76,63,.08)","rgba(63,55,84,.08)"][crystalWarSectorTheme]||"rgba(54,68,81,.08)";ctx.fillStyle=haze;ctx.fillRect(0,82,W,H-82);
+  for(const o of crystalWarTerrain){ctx.save();ctx.translate(o.x,o.y);ctx.rotate(o.rot);ctx.fillStyle=o.kind===0?"rgba(96,111,122,.28)":o.kind===1?"rgba(75,92,105,.25)":o.kind===2?"rgba(111,83,72,.23)":"rgba(91,78,119,.22)";ctx.beginPath();ctx.moveTo(-o.size,8);ctx.lineTo(-o.size*.3,-o.size*.65);ctx.lineTo(o.size*.7,-o.size*.25);ctx.lineTo(o.size,8);ctx.closePath();ctx.fill();ctx.restore();}
+  for(const mine of crystalWarMines){const miner=crystalWarMiners.find(m=>m.mineId===mine.id),active=!!miner;ctx.save();ctx.translate(mine.x,mine.y);ctx.shadowBlur=active?20:10;ctx.shadowColor=mine.color;if(mine.kind==="tree"){ctx.fillStyle="#3d342b";ctx.fillRect(-6,-4,12,38);ctx.fillStyle=mine.remaining>0?mine.color:"#3f4645";ctx.beginPath();ctx.arc(0,-18,27,0,Math.PI*2);ctx.arc(-18,-4,19,0,Math.PI*2);ctx.arc(18,-4,19,0,Math.PI*2);ctx.fill();}else if(mine.kind==="growth"){ctx.strokeStyle=mine.color;ctx.lineWidth=5;for(let i=0;i<5;i++){ctx.save();ctx.rotate(i*Math.PI*2/5);ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(0,-28);ctx.stroke();ctx.restore();}ctx.fillStyle=mine.color;ctx.beginPath();ctx.arc(0,0,10,0,Math.PI*2);ctx.fill();}else{ctx.fillStyle=mine.remaining>0?(active?mine.color:"#536075"):"#333a45";ctx.beginPath();ctx.moveTo(0,-30);ctx.lineTo(30,18);ctx.lineTo(0,34);ctx.lineTo(-30,18);ctx.closePath();ctx.fill();}ctx.shadowBlur=0;if(active){const device=crystalWarDeviceFor(miner.device),a=performance.now()/420+(miner.phase||0);ctx.fillStyle="rgba(5,12,20,.96)";ctx.fillRect(-25,18,50,18);ctx.strokeStyle=device.color;ctx.lineWidth=3;ctx.beginPath();ctx.arc(0,4,18,a,a+Math.PI*1.55);ctx.stroke();ctx.fillStyle=device.color;ctx.fillRect(-4,-2,8,18);}ctx.restore();ctx.fillStyle="#fff";ctx.font="bold 9px "+FONT_UI;ctx.textAlign="center";ctx.fillText((language==="en"?mine.e:mine.z)+" "+Math.floor(mine.remaining),mine.x,mine.y+57);}
+  ctx.restore();
+  if(crystalWarBuildMenu){ctx.save();const x=W-330,y=76,w=300,h=224;ctx.fillStyle="rgba(4,9,18,.94)";ctx.fillRect(x,y,w,h);ctx.strokeStyle="#ffe066";ctx.strokeRect(x,y,w,h);ctx.fillStyle="#fff";ctx.font="bold 12px "+FONT_UI;ctx.textAlign="left";ctx.fillText(language==="en"?"FIELD DEVICE RACK [B]":"战区设备栏 [B]",x+15,y+25);CRYSTAL_WAR_FIELD_DEVICES.forEach((d,i)=>{const yy=112+i*58,on=crystalWarBuildSelected===d.id;ctx.fillStyle=on?"rgba(130,255,226,.18)":"rgba(255,255,255,.055)";ctx.fillRect(W-317,yy,272,50);ctx.strokeStyle=on?d.color:"rgba(255,255,255,.15)";ctx.strokeRect(W-317,yy,272,50);ctx.fillStyle=d.color;ctx.font="bold 18px "+FONT_UI;ctx.fillText(d.icon,W-302,yy+30);ctx.fillStyle="#fff";ctx.font="bold 10px "+FONT_UI;ctx.fillText(language==="en"?d.e:d.z,W-270,yy+20);ctx.fillStyle="rgba(255,255,255,.5)";ctx.font="8px "+FONT_UI;ctx.fillText(d.resources.map(k=>({rawOre:"晶矿",scrap:"合金",stone:"岩石",wood:"树材",resin:"树脂",materials:"原料",fiber:"纤维",herbs:"植株"}[k]||k)).join(" / "),W-270,yy+37);});ctx.restore();}
+  ctx.save();ctx.fillStyle="rgba(5,10,19,.82)";ctx.fillRect(370,18,380,45);ctx.strokeStyle="rgba(130,255,226,.35)";ctx.strokeRect(370,18,380,45);ctx.fillStyle="#82ffe2";ctx.font="bold 11px "+FONT_UI;ctx.textAlign="center";ctx.fillText((language==="en"?"SECTOR ":"无限区段 ")+area+" · ENEMY Lv."+crystalWarScaledLevel()+" · B "+(language==="en"?"DEVICE RACK":"设备栏"),560,46);ctx.restore();
+}
 function startBattle(){
   // Defensive gate: stale bossKros state must never replace a normal stage.
   if(battleModeSource==="bossKros" && (!bossKrosRun || selectedTab!=="dungeon")) resetBattleSourceToMain();
@@ -5794,7 +5725,7 @@ function startBattle(){
     const st=currentCommissionStage(); commissionTimeMax=st.time||180; commissionTimeLeft=commissionTimeMax;
   }
   chapter2EvacTimeLeft=battleModeSource==="main"&&selectedMainChapter===2&&selectedStage===10?180:0;
-  spawnArea(); showCenter(battleModeSource==="showcase"?(language==="en"?"MAX BUILD · TRAINING":"满配模板 · 训练"):(battleModeSource==="daydream" ? ((language==="en"?"DAYDREAM · ":"白日梦 · ")+(daydreamBattleConfig?daydreamBattleConfig.name:"")) : (battleModeSource==="projectArea" ? "Project Area" : (battleModeSource==="materialDungeon" ? ((language==="en"?"Material Dungeon":"材料副本")+" "+roman(materialDungeonDifficulty)) : (battleModeSource==="commission" ? ("C"+currentCommissionStage().chapter+"-"+currentCommissionStage().localId) : stageCode(selectedStage))))),70);
+  spawnArea(); showCenter(battleModeSource==="crystalWar"?(language==="en"?"CRYSTAL WAR · ENDLESS FRONT":"晶体战争 · 无限战区"):(battleModeSource==="showcase"?(language==="en"?"MAX BUILD · TRAINING":"满配模板 · 训练"):(battleModeSource==="daydream" ? ((language==="en"?"DAYDREAM · ":"白日梦 · ")+(daydreamBattleConfig?daydreamBattleConfig.name:"")) : (battleModeSource==="projectArea" ? "Project Area" : (battleModeSource==="materialDungeon" ? ((language==="en"?"Material Dungeon":"材料副本")+" "+roman(materialDungeonDifficulty)) : (battleModeSource==="commission" ? ("C"+currentCommissionStage().chapter+"-"+currentCommissionStage().localId) : stageCode(selectedStage)))))),70);
 }
 function enterLobby(){
   releaseMobileButtons();
@@ -6701,6 +6632,7 @@ function updateKaneCombatEffects(){
 
 function attack(){
   damageNearbyBattleCrates(player.x+player.facing*55,player.y,105);
+  harvestCrystalWarNodeByAttack();
   if(isProtagonist(player.role)){ protagonistAttack(); return; }
   if(isFloraRole()){ floraAttack(); return; }
   if(player.role===1){ ailoAttack(); return; }
@@ -6953,7 +6885,11 @@ function updateDefeat(){
   }
   if((clicked&&inRect(W/2+30,H/2+62,220,56)) || justPressed("escape")){
     clicked=false;
-    if(battleModeSource==="daydream"){
+    if(battleModeSource==="crystalWar"){
+      settleCrystalWarExit(true);
+      selectedTab="dualCrystal";if(window.PZCrystalWar&&typeof window.PZCrystalWar.returnFromBattle==="function")window.PZCrystalWar.returnFromBattle();
+    }
+    else if(battleModeSource==="daydream"){
       if(window.PZDaydream&&typeof window.PZDaydream.completeBattle==="function") window.PZDaydream.completeBattle(false);
       selectedTab="daydream";
       battleModeSource="main";
@@ -8026,7 +7962,6 @@ function updateLogin(){
   if(cloudUser){
     if(clicked || justPressed("enter") || justPressed(" ")){
       clicked=false;
-      if(window.PZFirstTestExpiry && window.PZFirstTestExpiry.blockStartIfExpired()) return;
       startLoggedInAccountGame();
     }
     clicked=false;
@@ -8036,7 +7971,6 @@ function updateLogin(){
   if(guestMode && hasCreatedProfile && validPlayerName(playerName)){
     if(clicked || justPressed("enter") || justPressed(" ")){
       clicked=false;
-      if(window.PZFirstTestExpiry && window.PZFirstTestExpiry.blockStartIfExpired()) return;
       setStoredGuestSessionActive(true);
       explicitGuestSession=true;
       startLoading(startTargetAfterAuth());
@@ -8460,8 +8394,8 @@ function drawLobbyStarterGuide(){
 
 function updateLobby(){
   menuPulse++;
-  const parallaxTargetX=clamp((mouseX-W/2)/W*8,-4,4);
-  const parallaxTargetY=clamp((mouseY-H/2)/H*6,-3,3);
+  const parallaxTargetX=clamp((mouseX-W/2)/W*4,-2,2);
+  const parallaxTargetY=clamp((mouseY-H/2)/H*2,-1,1);
   lobbyParallaxX+=(parallaxTargetX-lobbyParallaxX)*.08;
   lobbyParallaxY+=(parallaxTargetY-lobbyParallaxY)*.08;
   if(!lobbyCheckinOpen&&!lobbyNoticeOpen&&!staminaRecoverOpen&&Date.now()>=lobbyDialogueNextAt) showLobbyDialogue("idle");
@@ -8643,7 +8577,7 @@ function normalizeDungeonRuntimeLegacyV41(){
   }
   dungeonRewardMultiplier = clamp(Math.floor(dungeonRewardMultiplier || 1), 1, 4);
   materialDungeonDifficulty = clamp(Math.floor(materialDungeonDifficulty || 1), 1, 6);
-  materialDungeonSelected = clamp(Math.floor(materialDungeonSelected || 0), 0, 3);
+  materialDungeonSelected = clamp(Math.floor(materialDungeonSelected || 0), 0, materialDungeons().length-1);
 }
 
 function dungeonModes(){
@@ -8933,6 +8867,17 @@ function updateOperation(){
     selectedTab="main";mainChapterView="chapters";operationDetailVisible=false;
   }
   if(updateStaminaRecoverOverlay()) return;
+  const crystalWarFullscreen=selectedTab==="dualCrystal"&&window.PZCrystalWar&&typeof window.PZCrystalWar.isFullscreen==="function"&&window.PZCrystalWar.isFullscreen();
+  if(selectedTab==="dualCrystal" && window.PZCrystalWar && crystalWarFullscreen){
+    if(justPressed("escape")){
+      if(!window.PZCrystalWar.handleEscape()) enterLobby();
+      clicked=false;
+      return;
+    }
+    if(clicked) window.PZCrystalWar.handleClick();
+    clicked=false;
+    return;
+  }
   if(justPressed("escape")){
     if(selectedTab==="daydream" && window.PZDaydream){
       const handled=typeof window.PZDaydream.handleEscape==="function"&&window.PZDaydream.handleEscape();
@@ -8956,6 +8901,14 @@ function updateOperation(){
   }
   if(clicked){
     let handled = false;
+
+    // The Dual Crystal selector is embedded in Operation. Its two cards get
+    // first chance at the click, while unhandled clicks continue to the shared
+    // bottom tabs and Back to Lobby button.
+    if(selectedTab==="dualCrystal"&&window.PZCrystalWar&&!crystalWarFullscreen){
+      handled=!!window.PZCrystalWar.handleClick();
+      if(handled){clicked=false;return;}
+    }
 
     // Fullscreen Daydream owns the entire game canvas. Consume the click here
     // so its UI can never fall through to the operation tabs underneath.
@@ -9005,15 +8958,10 @@ function updateOperation(){
       if(!canUseSideStory()){ showFeatureLocked("chapter0"); handled=true; }
       else handled = setOperationTabWithGuide("sideStory", "sideStory");
     }else if(inRect(690,595,135,38)){
-      if(!canUseDaydream()){ showFeatureLocked("chapter2"); handled=true; }
-      else handled = setOperationTabWithGuide("daydream", "daydream", function(){
-        seeContent("daydream");
-        if(window.PZDaydream){
-          window.PZDaydream.selectedDaydreamScenario=null;
-          window.PZDaydream.page="home";
-          window.PZDaydream.archiveInline=true;
-        }
-      });
+      selectedTab="dualCrystal";
+      operationDetailVisible=false;
+      if(window.PZCrystalWar) window.PZCrystalWar.openHub();
+      handled=true;
     }else if(inRect(890,595,170,38)){
       enterLobby();
       handled = true;
@@ -9103,6 +9051,8 @@ function completeStoryOnlyStage(){
     granted=grantFreeCrystals(st.reward||0);
     addPlayerExp(500);
     if(selectedMainChapter===0) setProtagonistStoryLevel(Math.min(9,Math.max(protagonistStoryLevel||1,selectedStage)));
+    if(selectedMainChapter===1&&selectedStage===10) setProtagonistStoryLevel(20);
+    if(selectedMainChapter===2&&selectedStage===11) setProtagonistStoryLevel(30);
     checkAchievements();
     saveGame(); autoCloudSaveNow(true);
   }
@@ -9455,6 +9405,7 @@ function updateBattle(){
     battlePaused=true;clicked=false;mouseDown=false;mouseAttackConsumed=false;chloeAttackCharge.active=false;
     return;
   }
+  if(battleModeSource==="crystalWar")updateCrystalWarIndustryV8();
   if(battleModeSource==="commission"){
     commissionTimeLeft=Math.max(0,commissionTimeLeft-frameScale/60);
     if(commissionTimeLeft<=0){ showCenter(language==="en"?"TIME UP":"时间到",70); failMission(); return; }
@@ -9735,6 +9686,16 @@ function openPZDaydreamTeamSetup(squad){
 }
 window.openPZDaydreamTeamSetup=openPZDaydreamTeamSetup;
 
+function startPZCrystalWarTeamSetup(){
+  crystalWarTeamSetupPending=true;
+  battleModeSource="crystalWar";
+  selectedTab="dualCrystal";
+  clearTransientBattleState();
+  enterTeamSetup();
+  showCenter(language==="en"?"CRYSTAL WAR · SQUAD SETUP":"晶体战争 · 战区编队",55);
+}
+window.startPZCrystalWarTeamSetup=startPZCrystalWarTeamSetup;
+
 function updateTeam(){
   menuPulse++;
 
@@ -9750,7 +9711,8 @@ function updateTeam(){
 
   if(justPressed("escape")){
     saveGame();
-    if(daydreamTeamSetupPending){daydreamTeamSetupPending=false;gameMode="operation";selectedTab="daydream";if(window.PZDaydream)window.PZDaydream.page="setupTraits";}
+    if(crystalWarTeamSetupPending){crystalWarTeamSetupPending=false;gameMode="operation";selectedTab="dualCrystal";if(window.PZCrystalWar&&typeof window.PZCrystalWar.returnFromBattle==="function")window.PZCrystalWar.returnFromBattle();resetBattleSourceToMain();}
+    else if(daydreamTeamSetupPending){daydreamTeamSetupPending=false;gameMode="operation";selectedTab="daydream";if(window.PZDaydream)window.PZDaydream.page="setupTraits";}
     else {resetBattleSourceToMain();gameMode="operation";}
     return;
   }
@@ -9816,12 +9778,13 @@ function updateTeam(){
       if(daydreamTeamSetupPending){
         daydreamTeamSetupPending=false;gameMode="operation";selectedTab="daydream";
         if(window.PZDaydream&&typeof window.PZDaydream.confirmMainTeam==="function")window.PZDaydream.confirmMainTeam(team.slice(0,3));
-      }else startBattle();
+      }else{if(crystalWarTeamSetupPending)crystalWarTeamSetupPending=false;startBattle();}
     }
 
     if(inRect(60,560,220,52)){
       saveGame();
-      if(daydreamTeamSetupPending){daydreamTeamSetupPending=false;gameMode="operation";selectedTab="daydream";if(window.PZDaydream)window.PZDaydream.page="setupTraits";}
+      if(crystalWarTeamSetupPending){crystalWarTeamSetupPending=false;gameMode="operation";selectedTab="dualCrystal";if(window.PZCrystalWar&&typeof window.PZCrystalWar.returnFromBattle==="function")window.PZCrystalWar.returnFromBattle();resetBattleSourceToMain();}
+      else if(daydreamTeamSetupPending){daydreamTeamSetupPending=false;gameMode="operation";selectedTab="daydream";if(window.PZDaydream)window.PZDaydream.page="setupTraits";}
       else {resetBattleSourceToMain();gameMode = "operation";}
     }
   }
@@ -10608,8 +10571,12 @@ function warehouseEntries(){
     {key:"material:ultimate",category:"material",name:tr("终结技档案","Ultimate Record"),count:skillMaterials.ultimate,color:"#c98cff",icon:"Q",source:tr("技能训练副本","Skill Training"),desc:tr("用于升级角色大招。","Used to upgrade ultimates.")},
     {key:"material:candy",category:"material",name:tr("体力糖","Stamina Candy"),count:dungeonCandy,color:"#ff9dc8",icon:"✦",source:tr("活动与签到","Events and check-in"),desc:tr("材料副本消耗资源。","Consumed when entering material dungeons.")},
     {key:"material:stimulant",category:"material",name:tr("体力补充剂","Stamina Stimulant"),count:dungeonStimulant,color:"#70e6ff",icon:"＋",source:tr("活动奖励","Event rewards"),desc:tr("用于补充副本体力。","Restores dungeon stamina.")},
-    {key:"material:claw",category:"material",name:tr("龙爪徽记","Dragon Claw"),count:dragonClaw,color:"#ff837c",icon:"▲",source:tr("高难挑战","High-difficulty challenges"),desc:tr("稀有挑战纪念资源。","Rare challenge token.")}
+    {key:"material:claw",category:"material",name:tr("龙爪","Dragon Claw"),count:dragonClaw,color:"#ff837c",icon:"▲",source:tr("晶体恶龙·克罗斯挑战","Crystal Dragon: Kros Challenge"),desc:tr("芙洛拉的等级突破材料。","Flora's breakthrough material.")},
+    {key:"material:hand",category:"material",name:tr("水晶手","Crystal Hand"),count:crystalHand,color:"#82ffe2",icon:"✋",source:tr("第零章Boss·晶体人挑战","Chapter 0 Boss: Crystal Humanoid"),desc:tr("除隐者外其他执行官的等级突破材料。","Breakthrough material for non-Hermit executors.")},
+    ...Object.entries(elementalFragments).map(([key,count])=>({key:"material:fragment:"+key,category:"material",name:fragmentName(key),count,color:{fire:"#ff785f",physical:"#e6d3a2",ice:"#88d8ff",wind:"#74ffb7",dark:"#b47cff",crystal:"#82ffe2"}[key]||"#fff",icon:"◇",source:tr("属性碎片副本 / 晶体战争商店 / 白日梦等级奖励","Element Fragment Trials / Crystal War Shop / Daydream level rewards"),desc:tr("用于对应属性执行官的等级突破。","Used for breakthroughs of matching-element executors.")}))
   ];
+  const crystalWarState=window.PZCrystalWar&&typeof window.PZCrystalWar.getResourceSnapshot==="function"?window.PZCrystalWar.getResourceSnapshot():(window.PZCrystalWar&&typeof window.PZCrystalWar.getState==="function"?window.PZCrystalWar.getState():null);
+  if(crystalWarState)out.push({key:"material:screws",category:"material",name:tr("基建螺丝","Building Screws"),count:Math.max(0,crystalWarState.screws||0),color:"#79d8e8",icon:"⌘",source:tr("废区回收行动 / 晶体战争商店 / 设备撤回","Salvage Operation / Crystal War Shop / Facility Recall"),desc:tr("用于部署、升级与维护晶体战争设施。","Used to construct, upgrade, and maintain Crystal War facilities.")});
   ensureWeaponBag();
   (weaponInventory||[]).filter(v=>v&&v.owned).forEach(v=>{const d=weaponData(v.id);out.push({key:"weapon:"+v.id,category:"weapon",name:language==="en"?d.nameEn:d.nameZh,count:1,level:v.level||1,rarity:d.rarity,color:d.rarity==="S"?"#ffe066":d.rarity==="A"?"#b98cff":"#7cc7ff",icon:"╱",source:tr("武器获取与奖励","Weapon acquisition and rewards"),desc:language==="en"?d.passiveEn:d.passiveZh,extra:tr("攻击 ","ATK ")+d.baseAtk+"  ·  "+tr("暴击 ","CRIT ")+d.crit+"%"});});
   if(window.PZModules){
@@ -11055,7 +11022,8 @@ function drawEvent(){
       ctx.fillText(ui("day")+(i+1)+ui("daySuffix"),x+cw/2,y+25);
       ctx.fillStyle="#fff";
       ctx.font="13px " + FONT_UI;
-      ctx.fillText(rewardText(r).split(" / ")[0] || mt("rewardWord"),x+cw/2,y+57);
+      ctx.font="11px " + FONT_UI;
+      ctx.fillText(fitTextToWidth(rewardText(r) || mt("rewardWord"),cw-10,11,false),x+cw/2,y+57);
       ctx.fillStyle=claimed?"rgba(255,255,255,.38)":canClaim?"#fff":"rgba(255,255,255,.45)";
       ctx.font="12px " + FONT_UI;
       let status = claimed ? ui("claimed") : canClaim ? ui("claim") : locked ? ui("locked") : mt("tomorrowAgain");
@@ -11080,7 +11048,8 @@ function drawEvent(){
       ctx.fillText("Lv."+r.lv,x+cw/2,y+25);
       ctx.fillStyle="#fff";
       ctx.font="13px " + FONT_UI;
-      ctx.fillText(rewardText(r).split(" / ")[0] || mt("rewardWord"),x+cw/2,y+57);
+      ctx.font="11px " + FONT_UI;
+      ctx.fillText(fitTextToWidth(rewardText(r) || mt("rewardWord"),cw-10,11,false),x+cw/2,y+57);
       ctx.fillStyle=r.claimed?"rgba(255,255,255,.38)":can?"#fff":"rgba(255,255,255,.45)";
       ctx.font="12px " + FONT_UI;
       ctx.fillText(r.claimed?ui("claimed"):can?ui("claim"):ui("notReached"),x+cw/2,y+91);
@@ -12973,7 +12942,8 @@ function drawLobby(){
     const dw=lobbyBackgroundImg.width*scale,dh=lobbyBackgroundImg.height*scale;
     ctx.save();
     ctx.globalAlpha=.82;
-    ctx.drawImage(lobbyBackgroundImg,(W-dw)/2,(H-dh)/2,dw,dh);
+    const bgX=Math.round(lobbyParallaxX),bgY=Math.round(lobbyParallaxY);
+    ctx.drawImage(lobbyBackgroundImg,Math.floor((W-dw)/2)+bgX,Math.floor((H-dh)/2)+bgY,Math.ceil(dw),Math.ceil(dh));
     ctx.restore();
   }
   drawLobbyThemeEffect();
@@ -12989,7 +12959,9 @@ function drawLobby(){
   ctx.fillStyle="rgba(73,113,190,.045)";ctx.beginPath();ctx.moveTo(325,78);ctx.lineTo(665,78);ctx.lineTo(640,H);ctx.lineTo(286,H);ctx.closePath();ctx.fill();
   ctx.strokeStyle="rgba(124,199,255,.14)";ctx.strokeRect(14,14,W-28,H-28);
   ctx.save();
-  ctx.translate(lobbyParallaxX,lobbyParallaxY);
+  // Reuse the already-smoothed pointer values; one canvas transform moves the UI
+  // without creating extra layers, layout work, or per-widget animation cost.
+  ctx.translate(Math.round(-lobbyParallaxX*.55),Math.round(-lobbyParallaxY*.55));
 
   // Left quick-access rail: achievements / battle manual / pass.
   drawLobbyRailButton(28,30,96,58,language==="en"?"Achievements":"成就",language==="en"?"Records":"完成记录","#ffe066");
@@ -13000,10 +12972,7 @@ function drawLobby(){
   drawNewDiamond(116,178,contentDot("pass",canUseActionRecord()));
 
   // Center executor is intentionally frameless so the portrait sits in the scene.
-  ctx.save();
-  ctx.translate(-lobbyParallaxX,-lobbyParallaxY);
   drawLobbyExecutor();
-  ctx.restore();
   drawLobbyDialogue();
   drawLobbySwitchButton();
 
@@ -13051,7 +13020,7 @@ function drawLobby(){
   const vg=ctx.createLinearGradient(28,470,278,604);vg.addColorStop(0,"rgba(35,55,91,.92)");vg.addColorStop(1,"rgba(4,7,15,.98)");
   ctx.beginPath();ctx.roundRect(28,470,250,134,12);ctx.fillStyle=vg;ctx.fill();ctx.strokeStyle="rgba(124,199,255,.42)";ctx.stroke();
   ctx.beginPath();ctx.roundRect(28,470,5,134,3);ctx.fillStyle=versionSlide.color;ctx.fill();
-  ctx.fillStyle="#7cc7ff";ctx.font="bold 11px Arial";ctx.textAlign="left";ctx.fillText("VERSION 49.19.9",44,492);
+  ctx.fillStyle="#7cc7ff";ctx.font="bold 11px Arial";ctx.textAlign="left";ctx.fillText("VERSION 49.19.11",44,492);
   ctx.fillStyle="#fff";ctx.font="bold 23px "+FONT_UI;ctx.fillText(versionSlide.title,44,529);
   ctx.fillStyle=versionSlide.color;ctx.font="bold 16px "+FONT_UI;ctx.fillText(versionSlide.headline,44,555);
   ctx.fillStyle="rgba(255,255,255,.68)";ctx.font="11px "+FONT_UI;ctx.fillText(versionSlide.sub,44,579);
@@ -13109,6 +13078,7 @@ function currentCommissionStage(){ return commissionStages[selectedStage-1] || c
 function battleAreaLimit(){
   if(battleModeSource==="commission") return 4;
   if(battleModeSource==="daydream") return clamp((daydreamBattleConfig&&daydreamBattleConfig.areas)||2,1,3);
+  if(battleModeSource==="crystalWar") return Number.MAX_SAFE_INTEGER;
   return 3;
 }
 
@@ -13134,13 +13104,17 @@ function materialDungeonsV42(){
     {key:"exp", name:"Executor EXP", short:"EXP", color:"#7cffb2", desc:"Earn materials used to level executors.", enemy:"Crystal Beast", base:{gold:650, expBooks:4, weaponOre:0}},
     {key:"weapon", name:"Weapon Upgrade", short:"Weapon", color:"#7cc7ff", desc:"Earn Weapon Ore used to upgrade weapons.", enemy:"Crystal Guard", base:{gold:650, expBooks:0, weaponOre:4}},
     {key:"module", name:"Module Archive", short:"Module", color:"#b98cff", desc:"Obtain permanent fixed-stat module sets.", enemy:"Module Sentinel", base:{gold:500, expBooks:0, weaponOre:0}},
-    {key:"skill", name:"Skill Training", short:"Skill", color:"#ff9f7c", desc:"Earn Skill Books and dedicated skill materials.", enemy:"Training Construct", base:{gold:500, expBooks:0, weaponOre:0,skillBooks:2,skillNormal:2,skillSkill:1,skillUltimate:1}}
+    {key:"skill", name:"Skill Training", short:"Skill", color:"#ff9f7c", desc:"Earn Skill Books and dedicated skill materials.", enemy:"Training Construct", base:{gold:500, expBooks:0, weaponOre:0,skillBooks:2,skillNormal:2,skillSkill:1,skillUltimate:1}},
+    {key:"screw", name:"Salvage Operation", short:"Screws", color:"#79d8e8", desc:"Recover Screws used to construct Crystal War facilities.", enemy:"Salvage Guardian", base:{gold:350,expBooks:0,weaponOre:0,screws:75}},
+    ...[["fire","Fire","#ff785f"],["physical","Physical","#e6d3a2"],["ice","Ice","#88d8ff"],["wind","Wind","#74ffb7"],["dark","Dark","#b47cff"],["crystal","Crystal","#82ffe2"]].map(v=>({key:"fragment_"+v[0],fragment:v[0],name:v[1]+" Fragment",short:v[1],color:v[2],desc:"Obtain "+v[1]+" Fragments for executor breakthroughs.",enemy:v[1]+" Construct",base:{gold:600,expBooks:0,weaponOre:0,fragments:3}}))
   ] : [
     {key:"gold", name:"金币试炼", short:"金币", color:"#ffe066", desc:"获得金币。", enemy:"晶体工人", base:{gold:2500, expBooks:0, weaponOre:0}},
     {key:"exp", name:"角色升级材料", short:"角色", color:"#7cffb2", desc:"获得角色升级材料。", enemy:"晶体兽", base:{gold:650, expBooks:4, weaponOre:0}},
     {key:"weapon", name:"武器强化材料", short:"武器", color:"#7cc7ff", desc:"获得武器强化材料。", enemy:"晶体守卫", base:{gold:650, expBooks:0, weaponOre:4}},
     {key:"module", name:"模块档案副本", short:"模块", color:"#b98cff", desc:"获取常驻固定数值模块套装。", enemy:"模块哨兵", base:{gold:500, expBooks:0, weaponOre:0}},
-    {key:"skill", name:"技能训练副本", short:"技能", color:"#ff9f7c", desc:"获取技能书与三类专用技能材料。", enemy:"训练构造体", base:{gold:500, expBooks:0, weaponOre:0,skillBooks:2,skillNormal:2,skillSkill:1,skillUltimate:1}}
+    {key:"skill", name:"技能训练副本", short:"技能", color:"#ff9f7c", desc:"获取技能书与三类专用技能材料。", enemy:"训练构造体", base:{gold:500, expBooks:0, weaponOre:0,skillBooks:2,skillNormal:2,skillSkill:1,skillUltimate:1}},
+    {key:"screw", name:"废区回收行动", short:"螺丝", color:"#79d8e8", desc:"回收用于晶体战争设施建设的螺丝。", enemy:"回收区守卫", base:{gold:350,expBooks:0,weaponOre:0,screws:75}},
+    ...[["fire","火","#ff785f"],["physical","物理","#e6d3a2"],["ice","冰","#88d8ff"],["wind","风","#74ffb7"],["dark","暗","#b47cff"],["crystal","晶","#82ffe2"]].map(v=>({key:"fragment_"+v[0],fragment:v[0],name:v[1]+"属性碎片",short:v[1]+"碎片",color:v[2],desc:"获得用于对应属性角色突破的"+v[1]+"属性碎片。",enemy:v[1]+"属性构造体",base:{gold:600,expBooks:0,weaponOre:0,fragments:3}}))
   ];
 }
 
@@ -13165,7 +13139,7 @@ function materialDifficultyUnlocked(key,diff){return materialDifficultyRequireme
 function syncSelectedMaterialDifficulty(){
   const d=materialDungeonsV42()[materialDungeonSelected]||materialDungeonsV42()[0];
   const min=d.key==="module"?2:1;
-  materialDungeonDifficulties=Object.assign({gold:1,exp:1,weapon:1,module:2,skill:1},materialDungeonDifficulties||{});
+  materialDungeonDifficulties=Object.assign({gold:1,exp:1,weapon:1,module:2,skill:1,screw:1,fragment_fire:1,fragment_physical:1,fragment_ice:1,fragment_wind:1,fragment_dark:1,fragment_crystal:1},materialDungeonDifficulties||{});
   materialDungeonDifficulty=clamp(Math.floor(materialDungeonDifficulties[d.key]||min),min,6);
   if(!materialDifficultyUnlocked(d.key,materialDungeonDifficulty)){
     for(let g=materialDungeonDifficulty;g>=min;g--)if(materialDifficultyUnlocked(d.key,g)){materialDungeonDifficulty=g;break;}
@@ -13202,7 +13176,7 @@ function normalizeDungeonRuntime(){
 
   dungeonRewardMultiplier = clamp(Math.floor(dungeonRewardMultiplier || 1), 1, 4);
   materialDungeonDifficulty = clamp(Math.floor(materialDungeonDifficulty || 1), 1, 6);
-  materialDungeonSelected = clamp(Math.floor(materialDungeonSelected || 0), 0, 4);
+  materialDungeonSelected = clamp(Math.floor(materialDungeonSelected || 0), 0, materialDungeonsV42().length-1);
   if(materialDungeonSelected===3 && !canUseModuleDungeon()) materialDungeonSelected=0;
   const validPanels=new Set(["home","list","material","boss","projectArea","patrol"]);
   if(!validPanels.has(dungeonPanelMode) || dungeonPanelMode==="list") dungeonPanelMode="home";
@@ -13228,9 +13202,12 @@ function materialRewardPreviewV42(run){
     skillNormal: Math.floor(((d.base.skillNormal||0) + (d.key==="skill"?Math.floor(Math.max(0,diff-1)/2):0)) * mult),
     skillSkill: Math.floor(((d.base.skillSkill||0) + (d.key==="skill"?Math.floor(Math.max(0,diff-1)/3):0)) * mult),
     skillUltimate: Math.floor(((d.base.skillUltimate||0) + (d.key==="skill"?Math.floor(Math.max(0,diff-1)/4):0)) * mult),
+    screws: Math.floor(((d.base.screws||0) + (d.key==="screw"?diff*35:0)) * mult),
+    fragments: Math.floor(((d.base.fragments||0) + (d.fragment?Math.max(0,diff-1):0)) * mult),
+    fragmentKey:d.fragment||null,
     crystal: dungeonWeeklyCrystalLeft > 0 ? 20 : 0,
     staminaCost: 20 * mult,
-    expReward: 350 + diff * 100,
+    expReward: (350 + diff * 100) * mult,
     type:d.key,
     name:d.name,
     enemy:d.enemy
@@ -13274,6 +13251,7 @@ function spawnMaterialDungeonArea(){
 
   function tunedEnemy(x,y,type,boss=false){
     const e = createEnemy(x,y,boss,type);
+    e.lv = 10 + diff * 10;
     const hpMul = 1 + diff * 0.28 + (run.multiplier-1)*0.10;
     e.hp = Math.floor(e.hp * hpMul);
     e.maxHp = e.hp;
@@ -13297,13 +13275,17 @@ function spawnMaterialDungeonArea(){
     if(area===1){ enemies.push(tunedEnemy(520,H/2+80,"ranged")); enemies.push(tunedEnemy(750,H/2+125,"shield")); }
     else if(area===2){ enemies.push(tunedEnemy(460,H/2+65,"ranged")); enemies.push(tunedEnemy(680,H/2+125,"elite")); enemies.push(tunedEnemy(850,H/2+70,"shield")); }
     else { enemies.push(tunedEnemy(680,H/2+90,"elite")); enemies.push(tunedEnemy(500,H/2+145,"ranged")); enemies.push(tunedEnemy(870,H/2+70,"shield")); }
+  }else if(kind.key==="screw"){
+    if(area===1){enemies.push(tunedEnemy(520,H/2+80,"normal"));enemies.push(tunedEnemy(750,H/2+125,"shield"));}
+    else if(area===2){enemies.push(tunedEnemy(470,H/2+65,"berserker"));enemies.push(tunedEnemy(680,H/2+125,"ranged"));enemies.push(tunedEnemy(860,H/2+70,"normal"));}
+    else{enemies.push(tunedEnemy(690,H/2+90,"elite"));enemies.push(tunedEnemy(510,H/2+145,"shield"));enemies.push(tunedEnemy(870,H/2+70,"berserker"));}
   }else{
     if(area===1){ enemies.push(tunedEnemy(520,H/2+80,"normal")); enemies.push(tunedEnemy(740,H/2+125,"ranged")); }
     else if(area===2){ enemies.push(tunedEnemy(460,H/2+65,"shield")); enemies.push(tunedEnemy(680,H/2+125,"ranged")); enemies.push(tunedEnemy(850,H/2+70,"normal")); }
     else { enemies.push(tunedEnemy(680,H/2+90,"elite")); enemies.push(tunedEnemy(500,H/2+145,"shield")); enemies.push(tunedEnemy(870,H/2+70,"ranged")); }
   }
 
-  showCenter((language==="en"?"MATERIAL ":"材料副本 ") + roman(diff) + " / AREA 0" + area, 70);
+  showCenter((kind.key==="screw"?(language==="en"?"SALVAGE OPERATION ":"废区回收行动 "):(language==="en"?"MATERIAL TRIAL ":"材料副本 ")) + roman(diff) + " / AREA 0" + area, 70);
 }
 
 function applyMaterialDungeonReward(){
@@ -13317,6 +13299,8 @@ function applyMaterialDungeonReward(){
   skillMaterials.normal += r.skillNormal||0;
   skillMaterials.skill += r.skillSkill||0;
   skillMaterials.ultimate += r.skillUltimate||0;
+  if(r.screws&&window.PZCrystalWar&&typeof window.PZCrystalWar.grantScrews==="function")window.PZCrystalWar.grantScrews(r.screws);
+  if(r.fragmentKey&&r.fragments)elementalFragments[r.fragmentKey]=(elementalFragments[r.fragmentKey]||0)+r.fragments;
   if(r.type==="module"&&window.PZModules){
     r.moduleDrops=[];
     const count=Math.max(1,(materialDungeonRun&&materialDungeonRun.multiplier)||1);
@@ -13483,9 +13467,10 @@ function drawMaterialDungeonDetailV42(){
 
   drawBtn(language==="en"?"Back":"返回","",930,165,90,36,false,"#fff");
 
-  // stage type cards
+  // stage type cards: horizontal wheel list keeps large dungeon catalogs readable.
+  ctx.save();ctx.beginPath();ctx.rect(95,235,910,96);ctx.clip();
   for(let i=0;i<list.length;i++){
-    const d=list[i], x=95+i*170, y=245, w=156, h=76;
+    const d=list[i], x=95+i*170-materialDungeonScroll, y=245, w=156, h=76;
     const sel=materialDungeonSelected===i,stageLocked=d.key==="module"&&!canUseModuleDungeon();
     ctx.fillStyle=stageLocked?"rgba(18,22,33,.82)":sel?"rgba(255,224,102,.22)":"rgba(31,39,56,.94)";
     ctx.fillRect(x,y,w,h);
@@ -13502,6 +13487,7 @@ function drawMaterialDungeonDetailV42(){
     const savedDiff=materialDungeonDifficulties[d.key]||(d.key==="module"?2:1);
     ctx.textAlign="right";ctx.fillStyle=d.color;ctx.font="bold 11px "+FONT_UI;ctx.fillText((d.key==="module"?"G":"D")+savedDiff,x+w-12,y+22);
   }
+  ctx.restore();ctx.textAlign="right";ctx.fillStyle="rgba(255,255,255,.42)";ctx.font="10px "+FONT_UI;ctx.fillText(language==="en"?"WHEEL TO BROWSE":"滚轮浏览副本",1005,340);ctx.textAlign="left";
 
   // difficulty
   ctx.fillStyle="rgba(255,255,255,.62)";
@@ -13545,6 +13531,8 @@ function drawMaterialDungeonDetailV42(){
   if(r.weaponOre) rewardLine.push((language==="en"?"Weapon Mat ×":"武器材料 ×")+r.weaponOre);
   if(r.skillBooks) rewardLine.push((language==="en"?"Skill Book ×":"技能书 ×")+r.skillBooks);
   if(r.skillNormal||r.skillSkill||r.skillUltimate) rewardLine.push((language==="en"?"Skill Parts ×":"技能材料 ×")+((r.skillNormal||0)+(r.skillSkill||0)+(r.skillUltimate||0)));
+  if(r.screws) rewardLine.push((language==="en"?"Screws ×":"螺丝 ×")+r.screws);
+  if(r.fragments) rewardLine.push(fragmentName(r.fragmentKey)+" ×"+r.fragments);
   if(r.type==="module") rewardLine.push(language==="en"?"Fixed Module ×1":"固定模块 ×1");
   ctx.fillText(rewardLine.join(" / "),495,464);
 
@@ -13581,7 +13569,7 @@ function updateDungeonInlineClicksLegacyV42(){
       return true;
     }
     for(let i=0;i<materialDungeonsV42().length;i++){
-      if(inRect(95+i*170,245,156,76)){
+      if(inRect(95+i*150,245,138,76)){
         if(i===3&&!canUseModuleDungeon()){showFeatureLocked("chapter1");clicked=false;return true;}
         materialDungeonSelected=i;
         clicked=false;
@@ -13637,6 +13625,13 @@ function updateDungeonInlineClicksLegacyV42(){
 function bossChallengeList(){
   return [
     {
+      key:"crystalHumanoid",
+      name: language==="en" ? "Crystal Humanoid" : "晶体人",
+      shortName: language==="en" ? "Humanoid" : "晶体人",
+      recLv:10,
+      unlocked:!!cleared[11]
+    },
+    {
       key:"kros",
       name: language==="en" ? "Crystal Dragon: Kros" : "晶体恶龙：克罗斯",
       shortName: language==="en" ? "Kros" : "克罗斯",
@@ -13679,10 +13674,12 @@ function bossKrosWeeklyAvailable(){
 
 function bossKrosRewardPreview(run=null){
   const mult = clamp(Math.floor(run ? run.multiplier : bossMultiplier),1,4);
+  const key=(run&&run.key)||(currentBossChallenge()&&currentBossChallenge().key)||"kros";
   return {
-    dragonClaw: 1 * mult,
-    gold: 20000 * mult,
-    expReward: 500 * mult,
+    dragonClaw: key==="kros" ? 1 * mult : 0,
+    crystalHand: key==="crystalHumanoid" ? 1 * mult : 0,
+    gold: (key==="crystalHumanoid"?9000:20000) * mult,
+    expReward: (key==="crystalHumanoid"?320:500) * mult,
     crystal: bossKrosWeeklyAvailable() ? 50 : 0,
     staminaCost: 25 * mult
   };
@@ -14041,7 +14038,7 @@ function drawDungeonInlinePanel(){
 function drawBossKrosDetail(){
   const b = bossKrosData();
   const r = bossKrosRewardPreview();
-  const unlocked = playerLevel >= b.recLv;
+  const unlocked = b.unlocked!==false && playerLevel >= b.recLv;
 
   ctx.fillStyle="#fff";
   ctx.font="bold 26px " + FONT_UI;
@@ -14072,14 +14069,15 @@ function drawBossKrosDetail(){
   ctx.fillStyle="rgba(255,255,255,.72)";
   ctx.font="15px " + FONT_UI;
   ctx.fillText((language==="en"?"Recommended Lv.":"推荐等级 Lv.") + b.recLv,120,328);
-  ctx.fillText(language==="en"?"Life Bars: 3":"生命管数：3",120,356);
-  ctx.fillText(language==="en"?"Phase 1: Circle blast / dragon bullets":"阶段1：范围圆圈 / 龙弹",120,384);
-  ctx.fillText(language==="en"?"Phase 2: 50% shield / bleed / poison zone":"阶段2：50%护盾 / 流血 / 毒区",120,412);
-  ctx.fillText(language==="en"?"Phase 3: full-map blast / stronger damage":"阶段3：全图爆炸 / 伤害提升",120,440);
+  const humanoid=b.key==="crystalHumanoid";
+  ctx.fillText(humanoid?(language==="en"?"Life Bars: 2":"生命管数：2"):(language==="en"?"Life Bars: 3":"生命管数：3"),120,356);
+  ctx.fillText(humanoid?(language==="en"?"Phase 1: crystal rush / shard volley":"阶段1：晶体突进 / 碎片齐射"):(language==="en"?"Phase 1: Circle blast / dragon bullets":"阶段1：范围圆圈 / 龙弹"),120,384);
+  ctx.fillText(humanoid?(language==="en"?"Phase 2: core reform / faster attacks":"阶段2：核心重构 / 攻击加速"):(language==="en"?"Phase 2: 50% shield / hazard zone":"阶段2：50%护盾 / 危险区域"),120,412);
+  if(!humanoid)ctx.fillText(language==="en"?"Phase 3: full-map blast / stronger damage":"阶段3：全图爆炸 / 伤害提升",120,440);
 
   ctx.fillStyle="#7cffb2";
   ctx.font="bold 17px " + FONT_UI;
-  ctx.fillText(language==="en"?"Available · Recommended Lv.20":"已开放 · 推荐Lv.20",120,474);
+  ctx.fillText(unlocked?((language==="en"?"Available · Recommended Lv.":"已开放 · 推荐Lv.")+b.recLv):(language==="en"?"Clear Chapter 0 to unlock":"通关第零章后解锁"),120,474);
 
   ctx.fillStyle="rgba(21,28,43,.96)";
   ctx.fillRect(500,245,505,250);
@@ -14092,7 +14090,7 @@ function drawBossKrosDetail(){
 
   ctx.fillStyle="rgba(255,255,255,.78)";
   ctx.font="15px " + FONT_UI;
-  ctx.fillText((language==="en"?"Dragon Claw ×":"龙爪 ×")+r.dragonClaw,525,316);
+  ctx.fillText(humanoid?((language==="en"?"Crystal Hand ×":"水晶手 ×")+r.crystalHand):((language==="en"?"Dragon Claw ×":"龙爪 ×")+r.dragonClaw),525,316);
   ctx.fillText((language==="en"?"Gold ×":"金币 ×")+r.gold,525,344);
   ctx.fillText("EXP ×"+r.expReward,525,372);
 
@@ -14183,10 +14181,10 @@ function updateDungeonInlineClicks(){
     }
     if(inRect(820,445,170,48)){
       const currentBoss = currentBossChallenge();
-      if(currentBoss.key==="kros"){
+      if(currentBoss.unlocked){
         startBossKrosTeam();
       }else{
-        showCenter(language==="en"?"Coming Soon":"开发中",70);
+        showCenter(language==="en"?"Clear Chapter 0 first":"请先通关第零章",70);
       }
       clicked=false;
       return true;
@@ -14222,7 +14220,7 @@ function updateDungeonInlineClicks(){
       return false;
     }
     for(let i=0;i<materialDungeonsV42().length;i++){
-      if(inRect(95+i*170,245,156,76)){
+      if(inRect(95+i*170-materialDungeonScroll,245,156,76)){
         if(i===3&&!canUseModuleDungeon()){showFeatureLocked("chapter1");clicked=false;return true;}
         materialDungeonSelected=i;
         syncSelectedMaterialDifficulty();
@@ -14289,22 +14287,23 @@ function startBossKrosTeam(){
     openStaminaRecover(language==="en" ? "Not enough stamina." : "体力不足。");
     return;
   }
-  bossKrosRun = {multiplier:bossMultiplier, preview};
+  bossKrosRun = {key:b.key,multiplier:bossMultiplier, preview};
   battleModeSource = "bossKros";
   clearTransientBattleState();
   gameMode = "team";
 }
 
 function createKrosEnemy(){
+  const humanoid=!!(bossKrosRun&&bossKrosRun.key==="crystalHumanoid");
   const e=createEnemy(W-250,H/2+105,true,"boss");
   e.bossKros=true;
-  e.krosBarsLeft=3;
-  e.krosMaxBars=3;
+  e.krosBarsLeft=humanoid?2:3;
+  e.krosMaxBars=humanoid?2:3;
   e.phase=1;
-  e.lv=20;
-  e.r=56;
+  e.lv=humanoid?10:20;
+  e.r=humanoid?43:56;
   // Light balance pass: retain all three phases while shortening each health bar.
-  e.maxHp=3150;
+  e.maxHp=humanoid?1850:3150;
   e.hp=e.maxHp;
   e.maxShield=0;
   e.shield=0;
@@ -14327,8 +14326,9 @@ function spawnBossKrosArea(){
   krosIntroTimer=180;
   k.attackCd=Math.max(k.attackCd||0,210);
   k.krosPattern=Math.max(k.krosPattern||0,210);
-  showCenter(language==="en"?"CRYSTAL DRAGON · KROS":"晶体恶龙 · 克罗斯",150);
-  showActionPrompt(language==="en"?"Three-phase boss encounter":"三阶段首领作战",120);
+  const humanoid=bossKrosRun&&bossKrosRun.key==="crystalHumanoid";
+  showCenter(humanoid?(language==="en"?"CRYSTAL HUMANOID":"晶体人"):(language==="en"?"CRYSTAL DRAGON · KROS":"晶体恶龙 · 克罗斯"),150);
+  showActionPrompt(humanoid?(language==="en"?"Chapter 0 boss challenge":"第零章首领挑战"):(language==="en"?"Three-phase boss encounter":"三阶段首领作战"),120);
   doShake(18);flash=Math.max(flash,12);
 }
 
@@ -14630,6 +14630,7 @@ function spawnArea(){
   if(battleModeSource==="bossKros"){ spawnBossKrosArea(); return; }
   if(battleModeSource==="materialDungeon"){ spawnMaterialDungeonArea(); return; }
   if(battleModeSource==="daydream"){ spawnDaydreamBattleArea(); return; }
+  if(battleModeSource==="crystalWar"){ spawnCrystalWarArea(); return; }
   enemies=[]; projectiles=[]; lockTarget=null; areaCleared=false; commissionComplete=false;
   if(battleModeSource==="daydream"&&daydreamBattleConfig&&daydreamBattleConfig.boss){
     enemies.push(createEnemy(700,H/2+90,true,"boss"));
@@ -14895,9 +14896,10 @@ function drawKrosIntroOverlay(){
   ctx.shadowBlur=30;ctx.shadowColor="#ff4d7d";
   ctx.fillStyle="#ff5f8d";ctx.font="bold 24px "+FONT_UI;ctx.fillText("WARNING",W/2,H*.29);
   ctx.fillStyle="#fff";ctx.font="bold 52px "+FONT_UI;
-  ctx.fillText(language==="en"?"CRYSTAL DRAGON · KROS":"晶体恶龙 · 克罗斯",W/2,H*.42);
+  const humanoid=bossKrosRun&&bossKrosRun.key==="crystalHumanoid";
+  ctx.fillText(humanoid?(language==="en"?"CRYSTAL HUMANOID":"晶体人"):(language==="en"?"CRYSTAL DRAGON · KROS":"晶体恶龙 · 克罗斯"),W/2,H*.42);
   ctx.shadowBlur=0;ctx.fillStyle="rgba(255,255,255,.72)";ctx.font="15px "+FONT_UI;
-  ctx.fillText(language==="en"?"Three-phase boss encounter":"三阶段首领作战",W/2,H*.48);
+  ctx.fillText(humanoid?(language==="en"?"Chapter 0 boss challenge":"第零章首领挑战"):(language==="en"?"Three-phase boss encounter":"三阶段首领作战"),W/2,H*.48);
   ctx.strokeStyle="#ff5f8d";ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(W*.22,H*.54);ctx.lineTo(W*.78,H*.54);ctx.stroke();
   ctx.restore();
 }
@@ -15033,6 +15035,7 @@ function applyBossKrosReward(){
   const r=bossKrosRewardPreview(bossKrosRun);
   dungeonStamina=clamp(dungeonStamina-r.staminaCost,0,9999);
   dragonClaw += r.dragonClaw;
+  crystalHand += r.crystalHand||0;
   gold += r.gold;
   totalGoldEarned += r.gold;
   addPlayerExp(r.expReward);
@@ -15387,7 +15390,7 @@ function drawChapterSelectPage(){
   drawBtn(ui("operation"),"",240,595,135,38,false,"#fff");
   drawBtn(language==="en"?"Dungeon":"副本",canUseDungeon()?"":"LOCK",390,595,135,38,false,!canUseDungeon()?"#777":"#7cc7ff");
   drawBtn("Side Story",canUseSideStory()?"":"LOCK",540,595,135,38,false,!canUseSideStory()?"#777":"#fff");
-  drawBtn(language==="en"?"Daydream":"白日梦",canUseDaydream()?"":"LOCK",690,595,135,38,false,canUseDaydream()?"#fff":"#555");
+  drawBtn(language==="en"?"Dual Crystal":"双重晶体","",690,595,135,38,false,"#fff");
   drawBtn(ui("backLobby"),"CLICK",890,595,170,38,false,"#fff");
 }
 
@@ -15401,6 +15404,12 @@ function drawOperation(){
   bg.addColorStop(1,"#05060b");
   ctx.fillStyle=bg;
   ctx.fillRect(0,0,W,H);
+
+  if(selectedTab==="dualCrystal" && window.PZCrystalWar &&
+     (!window.PZCrystalWar.isFullscreen || window.PZCrystalWar.isFullscreen())){
+    window.PZCrystalWar.draw();
+    return;
+  }
 
   if(selectedTab==="daydream" && window.PZDaydream && typeof window.PZDaydream.isFullscreen==="function" && window.PZDaydream.isFullscreen()){
     window.PZDaydream.archiveInline=false;
@@ -15418,10 +15427,10 @@ function drawOperation(){
   ctx.fillStyle="#fff";
   ctx.font="bold 34px " + FONT_UI;
   ctx.textAlign="left";
-  ctx.fillText(selectedTab==="daydream" ? (language==="en"?"Daydream Reconstruction":"白日梦重现") : (selectedTab==="sideStory" ? "Side Story" : (selectedTab==="dungeon" ? (language==="en"?"Dungeons":"副本") : (selectedTab==="combat" ? (language==="en"?"Commissions":"委托作战") : mainChapterTitle()))),58,78);
+  ctx.fillText(selectedTab==="dualCrystal" ? (language==="en"?"Dual Crystal":"双重晶体") : (selectedTab==="daydream" ? (language==="en"?"Daydream Reconstruction":"白日梦重现") : (selectedTab==="sideStory" ? "Side Story" : (selectedTab==="dungeon" ? (language==="en"?"Dungeons":"副本") : (selectedTab==="combat" ? (language==="en"?"Commissions":"委托作战") : mainChapterTitle())))),58,78);
   ctx.font="14px " + FONT_UI;
   ctx.fillStyle="rgba(255,255,255,.62)";
-  ctx.fillText(selectedTab==="daydream" ? (language==="en"?"Explore branching routes, investigate anomalies, and survive each layer.":"参考节点路线式肉鸽结构，改造成PZ剧情调查模式。") : (selectedTab==="sideStory" ? (language==="en"?"Coming soon.":"开发中。") : (selectedTab==="dungeon" ? (language==="en"?"Materials / Bosses / Exploration / Patrol":"材料副本 / Boss / Project Area / 巡逻。") : (selectedTab==="combat" ? (language==="en"?"4 chapters · 4 timed waves per stage · First-clear reward: 200 Crystals":"4个章节 · 每关4波限时战斗 · 首通200水晶") : tx("operationSubtitle")+crystals))),60,102);
+  ctx.fillText(selectedTab==="dualCrystal" ? (language==="en"?"Choose Daydream Reconstruction or Crystal War.":"选择白日梦重现或晶体战争。") : (selectedTab==="daydream" ? (language==="en"?"Explore branching routes, investigate anomalies, and survive each layer.":"参考节点路线式肉鸽结构，改造成PZ剧情调查模式。") : (selectedTab==="sideStory" ? (language==="en"?"Coming soon.":"开发中。") : (selectedTab==="dungeon" ? (language==="en"?"Materials / Bosses / Exploration / Patrol":"材料副本 / Boss / Project Area / 巡逻。") : (selectedTab==="combat" ? (language==="en"?"4 chapters · 4 timed waves per stage · First-clear reward: 200 Crystals":"4个章节 · 每关4波限时战斗 · 首通200水晶") : tx("operationSubtitle")+crystals)))),60,102);
 
   // map background art
   ctx.save();
@@ -15448,6 +15457,8 @@ function drawOperation(){
     drawDungeonInlinePanel();
   }else if(selectedTab==="sideStory" && window.PZSideStory){
     window.PZSideStory.draw();
+  }else if(selectedTab==="dualCrystal" && window.PZCrystalWar){
+    window.PZCrystalWar.draw();
   }else if(selectedTab==="daydream" && window.PZDaydream){
     window.PZDaydream.archiveInline=true;
     window.PZDaydream.drawPage();
@@ -15508,12 +15519,12 @@ function drawOperation(){
   drawBtn(ui("operation"),"",240,595,135,38,selectedTab==="combat",selectedTab==="combat"?"#ffe066":"#fff");
   drawBtn(language==="en"?"Dungeon":"副本",canUseDungeon()?"":"LOCK",390,595,135,38,selectedTab==="dungeon",!canUseDungeon()?"#777":(selectedTab==="dungeon"?"#ffe066":"#7cc7ff"));
   drawBtn("Side Story",canUseSideStory()?"":"LOCK",540,595,135,38,selectedTab==="sideStory",!canUseSideStory()?"#777":(selectedTab==="sideStory"?"#c35cff":"#fff"));
-  drawBtn(language==="en"?"Daydream":"白日梦",canUseDaydream()?"":"LOCK",690,595,135,38,selectedTab==="daydream",canUseDaydream()?(selectedTab==="daydream"?"#9b7cff":"#fff"):"#555");
+  drawBtn(language==="en"?"Dual Crystal":"双重晶体","",690,595,135,38,selectedTab==="daydream"||selectedTab==="dualCrystal",selectedTab==="daydream"||selectedTab==="dualCrystal"?"#9b7cff":"#fff");
   drawNewDiamond(817,600,contentDot("daydream",canUseDaydream()));
   drawBtn(ui("backLobby"),"CLICK",890,595,170,38,false,"#fff");
 
   // detail panel
-  if(selectedTab!=="dungeon" && selectedTab!=="sideStory" && selectedTab!=="daydream" && operationDetailVisible){
+  if(selectedTab!=="dungeon" && selectedTab!=="sideStory" && selectedTab!=="daydream" && selectedTab!=="dualCrystal" && operationDetailVisible){
     const st=currentStageData();
     const locked=selectedTab==="combat" ? false : (selectedStage>1&&!isMainStageCleared(selectedStage-1));
     const done=selectedTab==="combat" ? !!cleared["c"+st.id] : isMainStageCleared(st.id);
@@ -15565,7 +15576,7 @@ function wrapText(text,x,y,maxWidth,lineHeight){ let line=""; for(const ch of te
 
 
 function drawBossKrosSettlement(){
-  const r = settlement && settlement.bossReward ? settlement.bossReward : {gold:0,dragonClaw:0,crystal:0,expReward:0};
+  const r = settlement && settlement.bossReward ? settlement.bossReward : {gold:0,dragonClaw:0,crystalHand:0,crystal:0,expReward:0};
   const bg=ctx.createLinearGradient(0,0,0,H);
   bg.addColorStop(0,"#221323");
   bg.addColorStop(.55,"#090b14");
@@ -15594,7 +15605,7 @@ function drawBossKrosSettlement(){
   ctx.textAlign="left";
   ctx.font="bold 20px " + FONT_UI;
   let y=335;
-  ctx.fillStyle="#ff6b9b"; ctx.fillText((language==="en"?"Dragon Claw +":"龙爪 +")+r.dragonClaw,W/2-190,y); y+=36;
+  ctx.fillStyle="#ff6b9b"; ctx.fillText(r.crystalHand?((language==="en"?"Crystal Hand +":"水晶手 +")+r.crystalHand):((language==="en"?"Dragon Claw +":"龙爪 +")+r.dragonClaw),W/2-190,y); y+=36;
   ctx.fillStyle="#ffe066"; ctx.fillText((language==="en"?"Gold +":"金币 +")+r.gold,W/2-190,y); y+=36;
   ctx.fillStyle="#fff"; ctx.fillText("EXP +"+r.expReward,W/2-190,y); y+=36;
   ctx.fillStyle=r.crystal>0?"#7cc7ff":"rgba(255,255,255,.42)";
@@ -15608,7 +15619,7 @@ function drawBossKrosSettlement(){
 }
 
 function drawMaterialSettlement(){
-  const r = settlement && settlement.matReward ? settlement.matReward : {gold:0,expBooks:0,weaponOre:0,skillBooks:0,skillNormal:0,skillSkill:0,skillUltimate:0,crystal:0,expReward:0,name:"Material"};
+  const r = settlement && settlement.matReward ? settlement.matReward : {gold:0,expBooks:0,weaponOre:0,skillBooks:0,skillNormal:0,skillSkill:0,skillUltimate:0,screws:0,crystal:0,expReward:0,name:"Material"};
   const bg=ctx.createLinearGradient(0,0,0,H);
   bg.addColorStop(0,"#11172d");
   bg.addColorStop(.55,"#080a12");
@@ -15642,6 +15653,7 @@ function drawMaterialSettlement(){
   ctx.fillStyle="#7cc7ff"; if(r.weaponOre){ ctx.fillText((language==="en"?"Weapon Ore +":"武器强化材料 +")+r.weaponOre,W/2-190,y); y+=34; }
   ctx.fillStyle="#ffcf7c"; if(r.skillBooks){ ctx.fillText((language==="en"?"Skill Books +":"技能书 +")+r.skillBooks,W/2-190,y); y+=34; }
   ctx.fillStyle="#ff9f7c"; if(r.skillNormal||r.skillSkill||r.skillUltimate){ ctx.fillText((language==="en"?"Skill Materials +":"技能材料 +")+((r.skillNormal||0)+(r.skillSkill||0)+(r.skillUltimate||0)),W/2-190,y); y+=34; }
+  ctx.fillStyle="#79d8e8"; if(r.screws){ctx.fillText((language==="en"?"Building Screws +":"基建螺丝 +")+r.screws,W/2-190,y);y+=34;}
   ctx.fillStyle="#b98cff"; if(r.moduleName){ ctx.fillText((language==="en"?"Module: ":"获得模块：")+r.moduleName+"  G"+(r.moduleGrade||""),W/2-190,y); y+=34; }
   ctx.fillStyle="#c35cff"; if(r.crystal){ ctx.fillText((language==="en"?"Weekly Crystal +":"每周水晶 +")+r.crystal,W/2-190,y); y+=34; }
   ctx.fillStyle="#fff"; ctx.fillText("EXP +"+(r.expReward||0),W/2-190,y);
@@ -16121,6 +16133,9 @@ function roleUpgradeCost(i){
   const tier=Math.floor((lv-1)/10);
   return {books:Math.min(12,1+Math.floor((lv-1)/5)),gold:Math.floor(220+lv*68+lv*lv*2.8+tier*420)};
 }
+function roleFragmentKey(i){const e=(roles[i]&&roles[i].element)||"physical";return e==="monochrome"?"crystal":e;}
+function fragmentName(key){return language==="en"?({fire:"Fire",physical:"Physical",ice:"Ice",wind:"Wind",dark:"Dark",crystal:"Crystal"}[key]||key)+" Fragment":({fire:"火",physical:"物理",ice:"冰",wind:"风",dark:"暗",crystal:"晶"}[key]||key)+"属性碎片";}
+function breakthroughCostText(i){const c=BREAK_COSTS[roleBreakStage(i)],key=roleFragmentKey(i),boss=i===3?(language==="en"?"Dragon Claw":"龙爪"):(language==="en"?"Crystal Hand":"水晶手");return c?boss+" "+(i===3?dragonClaw:crystalHand)+"/"+c.boss+" · "+fragmentName(key)+" "+(elementalFragments[key]||0)+"/"+c.shards+" · "+(language==="en"?"Gold ":"金币 ")+gold+"/"+c.gold:"MAX";}
 function drawOperatorStatsTab(i,x=780,y=112,w=302,h=506){
   const auto=isProtagonist(i), lv=roleDisplayLevel(i), cap=roleLevelCap(i), bx=x+22, by=y+82;
   drawInsetLabel((language==="en"?"LEVEL ":"等级 Lv.")+lv+" / "+cap,bx,by,258,32,"#fff","rgba(124,199,255,.08)","rgba(124,199,255,.18)",14,true,"center");
@@ -16142,8 +16157,9 @@ function drawOperatorStatsTab(i,x=780,y=112,w=302,h=506){
     let btn=language==="en"?"Upgrade":"升级", enabled=true;
     if(lv>=60){ btn="MAX"; enabled=false; }
     else if(canBreakthrough(i)) btn=language==="en"?"Level Breakthrough":"等级突破";
+    else if(lv>=cap){btn=language==="en"?"Advance Main Story":"推进主线解锁";enabled=false;}
     const upCost=roleUpgradeCost(i);
-    drawInsetLabel(canBreakthrough(i)?((language==="en"?"Cap ":"等级上限 ")+cap+" → "+BREAK_LEVEL_CAPS[roleBreakStage(i)+1]):((language==="en"?"EXP Books ":"经验书 ")+upCost.books+"  ·  "+(language==="en"?"Gold ":"金币 ")+upCost.gold),bx,by+232,258,34,"#bfe8ff","rgba(124,199,255,.08)","rgba(124,199,255,.18)",11,true,"center");
+    drawInsetLabel(canBreakthrough(i)?breakthroughCostText(i):((language==="en"?"EXP Books ":"经验书 ")+upCost.books+"  ·  "+(language==="en"?"Gold ":"金币 ")+upCost.gold),bx,by+232,258,34,"#bfe8ff","rgba(124,199,255,.08)","rgba(124,199,255,.18)",canBreakthrough(i)?9:11,true,"center");
     drawBtn(btn,"CLICK",bx+18,y+h-78,222,46,enabled,"#ffe066");
   }
 }
@@ -16211,11 +16227,13 @@ function performBreakthrough(i){
   if(!canBreakthrough(i)) return false;
   const stage=roleBreakStage(i);
   const cost=BREAK_COSTS[stage];
-  if((weaponOre||0)<cost.mat || gold<cost.gold){
+  const key=roleFragmentKey(i),bossOwned=i===3?dragonClaw:crystalHand;
+  if(bossOwned<cost.boss || (elementalFragments[key]||0)<cost.shards || gold<cost.gold){
     showCenter(language==="en"?"Not enough materials":"等级突破材料不足",70);
     return false;
   }
-  weaponOre-=cost.mat;
+  if(i===3)dragonClaw-=cost.boss;else crystalHand-=cost.boss;
+  elementalFragments[key]-=cost.shards;
   gold-=cost.gold;
   charData[i].breakStage=stage+1;
   showCenter((language==="en"?"Level cap raised to Lv.":"等级上限提升至 Lv.")+roleLevelCap(i),90);
@@ -17215,6 +17233,12 @@ function abandonCurrentBattle(){
     player.role=selectedOperator;
     return;
   }
+  if(battleModeSource==="crystalWar"){
+    settleCrystalWarExit(false);
+    clearTransientBattleState();resetBattleSourceToMain();gameMode="operation";selectedTab="dualCrystal";
+    if(window.PZCrystalWar&&typeof window.PZCrystalWar.returnFromBattle==="function")window.PZCrystalWar.returnFromBattle();
+    return;
+  }
   if(battleModeSource==="daydream"){
     if(window.PZDaydream&&typeof window.PZDaydream.abandonRun==="function")window.PZDaydream.abandonRun();
     selectedTab="daydream";battleModeSource="main";daydreamBattleConfig=null;
@@ -17287,8 +17311,10 @@ function drawBattleUI(){
 
   ctx.fillStyle="rgba(255,255,255,.66)";
   ctx.font="13px " + FONT_UI;
-  const battleCode=battleModeSource==="showcase"?"SHOWCASE":battleModeSource==="commission"?("C"+currentCommissionStage().chapter+"-"+currentCommissionStage().localId):(battleModeSource==="daydream"?"DAYDREAM":stageCode(selectedStage));
-  const meta = battleModeSource==="showcase"
+  const battleCode=battleModeSource==="crystalWar"?"CRYSTAL WAR":battleModeSource==="showcase"?"SHOWCASE":battleModeSource==="commission"?("C"+currentCommissionStage().chapter+"-"+currentCommissionStage().localId):(battleModeSource==="daydream"?"DAYDREAM":stageCode(selectedStage));
+  const meta = battleModeSource==="crystalWar"
+    ? (language==="en"?"ENDLESS SECTOR ":"无限区段 ")+area+"  |  B "+(language==="en"?"DEVICE RACK":"设备栏")
+    : battleModeSource==="showcase"
     ? (language==="en"?"Official recommended max build · Infinite training target":"官方推荐满配 · 无限生命训练目标")
     : battleCode+"  |  "+(battleModeSource==="commission"?(language==="en"?"Wave ":"波次 "):(battleModeSource==="daydream"?(language==="en"?"Reconstruction ":"重现区域 "):tx("areaLabel")))+area+"/"+battleAreaLimit()+"  |  "+tx("crystalWord")+": "+crystals;
   fitText(meta, 300, 13, "", 10);
@@ -17526,7 +17552,7 @@ function drawBattleRewardNotices(){
 }
 
 function drawBattle(){ const sx=chainSelect?0:(Math.random()-.5)*shake,sy=chainSelect?0:(Math.random()-.5)*shake*.7; ctx.save();ctx.translate(sx,sy); const bg=ctx.createLinearGradient(0,0,0,H);bg.addColorStop(0,"#15172a");bg.addColorStop(1,"#090a10");ctx.fillStyle=bg;ctx.fillRect(-50,-50,W+100,H+100); drawBattleBackground();
-  drawGrid(); drawProjectAreaObjects(); drawBattleExploreObjects(); drawEffects(); const objs=enemies.filter(e=>e.alive).map(e=>({t:"e",y:e.y,e})); objs.push({t:"p",y:player.y}); objs.sort((a,b)=>a.y-b.y); for(const o of objs)o.t==="e"?drawEnemy(o.e):drawPlayer(); drawBattleAreaExits(); if(areaCleared&&area<battleAreaLimit()&&!supportsStageExploration()){ctx.fillStyle="#ffe066";ctx.fillRect(W-42,110,22,H-160);ctx.fillStyle="#fff";ctx.font="bold 22px " + FONT_UI;ctx.textAlign="right";ctx.fillText(battleModeSource==="commission"?(language==="en"?"NEXT WAVE →":"下一波 →"):(language==="en"?"NEXT AREA →":"下一区域 →"),W-58,H/2);} if(flash>0){ctx.globalAlpha=flash/35;ctx.fillStyle="#fff";ctx.fillRect(-50,-50,W+100,H+100);ctx.globalAlpha=1;} ctx.restore(); drawUltimateOverlay(); drawKrosPhaseTransitionOverlay(); drawKrosIntroOverlay(); drawBossKrosTopBar(); drawCrystalColossusTopBar(); drawBattleUI(); drawBattleRewardNotices(); if(centerTimer>0){ctx.fillStyle="#fff";ctx.textAlign="center";fitText(centerText,W-150,46,"bold",20);ctx.fillText(centerText,W/2,H*.43);}
+  drawGrid(); drawCrystalWarIndustryV8(); drawProjectAreaObjects(); drawBattleExploreObjects(); drawEffects(); const objs=enemies.filter(e=>e.alive).map(e=>({t:"e",y:e.y,e})); objs.push({t:"p",y:player.y}); objs.sort((a,b)=>a.y-b.y); for(const o of objs)o.t==="e"?drawEnemy(o.e):drawPlayer(); drawBattleAreaExits(); if(areaCleared&&area<battleAreaLimit()&&!supportsStageExploration()){ctx.fillStyle="#ffe066";ctx.fillRect(W-42,110,22,H-160);ctx.fillStyle="#fff";ctx.font="bold 22px " + FONT_UI;ctx.textAlign="right";ctx.fillText(battleModeSource==="commission"?(language==="en"?"NEXT WAVE →":"下一波 →"):(language==="en"?"NEXT AREA →":"下一区域 →"),W-58,H/2);} if(flash>0){ctx.globalAlpha=flash/35;ctx.fillStyle="#fff";ctx.fillRect(-50,-50,W+100,H+100);ctx.globalAlpha=1;} ctx.restore(); drawUltimateOverlay(); drawKrosPhaseTransitionOverlay(); drawKrosIntroOverlay(); drawBossKrosTopBar(); drawCrystalColossusTopBar(); drawBattleUI(); drawBattleRewardNotices(); if(centerTimer>0){ctx.fillStyle="#fff";ctx.textAlign="center";fitText(centerText,W-150,46,"bold",20);ctx.fillText(centerText,W/2,H*.43);}
   if(actionPromptTimer>0){
     ctx.save();
     ctx.fillStyle="#ffe066";
@@ -18252,6 +18278,8 @@ Object.defineProperties(window, {
   H:{get:()=>H},
   FONT_UI:{get:()=>FONT_UI},
   language:{get:()=>language},
+  gameMode:{get:()=>gameMode,set:v=>{gameMode=v;}},
+  selectedTab:{get:()=>selectedTab,set:v=>{selectedTab=v;}},
   projectAreaCleared:{get:()=>projectAreaCleared},
   dungeonPanelMode:{get:()=>dungeonPanelMode,set:v=>{dungeonPanelMode=v;}},
   clicked:{get:()=>clicked,set:v=>{clicked=v;}},
@@ -18280,6 +18308,7 @@ window.saveGame = saveGame;
 window.safeSaveGame = safeSaveGame;
 window.addPlayerExp = addPlayerExp;
 window.autoCloudSaveNow = autoCloudSaveNow;
+window.enterPZLobby = enterLobby;
 window.executorOrder = typeof executorOrder==="function" ? executorOrder : null;
 window.roleDisplayLevel = typeof roleDisplayLevel==="function" ? roleDisplayLevel : null;
 window.normalizeDungeonRuntime = normalizeDungeonRuntime;

@@ -8,6 +8,7 @@
   let board=[],selected=null,dragging=false,dragOrigin=null,moves=25,score=0,status="playing",message="",combo=0,bestCombo=0;
   let mode="campaign",stage=1,target=2200,popFx=[],boardKick=0,stageUnlocked=1;
   let idleFrames=0,hintPair=null,lastPower="";
+  let scorePulse=0,clearFlash=0,comboBanner=0;
   let rewards={campaign:{},endless:{},endlessDaily:{key:"",claimed:0},pending:[]},rewardPopup=false;
   let endlessRunRewardTier=0;
   const ENDLESS_REWARDS=[{score:2500,crystals:100},{score:6000,crystals:200},{score:12000,crystals:300},{score:22000,crystals:400}];
@@ -93,7 +94,8 @@
     }
     bestCombo=Math.max(bestCombo,combo);
     boardKick=Math.min(10,2+combo*2);
-    message=(lastPower?(host.language==="en"?lastPower:lastPower==="COLOR BURST"?"同色爆破":lastPower==="CROSS BREAK"?"十字消除":"整行消除")+" · ":"")+(combo>1?"X"+combo+" MATCH":"");
+    scorePulse=1;clearFlash=Math.min(.42,.10+combo*.055+(lastPower?.12:0));comboBanner=combo>1?38:0;
+    message=(lastPower?(host.language==="en"?lastPower:lastPower==="COLOR BURST"?"同色爆破":lastPower==="CROSS BREAK"?"十字消除":"整行消除")+" · ":"")+(combo>1?(host.language==="en"?"CHAIN X":"连锁 X")+combo:(host.language==="en"?"NICE CLEAR":"漂亮消除"));
     if(mode==="campaign" && score>=target){
       status="clear";message=stage>=MAX_STAGE?(host.language==="en"?"ALL 20 STAGES CLEAR!":"20关全部通关！"):(host.language==="en"?"STAGE CLEAR!":"关卡通关！");host.sfx("matchClear");
       stageUnlocked=Math.max(stageUnlocked,Math.min(MAX_STAGE,stage+1));checkRewards();saveProgress();
@@ -101,7 +103,7 @@
     else if(!hasPossibleMove()){makeBoard();message=host.language==="en"?"RESHUFFLED":"棋盘重排！";}
     if(mode==="endless")checkRewards();
   }
-  function newRound(){makeBoard();selected=null;dragging=false;dragOrigin=null;score=0;status="playing";message="";combo=0;bestCombo=0;popFx=[];boardKick=0;idleFrames=0;hintPair=null;lastPower="";endlessRunRewardTier=0;moves=mode==="endless"?999:stageMoves(stage);target=mode==="endless"?0:stageTarget(stage);}
+  function newRound(){makeBoard();selected=null;dragging=false;dragOrigin=null;score=0;status="playing";message="";combo=0;bestCombo=0;popFx=[];boardKick=0;scorePulse=0;clearFlash=0;comboBanner=0;idleFrames=0;hintPair=null;lastPower="";endlessRunRewardTier=0;moves=mode==="endless"?999:stageMoves(stage);target=mode==="endless"?0:stageTarget(stage);}
   function start(nextMode){loadProgress();mode=nextMode||"campaign";stage=mode==="campaign"?Math.min(stageUnlocked,MAX_STAGE):1;newRound();host.gameMode="match3";}
   function cellAt(x,y){const c=Math.floor((x-bx)/cell),r=Math.floor((y-by)/cell);return r>=0&&r<ROWS&&c>=0&&c<COLS?{r,c}:null;}
   function attempt(a,b){
@@ -131,7 +133,7 @@
   }
   function nextStage(){if(stage<MAX_STAGE){stage++;newRound();}else start("campaign");}
   function update(){
-    boardKick*=.78;for(const fx of popFx)fx.life--;popFx=popFx.filter(f=>f.life>0);
+    boardKick*=.78;scorePulse*=.82;clearFlash*=.78;comboBanner=Math.max(0,comboBanner-1);for(const fx of popFx)fx.life--;popFx=popFx.filter(f=>f.life>0);
     if(status==="playing"&&!dragging){idleFrames+=1;if(idleFrames===300)hintPair=findPossibleMove();}
     if(host.justPressed("escape")){host.gameMode="event";host.eventTab="match3";host.clicked=false;return;}
     if(!host.clicked)return;
@@ -159,6 +161,7 @@
   function draw(){
     const g=host.ctx,W=host.W,H=host.H,ox=(Math.random()-.5)*boardKick,oy=(Math.random()-.5)*boardKick;
     const bg=g.createLinearGradient(0,0,W,H);bg.addColorStop(0,"#111b31");bg.addColorStop(.55,"#090c17");bg.addColorStop(1,"#04060b");g.fillStyle=bg;g.fillRect(0,0,W,H);
+    if(clearFlash>.01){g.fillStyle="rgba(124,199,255,"+clearFlash+")";g.fillRect(0,0,W,H);}
     g.fillStyle="#fff";g.font="bold 32px "+host.FONT_UI;g.textAlign="left";g.fillText(host.language==="en"?"X4 Match!":"消消消消乐！",42,55);
     g.fillStyle="rgba(255,255,255,.52)";g.font="13px "+host.FONT_UI;g.fillText(mode==="endless"?(host.language==="en"?"ENDLESS MODE":"无尽模式 · 无限消除"):(host.language==="en"?"STAGE MODE":"关卡模式 · 第"+stage+"关"),44,78);
     g.save();g.translate(ox,oy);g.fillStyle="rgba(255,255,255,.05)";g.fillRect(bx-10,by-10,COLS*cell+20,ROWS*cell+20);g.strokeStyle="rgba(124,199,255,.32)";g.lineWidth=2;g.strokeRect(bx-10,by-10,COLS*cell+20,ROWS*cell+20);
@@ -171,11 +174,14 @@
     g.restore();
     g.fillStyle="rgba(0,0,0,.38)";g.fillRect(790,92,280,390);g.strokeStyle="rgba(255,255,255,.16)";g.lineWidth=1;g.strokeRect(790,92,280,390);
     g.textAlign="left";g.fillStyle="#7cc7ff";g.font="bold 15px "+host.FONT_UI;g.fillText(mode==="endless"?(host.language==="en"?"ENDLESS SCORE":"无尽分数"):(host.language==="en"?"STAGE "+stage:"第 "+stage+" 关"),820,130);
-    g.fillStyle="#fff";g.font="bold 42px Arial";g.fillText(String(score),820,176);
+    g.save();g.translate(820,176);g.scale(1+scorePulse*.08,1+scorePulse*.08);g.fillStyle="#fff";g.font="bold 42px Arial";g.fillText(String(score),0,0);g.restore();
     if(mode!=="endless"){g.fillStyle="rgba(255,255,255,.48)";g.font="13px "+host.FONT_UI;g.fillText((host.language==="en"?"Target ":"目标 ")+target,820,204);g.fillStyle="rgba(255,255,255,.10)";g.fillRect(820,220,220,10);g.fillStyle="#ffe066";g.fillRect(820,220,220*Math.min(1,score/target),10);}
     g.fillStyle="#ffe066";g.font="bold 15px "+host.FONT_UI;g.fillText(mode==="endless"?(host.language==="en"?"NO LIMIT":"无限步数"):(host.language==="en"?"MOVES":"剩余步数"),820,270);g.fillStyle="#fff";g.font="bold 50px Arial";g.fillText(mode==="endless"?"∞":String(moves).padStart(2,"0"),820,326);
     g.fillStyle="rgba(255,255,255,.55)";g.font="13px "+host.FONT_UI;host.wrapText(host.language==="en"?"Swipe a crystal to swap. Match 4 for a line clear, 5 for a cross, and 6 for a color burst.":"滑动水晶即可交换。4连整行消除，5连十字消除，6连触发同色爆破。",820,360,220,21);
     g.fillStyle="rgba(255,255,255,.42)";g.font="12px "+host.FONT_UI;g.fillText((host.language==="en"?"BEST ":"最佳连消 ")+"X"+Math.max(1,bestCombo),820,425);
+    const nextGoal=mode==="campaign"?target:(ENDLESS_REWARDS.find(v=>score<v.score)?.score||((Math.floor(score/ENDLESS_DAILY_STEP)+1)*ENDLESS_DAILY_STEP));
+    g.fillStyle="#82ffe2";g.font="bold 11px "+host.FONT_UI;g.fillText((host.language==="en"?"NEXT GOAL ":"下一目标 ")+nextGoal+"  ·  "+Math.min(100,Math.floor(score/Math.max(1,nextGoal)*100))+"%",820,402);
+    if(comboBanner>0){g.save();g.globalAlpha=Math.min(1,comboBanner/12);g.textAlign="center";g.shadowBlur=22;g.shadowColor="#ffe066";g.fillStyle="#fff";g.font="bold "+(26+combo*3)+"px "+host.FONT_UI;g.fillText((host.language==="en"?"CHAIN ":"连续消除 ")+"×"+combo,548,62);g.restore();}
     const campaignClaimed=Object.keys(rewards.campaign||{}).length,endlessClaimed=Object.keys(rewards.endless||{}).length;
     normalizeDailyRewards();
     g.fillStyle="rgba(124,255,178,.72)";g.font="11px "+host.FONT_UI;g.fillText(mode==="endless"?((host.language==="en"?"Daily rewards ":"每日奖励 ")+rewards.endlessDaily.claimed+"/"+ENDLESS_DAILY_CAP+" · "+(host.language==="en"?"50 per 5,000":"每5000分 +50")) : ((host.language==="en"?"First-clear rewards ":"首通奖励 ")+campaignClaimed+"/20"),820,466);

@@ -3,7 +3,7 @@
 
   const VERSION_URL="version.json";
   const LOCAL_VERSION="49.19.11";
-  const LOCAL_BUILD="20260813-first-test-expiry";
+  const LOCAL_BUILD="2026081716-crystal-progression-overdrive";
   const FILE_RUNTIME=location.protocol==="file:";
   const BUILD_KEY="pz_runtime_build";
   const VERSION_KEY="pz_runtime_version";
@@ -22,7 +22,8 @@
   const REQUIRED_GAME="game.js";
   const OPTIONAL_AFTER_GAME=[
     "game_match3.js","game_quality_update.js","game_patrol.js",
-    "game_side_story.js","game_daydream.js","game_daydream_title.js"
+    "game_side_story.js","game_daydream.js","game_daydream_title.js",
+    "game_crystal_war.js"
   ];
 
   const screen=document.getElementById("bootScreen");

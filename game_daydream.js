@@ -384,7 +384,8 @@
 
     scenarioName(){ return T("Project Zero：日斩","Project Zero: Hizan"); },
     title(){ return T("白日梦重现","Daydream Reconstruction"); },
-    isFullscreen(){ return this.page!=="home" || !!this.selectedDaydreamScenario; },
+    // The archive list and every page entered from it own the complete canvas.
+    isFullscreen(){ return true; },
     endingCount(){ return Object.keys(this.state.unlockedEndings || {}).length; },
     nightmareCount(){ return Object.keys(this.state.unlockedNightmares || {}).length; },
     nightmareTotal(){ return nightmarePool.length; },
@@ -393,7 +394,7 @@
     levelReward(level){
       if(level===120) return {crystals:600,gold:12000,expBooks:12,weaponOre:6};
       if(level%30===0) return {crystals:260,gold:6000,expBooks:6,weaponOre:3};
-      if(level%10===0) return {crystals:120,gold:3000,expBooks:3,weaponOre:2};
+      if(level%10===0) return {crystals:120,gold:3000,expBooks:3,weaponOre:2,fragmentAll:1};
       if(level%5===0) return {crystals:55,gold:1600,expBooks:2,weaponOre:1};
       if(level%3===0) return {gold:1200,expBooks:2};
       return level%2===0?{crystals:30,gold:700}:{gold:950,expBooks:1};
@@ -403,6 +404,7 @@
       if(pack.crystals)a.push(T("水晶 ×","Crystal ×")+pack.crystals);
       if(pack.gold)a.push(T("金币 ×","Gold ×")+pack.gold);
       if(pack.expBooks)a.push(T("经验书 ×","EXP Book ×")+pack.expBooks);
+      if(pack.fragmentAll)a.push(T("六系属性碎片各 ×","All Element Fragments ×")+pack.fragmentAll);
       if(pack.weaponOre)a.push(T("精炼合金 ×","Weapon Ore ×")+pack.weaponOre);
       return a.join("  ·  ");
     },
