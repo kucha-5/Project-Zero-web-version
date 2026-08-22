@@ -14,7 +14,7 @@
 
 // Build info for quick debugging
 window.PZ_BUILD_INFO = window.PZ_BUILD_INFO || {
-  build: "V49_18_11_COMMERCIAL_SYSTEMS",
+  build: "V49_20_7_CRYSTAL_WAR_OFFLINE",
   storyModule: true,
   optimized: true
 };
@@ -88,8 +88,6 @@ function pzCursorIsHoveringUI(){
 
 function drawPZCustomCursor(){
   if(!pzCursorReady) return;
-
-  pzCursorPulse += 0.16 * frameScale;
   const hovering = pzCursorIsHoveringUI();
   const pressed = !!mouseDown;
 
@@ -126,9 +124,45 @@ function drawPZCustomCursor(){
 const LOGICAL_W = 1120;
 const LOGICAL_H = 660;
 
-let renderQuality = "AUTO"; // "STANDARD" / "1080P" / "2K" / "AUTO"
-let targetFPS = 60;          // 30 / 60
+let renderQuality = "AUTO"; // "STANDARD" / "1080P" / "2K" / "4K" / "AUTO"
+let targetFPS = 60;          // 30 / 60 / 120 / 0 (Unlimited)
 let lastLoopRenderTime = 0;
+let runtimeFPS = 60;
+let runtimeRenderMs = 0;
+let runtimeLogicMs = 0;
+let runtimeDroppedFrames = 0;
+let performanceWarning = null;
+const deviceProfile = {
+  cores:navigator.hardwareConcurrency||0,
+  memoryGB:navigator.deviceMemory||0,
+  platform:navigator.platform||"",
+  architecture:"", bitness:"", model:"",
+  gpuVendor:"", gpuRenderer:"",
+  screen:(window.screen?window.screen.width+"×"+window.screen.height:"—"),
+  dpr:window.devicePixelRatio||1
+};
+
+async function collectDeviceProfile(){
+  try{
+    const probe=document.createElement("canvas");
+    const gl=probe.getContext("webgl2",{powerPreference:"high-performance"})||probe.getContext("webgl");
+    if(gl){
+      const debug=gl.getExtension("WEBGL_debug_renderer_info");
+      deviceProfile.gpuVendor=String(debug?gl.getParameter(debug.UNMASKED_VENDOR_WEBGL):gl.getParameter(gl.VENDOR)||"");
+      deviceProfile.gpuRenderer=String(debug?gl.getParameter(debug.UNMASKED_RENDERER_WEBGL):gl.getParameter(gl.RENDERER)||"");
+    }
+  }catch(ignore){}
+  try{
+    if(navigator.userAgentData&&navigator.userAgentData.getHighEntropyValues){
+      const hints=await navigator.userAgentData.getHighEntropyValues(["architecture","bitness","model","platformVersion"]);
+      deviceProfile.platform=[navigator.userAgentData.platform,hints.platformVersion].filter(Boolean).join(" ");
+      deviceProfile.architecture=hints.architecture||"";
+      deviceProfile.bitness=hints.bitness||"";
+      deviceProfile.model=hints.model||"";
+    }
+  }catch(ignore){}
+}
+collectDeviceProfile();
 
 function detectAutoQuality(){
   const cores = navigator.hardwareConcurrency || 4;
@@ -146,6 +180,7 @@ function activeRenderQuality(){
 
 function getRenderScale(){
   const q = activeRenderQuality();
+  if(q === "4K") return 2160 / LOGICAL_H;
   if(q === "2K") return 1440 / LOGICAL_H;
   if(q === "1080P") return 1080 / LOGICAL_H;
   return 1;
@@ -167,26 +202,61 @@ function qualityName(q=renderQuality){
   if(q === "STANDARD") return language === "en" ? "Standard" : "标准";
   if(q === "1080P") return "1080P";
   if(q === "2K") return "2K";
+  if(q === "4K") return "4K";
   if(q === "AUTO") return language === "en" ? "Auto" : "自动";
   return q;
 }
 
 function deviceMayHeatFor(q=activeRenderQuality(), fps=targetFPS){
-  const cores = navigator.hardwareConcurrency || 4;
-  const mem = navigator.deviceMemory || 4;
-  if(q === "2K" && (cores < 6 || mem < 6)) return true;
-  if(q === "2K" && fps >= 60 && cores < 8) return true;
-  if(fps >= 60 && mem && mem < 4) return true;
-  return false;
+  return projectedDeviceLoad(q,fps)>=78;
 }
 
-function confirmPerformanceChoice(q=activeRenderQuality(), fps=targetFPS){
-  if(!deviceMayHeatFor(q, fps)) return true;
-  return window.confirm(
-    language === "en"
-      ? "Confirm? This setting may make your device heat up. Recommended: Standard / 30 FPS."
-      : "确定？您的设备极有可能会发烫发热。建议使用标准画质或30帧。"
-  );
+function projectedDeviceLoad(q=activeRenderQuality(),fps=targetFPS){
+  const scale=q==="4K"?2160/LOGICAL_H:q==="2K"?1440/LOGICAL_H:q==="1080P"?1080/LOGICAL_H:1;
+  const megapixels=(LOGICAL_W*scale*LOGICAL_H*scale)/1000000;
+  const measuredTarget=fps===0?Math.max(60,runtimeFPS):fps;
+  const pixelPressure=Math.min(65,megapixels*measuredTarget/8.3);
+  const effects=(particlesEnabled?8:0)+(damageTextEnabled?3:0);
+  const activeObjects=(typeof enemies!=="undefined"?enemies.length:0)+(typeof projectiles!=="undefined"?projectiles.length*.45:0)+(typeof particles!=="undefined"?particles.length*.08:0);
+  const desired=fps===0?Math.max(60,runtimeFPS):fps;
+  const budget=1000/Math.max(1,desired);
+  const measuredWork=Math.max(runtimeRenderMs,runtimeLogicMs);
+  const workPressure=runtimeRenderMs>0?clamp(measuredWork/budget*32,0,38):0;
+  const missed=runtimeFPS>5&&desired>0?clamp((1-runtimeFPS/desired)*24,0,24):0;
+  const lowSpec=(deviceProfile.cores&&deviceProfile.cores<4?7:0)+(deviceProfile.memoryGB&&deviceProfile.memoryGB<4?7:0);
+  return clamp(Math.round(8+pixelPressure+effects+Math.min(10,activeObjects*.35)+workPressure+missed+lowSpec),5,100);
+}
+
+function estimatedDeviceLoad(){
+  return projectedDeviceLoad(activeRenderQuality(),targetFPS);
+}
+
+function deviceLoadLabel(value=estimatedDeviceLoad()){
+  if(value>=90)return language==="en"?"EXTREME":"极高";
+  if(value>=70)return language==="en"?"HIGH":"较高";
+  if(value>=45)return language==="en"?"MEDIUM":"中等";
+  return language==="en"?"LOW":"较低";
+}
+
+function applyPerformanceChoice(kind,value){
+  if(kind==="quality"){
+    renderQuality=value;applyRenderQuality();
+    showCenter((language==="en"?"Quality: ":"画质：")+qualityName(value),80);
+  }else{
+    targetFPS=value;lastLoopRenderTime=0;
+    showCenter((language==="en"?"FPS: ":"帧数：")+(value===0?"Unlimited":value),80);
+  }
+  saveGame();
+}
+
+function requestPerformanceChoice(kind,value){
+  const q=kind==="quality"?(value==="AUTO"?detectAutoQuality():value):activeRenderQuality();
+  const fps=kind==="fps"?value:targetFPS;
+  if(deviceMayHeatFor(q,fps)){
+    performanceWarning={kind,value,load:projectedDeviceLoad(q,fps)};
+    return;
+  }
+  applyPerformanceChoice(kind,value);
 }
 
 function applyRenderQuality(){
@@ -205,19 +275,11 @@ function applyRenderQuality(){
 }
 
 function setRenderQualitySetting(q){
-  const effective = q === "AUTO" ? detectAutoQuality() : q;
-  if(!confirmPerformanceChoice(effective, targetFPS)) return;
-  renderQuality = q;
-  applyRenderQuality();
-  saveGame();
-  showCenter((language==="en"?"Quality: ":"画质：") + qualityName(q), 80);
+  requestPerformanceChoice("quality",q);
 }
 
 function setTargetFPSSetting(fps){
-  if(!confirmPerformanceChoice(activeRenderQuality(), fps)) return;
-  targetFPS = fps;
-  saveGame();
-  showCenter((language==="en"?"FPS: ":"帧数：") + fps, 80);
+  requestPerformanceChoice("fps",fps);
 }
 
 applyRenderQuality();
@@ -556,7 +618,13 @@ function accountErrorText(err){
   if(code.includes("user-not-found")) return accTx("userNotFound");
   if(code.includes("permission-denied") || msg.includes("permission")) return accTx("permissionDenied");
   if(code.includes("network") || msg.toLowerCase().includes("network")) return accTx("networkError");
-  return accTx("unknownError") + (code ? ": " + code : "");
+  const apiCode=(code||msg).toUpperCase();
+  if(apiCode.includes("INVALID_CREDENTIALS"))return language==="en"?"Email/username or password is incorrect.":"邮箱、用户名或密码错误。";
+  if(apiCode.includes("ACCOUNT_DELETED"))return language==="en"?"This account has been permanently deleted.":"该账号已经永久删除。";
+  if(apiCode.includes("INVALID_SESSION")||apiCode.includes("SESSION_EXPIRED"))return language==="en"?"Session expired. Please sign in again.":"登录状态已过期，请重新登录。";
+  if(apiCode.includes("ACCOUNT_API_OFFLINE"))return language==="en"?"The account server is currently unreachable.":"暂时无法连接账号服务器。";
+  if(apiCode.includes("ACCOUNT_API_TIMEOUT"))return language==="en"?"The account server timed out. Try again.":"账号服务器响应超时，请重试。";
+  return accTx("unknownError") + (apiCode ? ": " + apiCode : "");
 }
 
 const CLOUD_TEXT = {
@@ -940,7 +1008,7 @@ function filteredNoise(dur=.07,gain=.025,freq=1400,q=.8,start=0){
 
 function sfxElementImpact(roleId,label=""){
   if(audioMuted||!audioUnlocked||!audioCtx)return;
-  const periodic=label==="GALE"||label==="FROST"||label==="DOMAIN"||label==="BIND";
+  const periodic=label==="GALE"||label==="FROST"||label==="DOMAIN"||label==="BIND"||label==="BURN";
   const scale=periodic?.42:1,element=(roles[roleId]&&roles[roleId].element)||"physical";
   if(element==="physical"){
     metallicPing(620,.045*scale);sweepTone(1650,480,.075,"sawtooth",.026*scale);
@@ -1365,6 +1433,10 @@ canvas.addEventListener("mousemove", e => {
   const r = canvas.getBoundingClientRect();
   mouseX = (e.clientX - r.left) * W / r.width;
   mouseY = (e.clientY - r.top) * H / r.height;
+  if(crystalWarRackDrag){
+    crystalWarRackPos.x=clamp(mouseX-crystalWarRackDrag.dx,12,W-312);
+    crystalWarRackPos.y=clamp(mouseY-crystalWarRackDrag.dy,76,H-236);
+  }
   if(gameMode==="operation"&&selectedTab==="dualCrystal"&&window.PZCrystalWar&&typeof window.PZCrystalWar.pointerMove==="function")window.PZCrystalWar.pointerMove(mouseX,mouseY);
   if(gameMode === "match3" && mouseDown && window.PZMatch3) window.PZMatch3.pointerMove(mouseX,mouseY);
 });
@@ -1380,6 +1452,11 @@ canvas.addEventListener("mousedown", e => {
   const r = canvas.getBoundingClientRect();
   mouseX = (e.clientX - r.left) * W / r.width;
   mouseY = (e.clientY - r.top) * H / r.height;
+  if(gameMode==="battle"&&battleModeSource==="crystalWar"&&crystalWarBuildMenu&&e.button===0&&inRect(crystalWarRackPos.x,crystalWarRackPos.y,300,34)){
+    unlockAudio();mouseDown=true;clicked=false;mouseAttackConsumed=true;
+    crystalWarRackDrag={dx:mouseX-crystalWarRackPos.x,dy:mouseY-crystalWarRackPos.y};
+    return;
+  }
   if(gameMode==="operation"&&selectedTab==="dualCrystal"&&e.button===0&&window.PZCrystalWar&&typeof window.PZCrystalWar.pointerDown==="function")window.PZCrystalWar.pointerDown(mouseX,mouseY);
   if(gameMode === "battle" && chainSelect){
     unlockAudio();
@@ -1401,10 +1478,11 @@ canvas.addEventListener("mousedown", e => {
   if (e.button === 0) { unlockAudio(); mouseDown = true; clicked = true; sfx("ui"); }
   if (e.button === 2) { unlockAudio(); keys["mouse2"] = true; }
 });
-canvas.addEventListener("mouseup", e => { if(e.button===0) { if(gameMode==="operation"&&selectedTab==="dualCrystal"&&window.PZCrystalWar&&typeof window.PZCrystalWar.pointerUp==="function")window.PZCrystalWar.pointerUp(mouseX,mouseY); if(gameMode==="match3" && window.PZMatch3) window.PZMatch3.pointerUp(mouseX,mouseY); mouseDown = false; mouseAttackConsumed = false; } if(e.button===2) keys["mouse2"]=false; });
+canvas.addEventListener("mouseup", e => { if(e.button===0) { crystalWarRackDrag=null; if(gameMode==="operation"&&selectedTab==="dualCrystal"&&window.PZCrystalWar&&typeof window.PZCrystalWar.pointerUp==="function")window.PZCrystalWar.pointerUp(mouseX,mouseY); if(gameMode==="match3" && window.PZMatch3) window.PZMatch3.pointerUp(mouseX,mouseY); mouseDown = false; mouseAttackConsumed = false; } if(e.button===2) keys["mouse2"]=false; });
 canvas.addEventListener("contextmenu", e => e.preventDefault());
 canvas.addEventListener("wheel", e => {
   if(gameMode==="operation"&&selectedTab==="dualCrystal"&&window.PZCrystalWar&&typeof window.PZCrystalWar.handleWheel==="function"&&window.PZCrystalWar.handleWheel(e.deltaY||e.deltaX||0,mouseX,mouseY))e.preventDefault();
+  if(gameMode==="operation"&&window.PZDaydream&&typeof window.PZDaydream.handleWheel==="function"&&window.PZDaydream.handleWheel(e.deltaY||e.deltaX||0,mouseX,mouseY))e.preventDefault();
   if(gameMode === "operators" && operatorPageMode === "list"){
     operatorListWheelDelta += (e.deltaY || e.deltaX || 0);
     e.preventDefault();
@@ -1675,7 +1753,9 @@ let staminaRecoverMsg = "";
 let materialDungeonRun = null;
 let projectAreaRun = null;
 let paState = null;
+let projectAreaPaused = false;
 let projectAreaCleared = false;
+let projectAreaMapClears = {};
 let projectAreaMapIndex = 0;
 let projectAreaObjects = [];
 let battleExploreObjects = [];
@@ -1685,6 +1765,14 @@ let chapterObjectivePrompted = false;
 let battleRoute = "center";
 let battleExitDelay = 0;
 let battleSideArea = "";
+// Difficulty selection is preparation-only. battleDifficulty is copied into
+// battleHardMode when a stage starts so UI toggles can never rewrite progress.
+let battleDifficulty = "normal";
+let battleHardMode = false;
+let hardCleared = {};
+// Stage-persistent route snapshots are deliberately separate from live combat
+// effects. They survive route travel, but are discarded by startBattle().
+let battleRouteStates = {};
 let battleRoleHp = [];
 let battleRoleEnergy = [];
 let battleRoleUlt = [];
@@ -1693,6 +1781,8 @@ let bossSelectedIndex = 0;
 let teamRosterScrollX = 0;
 let teamRosterWheelDelta = 0;
 let bossMultiplier = 1;
+let bossDifficulty = 1;
+let bossDifficulties = {crystalHumanoid:1,kros:1};
 let bossKrosWeeklyKey = "";
 let dragonClaw = 0;
 let crystalHand = 0;
@@ -1707,6 +1797,7 @@ let playerPoisonTimer = 0;
 let playerPoisonTick = 0;
 let playerBleedTimer = 0;
 let playerBleedTick = 0;
+let playerStatuses = {};
 let operationDetailVisible = false;
 let battleModeSource = "main";
 let battlePaused = false;
@@ -1725,6 +1816,8 @@ let crystalWarResourceBuffer = {rawOre:0,materials:0,scrap:0,fiber:0,wood:0,resi
 let crystalWarTerrain = [];
 let crystalWarSectorTheme = 0;
 let crystalWarLastTransferAt = 0;
+let crystalWarRackPos = {x:W-330,y:76};
+let crystalWarRackDrag = null;
 const CRYSTAL_WAR_FIELD_DEVICES=[
   {id:"mineral",z:"矿物采集钻机",e:"MINERAL DRILL",icon:"⚙",color:"#82ffe2",resources:["rawOre","scrap","stone"]},
   {id:"forestry",z:"树材采集无人机",e:"FORESTRY DRONE",icon:"⌁",color:"#7cffb2",resources:["wood","resin"]},
@@ -1867,7 +1960,7 @@ try{
     localStorage.setItem(GUEST_SAVE_KEY, localStorage.getItem(LEGACY_SAVE_KEY));
   }
 }catch(e){}
-const SAVE_VERSION = 62;
+const SAVE_VERSION = 67;
 const SAVE_BACKUP_SUFFIX = "_backup_";
 const SAVE_TEMP_SUFFIX = "_writing";
 let saveCooldown = 0;
@@ -2003,6 +2096,7 @@ let cloudAuthStateResolved = false;
 let explicitGuestSession = guestMode;
 let deletionPromptActive = false;
 let deletionScheduledAtMs = 0;
+let accountDeletionConfirmStep = 0;
 let guestCloudOverwritePromptActive = false;
 let discardGuestAfterAccountStart = false;
 const GUEST_MIGRATION_PENDING_KEY = "project_zero_guest_migration_pending_uid";
@@ -2405,7 +2499,7 @@ async function accountLoginFlow(overwriteConfirmed=false){
     const meta = await readAccountMeta();
     if(await blockExpiredDeletion(meta)) return;
     if(hasPendingDeletion(meta)){
-      openDeletionPrompt(meta);
+      showPendingDeletionLanding(meta);
       return;
     }
     if(guestTransfer){
@@ -2798,7 +2892,15 @@ function openDeletionPrompt(meta){
   deletionScheduledAtMs = deletionTimeMs(meta && meta.deletionScheduledAt);
   deletionPromptActive = true;
   gameMode = "login";
-  setAccountMsg(language==="en" ? "Account is still in the deletion period." : "账号仍处于注销期。", 240);
+  setAccountMsg(language==="en" ? "Cancel deletion and enter the game?" : "是否取消注销并进入游戏？", 240);
+}
+function showPendingDeletionLanding(meta){
+  deletionScheduledAtMs = deletionTimeMs(meta && meta.deletionScheduledAt);
+  deletionPromptActive = false;
+  gameMode = "login";
+  setAccountMsg(language==="en"
+    ? "Deletion is pending. Tap to Start to choose whether to enter."
+    : "账号处于注销期，点击开始后选择是否进入。",240);
 }
 async function cancelDeleteRequest(){
   if(!cloudUser || !window.PZAccount) return;
@@ -2823,15 +2925,12 @@ async function requestDeleteAccount(){
   const scheduled = now + DELETE_GRACE_MS;
   accountBusy = true;
   try{
-    const deletingUid = cloudUser.uid;
     const meta=await window.PZAccount.requestDeletion();
     deletionScheduledAtMs=deletionTimeMs(meta&&meta.deletionScheduledAt)||scheduled;
-    deletionScheduledAtMs = scheduled;
-    await signOutAndClearLocal(true);
-    try{
-      localStorage.removeItem(cloudAccountSaveKey(deletingUid));
-      clearExternalProgress(cloudAccountSaveKey(deletingUid));
-    }catch(e){}
+    accountDeletionConfirmStep=0;
+    cloudInitialSyncDone=false;
+    cloudPendingSave=false;
+    showPendingDeletionLanding(meta);
   }catch(err){ setAccountMsg(accountErrorText(err),240); }
   finally{ accountBusy = false; }
 }
@@ -2855,6 +2954,7 @@ async function signOutAndClearLocal(skipCloudSave=false){
   accountPassword = "";
   deletionPromptActive = false;
   deletionScheduledAtMs = 0;
+  accountDeletionConfirmStep = 0;
   guestCloudOverwritePromptActive = false;
   discardGuestAfterAccountStart = false;
   // Retain the UID-scoped cache as an offline safety copy. It is never loaded
@@ -2878,7 +2978,7 @@ async function bootAccountSession(){
     restoreCachedAccountLanguage(cloudUser.uid);
     reloadAccountScopedGameplay(false);
     const meta=await readAccountMeta();
-    if(hasPendingDeletion(meta)) openDeletionPrompt(meta);
+    if(hasPendingDeletion(meta)) showPendingDeletionLanding(meta);
     else if(gameMode==="login") setAccountMsg(language==="en" ? "Signed in. Tap to Start to load this account." : "已登录，点击开始载入该账号存档。",90);
   }).catch(err=>console.warn("[SF Account boot]",err));
 }
@@ -2914,7 +3014,13 @@ function resetRuntimeDefaults(){
   particlesEnabled = true;
   damageTextEnabled = true;
   selectedStage = 1;
+  battleDifficulty = "normal";
+  battleHardMode = false;
+  hardCleared = {};
+  battleRouteStates = {};
   projectAreaCleared = false;
+  projectAreaMapClears = {};
+  projectAreaMapIndex = 0;
   dungeonSelected = 0;
   dungeonPanelMode = "list";
   materialDungeonSelected = 0;
@@ -2980,8 +3086,10 @@ function resetRuntimeDefaults(){
   // permanent recruit; Chloe is never granted automatically.
   owned = [true,true,false,false,true,false];
   cleared = {};
+  hardCleared = {};
   charData = roles.map((r,i)=>({
     level:1,
+    breakStage:0,
     skillPoints:0,
     normal:1,
     skill:1,
@@ -3035,7 +3143,7 @@ function resetRuntimeDefaults(){
   skillBooks = 6;
   skillMaterials = {normal:6,skill:4,ultimate:2};
   owned = [true,true,false,false,true,false];
-  charData = roles.map((r,i)=>({level:1,skillPoints:0,normal:1,skill:1,ultimate:1,weaponLevel:1,weapon:["训练剑","训练长枪","训练双刃","训练法器","灰白核心刃","训练法器"][i],equippedWeaponId:["training_sword","training_spear","training_dual","training_codex","gray_core_blade","training_codex"][i]}));
+  charData = roles.map((r,i)=>({level:1,breakStage:0,skillPoints:0,normal:1,skill:1,ultimate:1,weaponLevel:1,weapon:["训练剑","训练长枪","训练双刃","训练法器","灰白核心刃","训练法器"][i],equippedWeaponId:["training_sword","training_spear","training_dual","training_codex","gray_core_blade","training_codex"][i]}));
   cleared = {};
   achievements = {};
   totalKills = 0; totalParries = 0; totalChains = 0; totalBossKills = 0;
@@ -3059,7 +3167,7 @@ function resetRuntimeDefaults(){
   dungeonRewardMultiplier = 1; materialDungeonDifficulty = 1; materialDungeonSelected = 0;
   materialDungeonDifficulties = {gold:1,exp:1,weapon:1,module:2,skill:1,screw:1};
   moduleDungeonTarget = "survey"; moduleArchiveScroll = 0; moduleArchiveWheelDelta = 0;
-  bossMultiplier = 1; bossKrosWeeklyKey = ""; dragonClaw = 0; crystalHand = 0;
+  bossMultiplier = 1; bossDifficulty=1; bossDifficulties={crystalHumanoid:1,kros:1}; bossKrosWeeklyKey = ""; dragonClaw = 0; crystalHand = 0;
   elementalFragments = {fire:0,physical:0,ice:0,wind:0,dark:0,crystal:0}; materialDungeonScroll=0;
   uiGuideSeen = {};
   uiNewSeen = {};
@@ -3148,7 +3256,8 @@ function captureBattleResumeSnapshot(){
     selectedTab,selectedMainChapter,selectedStage,selectedCommissionChapter,
     team:team.slice(),area,areaCleared,commissionComplete,
     commissionTimeLeft,commissionTimeMax,chapter2EvacTimeLeft,
-    battleRoute,battleSideArea,battleExitDelay,
+    battleRoute,battleSideArea,battleExitDelay,battleHardMode,battleDifficulty,
+    battleRouteStates:cloneBattleResumeValue(battleRouteStates,{}),playerStatuses:cloneBattleResumeValue(playerStatuses,{}),
     battleRoleHp:battleRoleHp.slice(),battleRoleEnergy:battleRoleEnergy.slice(),battleRoleUlt:battleRoleUlt.slice(),
     player:cloneBattleResumeValue(player,{}),enemies:cloneBattleResumeValue(enemies,[]),
     projectiles:cloneBattleResumeValue(projectiles,[]),frostFields:cloneBattleResumeValue(frostFields,[]),windFields:cloneBattleResumeValue(windFields,[]),bossHazards:cloneBattleResumeValue(bossHazards,[]),
@@ -3179,6 +3288,8 @@ function restoreBattleResumeSnapshot(){
   area=Math.max(1,Math.floor(Number(s.area)||1));areaCleared=!!s.areaCleared;commissionComplete=!!s.commissionComplete;
   commissionTimeLeft=Math.max(0,Number(s.commissionTimeLeft)||0);commissionTimeMax=Math.max(0,Number(s.commissionTimeMax)||0);chapter2EvacTimeLeft=Math.max(0,Number(s.chapter2EvacTimeLeft)||0);
   battleRoute=s.battleRoute||"center";battleSideArea=s.battleSideArea||"";battleExitDelay=Math.max(0,Number(s.battleExitDelay)||0);
+  battleHardMode=!!s.battleHardMode;battleDifficulty=s.battleDifficulty==="hard"?"hard":"normal";
+  battleRouteStates=cloneBattleResumeValue(s.battleRouteStates,{});playerStatuses=cloneBattleResumeValue(s.playerStatuses,{});
   battleRoleHp=Array.isArray(s.battleRoleHp)?s.battleRoleHp.slice():battleRoleHp;battleRoleEnergy=Array.isArray(s.battleRoleEnergy)?s.battleRoleEnergy.slice():battleRoleEnergy;battleRoleUlt=Array.isArray(s.battleRoleUlt)?s.battleRoleUlt.slice():battleRoleUlt;
   enemies=cloneBattleResumeValue(s.enemies,[]);projectiles=cloneBattleResumeValue(s.projectiles,[]);frostFields=cloneBattleResumeValue(s.frostFields,[]);windFields=cloneBattleResumeValue(s.windFields,[]);bossHazards=cloneBattleResumeValue(s.bossHazards,[]);
   if(s.ult)ult=cloneBattleResumeValue(s.ult,ult);protagonistBindings=cloneBattleResumeValue(s.protagonistBindings,[]);protagonistSweeps=cloneBattleResumeValue(s.protagonistSweeps,[]);if(s.protagonistDomain)protagonistDomain=cloneBattleResumeValue(s.protagonistDomain,protagonistDomain);
@@ -3216,10 +3327,12 @@ function saveGame(){
       updatedAt:now,
       accountUid:(!guestMode && cloudUser) ? cloudUser.uid : "",
       crystals, gold, expBooks, weaponOre, skillBooks, skillMaterials, playerLevel, playerExp, playerExpNeed, protagonistStoryLevel, playerName, playerUID, hasCreatedProfile, profileAvatarRole, profileAvatarFrame, profileShowcase,
-      owned, cleared, projectAreaCleared, charData, lobbyExecutor, lobbyBackgroundTheme, team, teamPresets, teamPresetNames, renderQuality, targetFPS, monthlyOwned, monthlyClaimed, monthlyClaimDate, mailClaimed, mailDeleted, eventClaimed, lastLoginClaimDate, loginClaimIndex, monthlyLoginCheckin, versionLoginCheckin,
-      loginRewards, levelRewards, boughtPacks, ownedWeapons, weaponInventory, crystalExchangePurchases, dungeonStamina, dungeonWeeklyCrystalLeft, dungeonCrystalWeekKey, dungeonLastStaminaDate, dungeonCandy, dungeonStimulant, dungeonCandyMonthKey, dungeonCandyDailyUsed, dungeonCandyDailyKey, dungeonRewardMultiplier, materialDungeonDifficulty, materialDungeonDifficulties, materialDungeonSelected, materialDungeonScroll, moduleDungeonTarget, audioMuted, bgmVolume, sfxVolume, particlesEnabled, damageTextEnabled, tutorialCompleted, tutorialInProgress, tutorialResumeMode, language, prologueDone, lobbyGuideDone, lobbyGuideStep, achievements, totalKills, totalParries, totalChains, totalBossKills, totalGoldEarned, totalCrystalsEarned, growthGuidePage, growthGuidePageClaimed, growthGuideTaskClaimed, bossMultiplier, bossKrosWeeklyKey, dragonClaw, crystalHand, elementalFragments, uiGuideSeen, uiNewSeen, actionRecordLevel, actionRecordExp, actionRecordExpNeed, actionRecordPage, actionRecordAdvanced, actionRecordUltimate, actionRecordClaimed, actionRecordWeaponChoice, actionRecordTab, actionRecordTaskTab, actionRecordTaskClaimed, battleManualDailyClaimed,
+      owned, cleared, hardCleared, projectAreaCleared, projectAreaMapClears, charData, lobbyExecutor, lobbyBackgroundTheme, team, teamPresets, teamPresetNames, renderQuality, targetFPS, monthlyOwned, monthlyClaimed, monthlyClaimDate, mailClaimed, mailDeleted, eventClaimed, lastLoginClaimDate, loginClaimIndex, monthlyLoginCheckin, versionLoginCheckin,
+      loginRewards, levelRewards, boughtPacks, ownedWeapons, weaponInventory, crystalExchangePurchases, dungeonStamina, dungeonWeeklyCrystalLeft, dungeonCrystalWeekKey, dungeonLastStaminaDate, dungeonCandy, dungeonStimulant, dungeonCandyMonthKey, dungeonCandyDailyUsed, dungeonCandyDailyKey, dungeonRewardMultiplier, materialDungeonDifficulty, materialDungeonDifficulties, materialDungeonSelected, materialDungeonScroll, moduleDungeonTarget, audioMuted, bgmVolume, sfxVolume, particlesEnabled, damageTextEnabled, tutorialCompleted, tutorialInProgress, tutorialResumeMode, language, prologueDone, lobbyGuideDone, lobbyGuideStep, achievements, totalKills, totalParries, totalChains, totalBossKills, totalGoldEarned, totalCrystalsEarned, growthGuidePage, growthGuidePageClaimed, growthGuideTaskClaimed, bossMultiplier, bossDifficulty, bossDifficulties, bossKrosWeeklyKey, dragonClaw, crystalHand, elementalFragments, uiGuideSeen, uiNewSeen, actionRecordLevel, actionRecordExp, actionRecordExpNeed, actionRecordPage, actionRecordAdvanced, actionRecordUltimate, actionRecordClaimed, actionRecordWeaponChoice, actionRecordTab, actionRecordTaskTab, actionRecordTaskClaimed, battleManualDailyClaimed,
       battleResume:captureBattleResumeSnapshot()
     };
+    current.projectAreaState=paState;
+    current.projectAreaPaused=projectAreaPaused;
     current.crystalModuleInventory = crystalModuleInventory;
     current.externalProgress = collectExternalProgress(key);
     // Save updates are merged into the current record. Existing extension fields
@@ -3262,6 +3375,7 @@ function migrateSaveData(d){
   addMissing("battleManualDailyClaimed", {key:"",tasks:{},page:false});
   addMissing("mailDeleted", false);
   addMissing("projectAreaCleared", false);
+  addMissing("projectAreaMapClears", d.projectAreaCleared ? {project_area:true} : {});
   addMissing("team", [PROTAGONIST_ROLE,0,1]);
   addMissing("teamPresets", [[PROTAGONIST_ROLE,0,1],[PROTAGONIST_ROLE],[0,1],[PROTAGONIST_ROLE,0]]);
   addMissing("teamPresetNames", ["","","",""]);
@@ -3273,6 +3387,7 @@ function migrateSaveData(d){
   addMissing("skillMaterials", {normal:6,skill:4,ultimate:2});
   addMissing("externalProgress", {});
   addMissing("battleResume", null);
+  addMissing("hardCleared", {});
   addMissing("saveRevision", 0);
   if(!Array.isArray(d.owned)){ d.owned=[true,true,false,false,true,false]; changed=true; }
   while(d.owned.length<6){ d.owned.push(false); changed=true; }
@@ -3309,9 +3424,14 @@ function migrateSaveData(d){
         const oldStage=Math.max(0,Math.min(2,Math.floor(Number(role.breakStage)||0)));
         role.breakStage=oldStage===2?4:oldStage===1?2:0;
       }
-      // Schema 62 inserts the new Lv.10 opening tier. Shift existing caps up
-      // one stage so no upgraded operator loses a previously unlocked cap.
-      if(fromVersion<62) role.breakStage=Math.min(5,Math.max(0,Math.floor(Number(role.breakStage)||0))+1);
+      // Schema 62 previously shifted every old character up one tier. That
+      // skipped the visible Lv.10 breakthrough for existing saves. Schema 66
+      // rebuilds completed breakthrough tiers from the character's real level:
+      // Lv.1-10 => tier 0, Lv.11-20 => tier 1, and so on.
+      if(fromVersion<66){
+        const actualLevel=Math.max(1,Math.min(60,Math.floor(Number(role.level)||1)));
+        role.breakStage=Math.max(0,Math.min(5,Math.floor((actualLevel-1)/10)));
+      }
     }
   }
   if(fromVersion !== SAVE_VERSION){
@@ -3376,9 +3496,13 @@ function loadGame(){
     if(!owned[profileAvatarRole]) profileAvatarRole=PROTAGONIST_ROLE;
     profileShowcase=profileShowcase.map(v=>owned[v]?v:PROTAGONIST_ROLE);
     if(d.cleared) cleared = d.cleared;
+    if(d.hardCleared && typeof d.hardCleared==="object") hardCleared = d.hardCleared;
     if(typeof d.projectAreaCleared === "boolean") projectAreaCleared = d.projectAreaCleared;
+    if(d.projectAreaMapClears&&typeof d.projectAreaMapClears==="object")projectAreaMapClears=Object.assign({},d.projectAreaMapClears);
+    if(d.projectAreaState&&typeof d.projectAreaState==="object")paState=cloneBattleResumeValue(d.projectAreaState,null);
+    if(typeof d.projectAreaPaused==="boolean")projectAreaPaused=d.projectAreaPaused;
     if(Array.isArray(d.charData)) charData = d.charData;
-    while(charData.length<roles.length) charData.push({level:1,skillPoints:0,normal:1,skill:1,ultimate:1,weaponLevel:1,weapon:weaponName(charData.length)});
+    while(charData.length<roles.length) charData.push({level:1,breakStage:0,skillPoints:0,normal:1,skill:1,ultimate:1,weaponLevel:1,weapon:weaponName(charData.length)});
     crystalModuleInventory=window.PZModules?window.PZModules.normalize(charData,Array.isArray(d.crystalModuleInventory)?d.crystalModuleInventory:[]):[];
     if(typeof d.moduleDungeonTarget === "string" && window.PZModules){
       if(window.PZModules.SETS[d.moduleDungeonTarget]) moduleDungeonTarget=d.moduleDungeonTarget;
@@ -3386,8 +3510,8 @@ function loadGame(){
     }
     if(typeof d.lobbyExecutor === "number") lobbyExecutor = clamp(d.lobbyExecutor,0,roles.length-1);
     if(typeof d.lobbyBackgroundTheme === "string" && ["raven","night","crystal","zero"].includes(d.lobbyBackgroundTheme)) lobbyBackgroundTheme=d.lobbyBackgroundTheme;
-    if(typeof d.renderQuality === "string" && ["STANDARD","1080P","2K","AUTO"].includes(d.renderQuality)) renderQuality = d.renderQuality;
-    if(typeof d.targetFPS === "number") targetFPS = d.targetFPS === 30 ? 30 : 60;
+    if(typeof d.renderQuality === "string" && ["STANDARD","1080P","2K","4K","AUTO"].includes(d.renderQuality)) renderQuality = d.renderQuality;
+    if(typeof d.targetFPS === "number" && [0,30,60,120].includes(d.targetFPS)) targetFPS = d.targetFPS;
     applyRenderQuality();
 
     if(typeof d.monthlyOwned === "boolean") monthlyOwned = d.monthlyOwned;
@@ -3450,6 +3574,8 @@ function loadGame(){
     },Object.fromEntries(Object.entries(d.materialDungeonDifficulties).map(([k,v])=>[k,clamp(Math.floor(+v||1),1,6)])));
     if(typeof d.materialDungeonSelected === "number") materialDungeonSelected = clamp(Math.floor(d.materialDungeonSelected),0,materialDungeonsV42().length-1);
     if(typeof d.bossMultiplier === "number") bossMultiplier = clamp(Math.floor(d.bossMultiplier),1,4);
+    if(d.bossDifficulties&&typeof d.bossDifficulties==="object")bossDifficulties={crystalHumanoid:clamp(Math.floor(+d.bossDifficulties.crystalHumanoid||1),1,6),kros:clamp(Math.floor(+d.bossDifficulties.kros||1),1,6)};
+    if(typeof d.bossDifficulty === "number")bossDifficulty=clamp(Math.floor(d.bossDifficulty),1,6);
     if(typeof d.bossKrosWeeklyKey === "string") bossKrosWeeklyKey = d.bossKrosWeeklyKey;
     if(typeof d.dragonClaw === "number") dragonClaw = Math.max(0, Math.floor(d.dragonClaw));
     if(typeof d.crystalHand === "number") crystalHand = Math.max(0, Math.floor(d.crystalHand));
@@ -3895,12 +4021,16 @@ function protagonistName(){
   return validPlayerName(playerName) ? playerName : (language==="en" ? "Traveler" : "旅者");
 }
 
-const PROTAGONIST_STORY_LEVEL_CAPS = [10,10,20,30,40,50,60];
+// Chapter-bound growth: Chapter 0/1/2/3 => Lv.10/20/30/40.
+const PROTAGONIST_STORY_LEVEL_CAPS = [10,20,30,40,50,60,60];
 
 function currentStoryChapterForGrowth(){
   try{
-    if(cleared && (cleared.ch2_complete||cleared.ch2_11)) return 2;
-    if(cleared && cleared["ch1_10"]) return 1;
+    // The cap follows the chapter currently unlocked, not the chapter already
+    // completed. Finishing Chapter 0 opens Chapter 1's Lv.20 growth band.
+    if(cleared && (cleared.ch2_complete||cleared.ch2_11||cleared.ch3_complete||cleared.ch3p2_10)) return 3;
+    if(cleared && cleared["ch1_10"]) return 2;
+    if(cleared && cleared[11]) return 1;
   }catch(e){}
   return 0;
 }
@@ -3932,7 +4062,8 @@ function protagonistSkillLevelFromLevel(lv){
 function syncProtagonistStoryLevelFromProgress(){
   let lv = 1;
   try{
-    if(cleared && (cleared.ch2_complete||cleared.ch2_11)) lv = 30;
+    if(cleared && (cleared.ch3_complete||cleared.ch3p2_10)) lv = 40;
+    else if(cleared && (cleared.ch2_complete||cleared.ch2_11)) lv = 30;
     else if(cleared && cleared["ch1_10"]) lv = 20;
     else if(cleared && cleared[11]) lv = 10;
     else{
@@ -4032,7 +4163,11 @@ function speakerName(name){
 }
 
 function buildStageText(id){
-  const source = selectedMainChapter===2
+  const source = selectedMainChapter===4
+    ? (language==="en" ? window.PZ_CHAPTER3_PART2_STAGES_EN : window.PZ_CHAPTER3_PART2_STAGES_ZH)
+    : selectedMainChapter===3
+      ? (language==="en" ? window.PZ_CHAPTER3_PART1_STAGES_EN : window.PZ_CHAPTER3_PART1_STAGES_ZH)
+    : selectedMainChapter===2
     ? (language==="en" ? window.PZ_CHAPTER2_STAGES_EN : window.PZ_CHAPTER2_STAGES_ZH)
     : selectedMainChapter===1
       ? (language==="en" ? window.PZ_CHAPTER1_STAGES_EN : window.PZ_CHAPTER1_STAGES_ZH)
@@ -4071,6 +4206,7 @@ const roles = [
 let owned = [true,true,true,false,true,false];
 let charData = roles.map((r,i)=>({
   level:1,
+  breakStage:0,
   skillPoints:0,
   normal:1,
   skill:1,
@@ -4109,11 +4245,17 @@ let shopWeaponSelectedId = "sun_blade";
 let tutorialCompleted = false;
 const BREAK_LEVEL_CAPS=[10,20,30,40,50,60];
 const BREAK_COSTS=[
-  {boss:1,shards:4,gold:2500},{boss:2,shards:8,gold:6000},{boss:3,shards:14,gold:12000},
-  {boss:5,shards:22,gold:22000},{boss:8,shards:34,gold:38000}
+  {shards:12,gold:12000,books:10},{shards:24,gold:30000,books:20},{shards:40,gold:60000,books:35},
+  {shards:65,gold:110000,books:55},{shards:95,gold:180000,books:80}
 ];
 function roleBreakStage(i){ return Math.max(0,Math.min(5,Math.floor(Number(charData[i]&&charData[i].breakStage)||0))); }
-function roleLevelCap(i){ return isProtagonist(i)?protagonistLevel():Math.min(BREAK_LEVEL_CAPS[roleBreakStage(i)],protagonistStoryLevelCap()); }
+function roleLevelCap(i){
+  if(isProtagonist(i))return protagonistLevel();
+  const level=roleDisplayLevel(i),tierCap=BREAK_LEVEL_CAPS[roleBreakStage(i)],storyCap=protagonistStoryLevelCap();
+  // Preserve historical over-levelled saves without letting them level farther
+  // until their current ten-level band and story progress catch up.
+  return level>storyCap?tierCap:Math.min(tierCap,storyCap);
+}
 function canBreakthrough(i){const st=roleBreakStage(i);return !isProtagonist(i)&&roleDisplayLevel(i)>=roleLevelCap(i)&&st<5&&BREAK_LEVEL_CAPS[st+1]<=protagonistStoryLevelCap();}
 
 let playerName = "PLAYER";
@@ -4349,11 +4491,58 @@ const chapter2Stages = [
   ["冲向出口","Run for the Exit",100,false,"抵挡追击并完成最终撤离。","Repel the pursuit and complete the final evacuation.",false,"裂隙最终出口"],
   ["出口之外","Beyond the Exit",100,false,"幸存者离开裂隙后被政府人员接管。","The survivors leave the rift and meet a containment team.",true,"Project 4 封锁区"]
 ].map((s,i)=>({id:i+1,zh:s[0],name:s[1],reward:s[2],boss:s[3],zhDesc:s[4],desc:s[5],storyOnly:s[6],bg:s[7]}));
+function chapter3RuntimeStages(source){return (source||[]).map((s,i)=>({id:i+1,zh:s.zh||s.name||"",name:s.name||s.zh||"",reward:s.boss?120:(i<5?75:100),boss:!!s.boss,zhDesc:s.zhDesc||s.desc||"",desc:s.desc||s.zhDesc||"",storyOnly:!!s.storyOnly,bg:s.bg||"Project 4"}));}
+const chapter3Part1Stages=chapter3RuntimeStages(window.PZ_CHAPTER3_PART1_STAGES_ZH);
+const chapter3Part2Stages=chapter3RuntimeStages(window.PZ_CHAPTER3_PART2_STAGES_ZH);
 let stages = chapter0Stages;
 const chapter0MissionTypes = ["annihilation","evacuation","story","search","duel","story","stabilize","endurance","crystalInvestigation","chapterBoss","story"];
 const chapter1MissionTypes = ["story","breakthrough","investigation","rescue","story","escort","story","survey","defense","story"];
 const chapter2MissionTypes = ["story","story","search","investigation","survey","escort","search","defense","story","evacuation","story"];
+const chapter3Part1MissionTypes = ["story","investigation","story","search","investigation","breakthrough","defense","story"];
+const chapter3Part2MissionTypes = ["story","krosBoss","story","story","story","story","story","story"];
 let missionTypes = chapter0MissionTypes;
+
+// Runtime contracts for every playable main-story node. Narrative missions
+// must not silently fall back to the generic three-area combat route.
+const MAIN_STORY_BEHAVIORS={
+  "0:1":{kind:"combat-investigate",areas:3,sideRoutes:false,team:[PROTAGONIST_ROLE,0]},
+  "0:2":{kind:"evacuation",areas:3,sideRoutes:false,clearRule:"objective",team:[PROTAGONIST_ROLE,0]},
+  "0:4":{kind:"search",areas:3,sideRoutes:false,combat:"none",team:[PROTAGONIST_ROLE]},
+  "0:5":{kind:"duel",areas:1,sideRoutes:false,team:[PROTAGONIST_ROLE]},
+  "0:7":{kind:"stabilize",areas:3,sideRoutes:false,team:[PROTAGONIST_ROLE,0]},
+  "0:8":{kind:"endurance",areas:3,sideRoutes:false,team:[PROTAGONIST_ROLE,0]},
+  "0:9":{kind:"crystal-investigation",areas:3,sideRoutes:false,team:[PROTAGONIST_ROLE,0]},
+  "0:10":{kind:"chapter-boss",areas:3,sideRoutes:false,team:[PROTAGONIST_ROLE,0]},
+  "1:2":{kind:"route-clear",areas:3,sideRoutes:false},
+  "1:3":{kind:"investigation",areas:3,sideRoutes:false},
+  "1:4":{kind:"rescue",areas:3,sideRoutes:false},
+  "1:6":{kind:"escort",areas:3,sideRoutes:false},
+  "1:8":{kind:"survey",areas:3,sideRoutes:false,combat:"none"},
+  "1:9":{kind:"defense",areas:3,sideRoutes:false},
+  "2:3":{kind:"infiltration",areas:3,sideRoutes:false,combat:"none",clearRule:"objective"},
+  "2:4":{kind:"rift-stabilize",areas:3,sideRoutes:false},
+  "2:5":{kind:"choice-survey",areas:3,sideRoutes:false,combat:"none"},
+  "2:6":{kind:"escort",areas:3,sideRoutes:false},
+  "2:7":{kind:"trace-search",areas:3,sideRoutes:false,combat:"none"},
+  "2:8":{kind:"resonance-defense",areas:3,sideRoutes:false},
+  "2:10":{kind:"timed-evacuation",areas:3,sideRoutes:false},
+  "3:2":{kind:"public-investigation",areas:3,sideRoutes:false,combat:"none"},
+  "3:4":{kind:"solo-search-hazard",areas:3,sideRoutes:false,combatType:"breakthrough",team:[PROTAGONIST_ROLE]},
+  "3:5":{kind:"rift-repair",areas:3,sideRoutes:false,team:[PROTAGONIST_ROLE]},
+  "3:6":{kind:"solo-breakthrough",areas:3,sideRoutes:false,team:[PROTAGONIST_ROLE]},
+  "3:7":{kind:"protect-lai",areas:3,sideRoutes:false,team:[PROTAGONIST_ROLE]},
+  "4:2":{kind:"kros-boss",areas:1,sideRoutes:false,team:[PROTAGONIST_ROLE]}
+};
+function mainStoryBehavior(chapter=selectedMainChapter,stage=selectedStage){
+  return battleModeSource==="main"&&selectedTab==="main"?(MAIN_STORY_BEHAVIORS[chapter+":"+stage]||null):null;
+}
+function storyAllowsSideRoutes(){const cfg=mainStoryBehavior();return !cfg||cfg.sideRoutes!==false;}
+function storyClearRule(){const cfg=mainStoryBehavior();return cfg&&cfg.clearRule||"combat+objective";}
+function forcedMainStoryTeam(){
+  if(selectedTab!=="main")return null;
+  const cfg=MAIN_STORY_BEHAVIORS[selectedMainChapter+":"+selectedStage];
+  return cfg&&Array.isArray(cfg.team)?cfg.team.slice():null;
+}
 
 
 function resourceName(key){
@@ -4372,20 +4561,29 @@ function claimStatusText(claimed, reached=true){
   if(claimed) return tx("claimedStatus");
   return reached ? tx("availableStatus") : tx("notReachedStatus");
 }
-function mainStagePrefix(){ return selectedMainChapter===2 ? "02-" : selectedMainChapter===1 ? "01-" : tx("stageCodePrefix"); }
+function mainStagePrefix(){ return selectedMainChapter===4?"03-II-":selectedMainChapter===3?"03-I-":selectedMainChapter===2 ? "02-" : selectedMainChapter===1 ? "01-" : tx("stageCodePrefix"); }
 function stageCode(id){ return mainStagePrefix() + String(id).padStart(2,"0"); }
-function mainStageClearKey(id){ return selectedMainChapter===2 ? "ch2_"+id : selectedMainChapter===1 ? "ch1_"+id : id; }
+function mainStageClearKey(id){ return selectedMainChapter===4?"ch3p2_"+id:selectedMainChapter===3?"ch3p1_"+id:selectedMainChapter===2 ? "ch2_"+id : selectedMainChapter===1 ? "ch1_"+id : id; }
 function isMainStageCleared(id){ return !!cleared[mainStageClearKey(id)]; }
+function hardStageClearKey(id){ return "hard:"+selectedMainChapter+":"+id; }
+function isHardStageCleared(id){ return !!hardCleared[hardStageClearKey(id)]; }
+function hardModeUnlocked(id=selectedStage){ const st=stages[id-1];return selectedTab==="main" && storyChapterComplete(2) && isMainStageCleared(id) && !(st&&st.storyOnly); }
+function setBattleDifficulty(mode){
+  battleDifficulty=mode==="hard"&&hardModeUnlocked()?"hard":"normal";
+}
 function mainChapterTitle(){
+  if(selectedMainChapter===4) return language==="en" ? "Chapter 3 Part 2: Kros" : "第三章 Part 2：晶体恶龙·克罗斯";
+  if(selectedMainChapter===3) return language==="en" ? "Chapter 3 Part 1: Expansion" : "第三章 Part 1：Project 4 的扩张";
   if(selectedMainChapter===2) return language==="en" ? "Chapter 2: Choice" : "第二章：抉择";
   if(selectedMainChapter===1) return language==="en" ? "Chapter 1: Forgotten Project 4" : "第一章：遗忘的 Project 4";
   return tx("chapterTitle");
 }
 function loadMainChapter(chapterId){
-  selectedMainChapter=chapterId===2?2:chapterId===1?1:0;
-  stages=selectedMainChapter===2?chapter2Stages:selectedMainChapter===1?chapter1Stages:chapter0Stages;
-  missionTypes=selectedMainChapter===2?chapter2MissionTypes:selectedMainChapter===1?chapter1MissionTypes:chapter0MissionTypes;
+  selectedMainChapter=[0,1,2,3,4].includes(chapterId)?chapterId:0;
+  stages=selectedMainChapter===4?chapter3Part2Stages:selectedMainChapter===3?chapter3Part1Stages:selectedMainChapter===2?chapter2Stages:selectedMainChapter===1?chapter1Stages:chapter0Stages;
+  missionTypes=selectedMainChapter===4?chapter3Part2MissionTypes:selectedMainChapter===3?chapter3Part1MissionTypes:selectedMainChapter===2?chapter2MissionTypes:selectedMainChapter===1?chapter1MissionTypes:chapter0MissionTypes;
   selectedStage=1;
+  battleDifficulty="normal";
   operationDetailVisible=false;
   rebuildStoryScripts();
 }
@@ -4548,7 +4746,11 @@ function rebuildStoryScripts(){
   rebuildStagesForLanguage();
   for(const k of Object.keys(storyScripts)) delete storyScripts[k];
 
-  const source = selectedMainChapter===2
+  const source = selectedMainChapter===4
+    ? (language==="en" ? window.PZ_CHAPTER3_PART2_STORY_EN : window.PZ_CHAPTER3_PART2_STORY_ZH)
+    : selectedMainChapter===3
+      ? (language==="en" ? window.PZ_CHAPTER3_PART1_STORY_EN : window.PZ_CHAPTER3_PART1_STORY_ZH)
+    : selectedMainChapter===2
     ? (language==="en" ? window.PZ_CHAPTER2_STORY_EN : window.PZ_CHAPTER2_STORY_ZH)
     : selectedMainChapter===1
       ? (language==="en" ? window.PZ_CHAPTER1_STORY_EN : window.PZ_CHAPTER1_STORY_ZH)
@@ -4577,6 +4779,7 @@ let settlement = {stage:1, reward:0, stars:3};
 
 const player = {x:W/2,y:H/2+115,vx:0,vy:0,r:20,hp:100,energy:80,ult:1600,role:0,facing:1,attackCd:0,skillCd:0,ultCd:0,dashCd:0,inv:0,chain:0,chainTimer:0,guardTimer:0,parryReady:0,parryTarget:null,perfectBuff:0,switchCd:0};
 let enemies = [], particles = [], slashes = [], texts = [], projectiles = [], frostFields = [];
+let enemySerial = 0;
 let ult = {active:false,timer:0,role:0,hitDone:false};
 let protagonistBindings = [];
 let protagonistSweeps = [];
@@ -4587,6 +4790,7 @@ let chloeTrueDamageTimer = 0;
 let chloeHealingFields = [];
 let chloeAttackCharge = {active:false,angle:0,length:120,width:120};
 let kaneSigils = [];
+let kaneComboTargetUid = 0;
 let noxDamageAmpTimer = 0;
 let windFields = [];
 let ailoUltimateBurst = {active:false,life:0,max:0};
@@ -4935,18 +5139,23 @@ function createEnemy(x,y,boss=false,type="normal"){
   const stageScale = battleModeSource==="crystalWar"
     ? crystalWarScaledLevel()
     : ((materialScale||commissionStage) ? (materialScale||(commissionStage&&commissionStage.lv)) : (selectedStage||1));
-  const hp = boss ? 1650 + stageScale*95 : type==="shield" ? 760 + stageScale*45 : type==="berserker" ? 620 + stageScale*38 : type==="ranged" ? 470 + stageScale*30 : type==="sniper" ? 430 + stageScale*28 : type==="skirmisher" ? 520 + stageScale*32 : type==="support" ? 620 + stageScale*36 : type==="elite" ? 820 + stageScale*48 : 560 + stageScale*34;
+  const hpBase = boss ? 1650 + stageScale*95 : type==="shield" ? 760 + stageScale*45 : type==="berserker" ? 620 + stageScale*38 : type==="ranged" ? 470 + stageScale*30 : type==="sniper" ? 430 + stageScale*28 : type==="skirmisher" ? 520 + stageScale*32 : type==="support" ? 620 + stageScale*36 : type==="elite" ? 820 + stageScale*48 : type==="fireCrystal" ? 650 + stageScale*38 : 560 + stageScale*34;
+  const hp=Math.floor(hpBase*(battleHardMode?1.12:1));
   const shield = boss ? 880 + stageScale*65 : type==="shield" ? 520 + stageScale*42 : type==="elite" ? 360 + stageScale*30 : type==="support" ? 240 + stageScale*20 : type==="ranged" ? 180 + stageScale*18 : type==="sniper" ? 120 + stageScale*12 : 0;
   const lv = boss ? stageScale + 7 : type==="elite" ? stageScale + 4 : type==="shield" ? stageScale + 2 : type==="berserker" ? stageScale + 3 : ["ranged","sniper","skirmisher","support"].includes(type) ? stageScale + 2 : stageScale;
+  const specialEligible=!boss&&["main","daydream","crystalWar"].includes(battleModeSource)&&!["support","fireCrystal"].includes(type)&&!enemies.some(e=>e&&e.special);
+  const specialRoll=specialEligible?Math.random():1;
+  const special=specialRoll<(battleHardMode?.13:.045)?"physicalImmune":specialRoll<(battleHardMode?.25:.085)?"skillImmune":specialRoll<(battleHardMode?.38:.13)?"pullResist":"";
   return {
-    x,y,vx:0,vy:0,r:boss?46:type==="shield"?32:type==="support"?29:["ranged","sniper"].includes(type)?24:type==="skirmisher"?23:26,
+    uid:++enemySerial,
+    x,y,vx:0,vy:0,r:boss?46:type==="shield"?32:type==="support"?29:["ranged","sniper","fireCrystal"].includes(type)?24:type==="skirmisher"?23:26,
     hp,maxHp:hp,shield,maxShield:shield,
     stun:boss?520:type==="shield"?320:type==="elite"?360:type==="support"?280:220,
     maxStun:boss?520:type==="shield"?320:type==="elite"?360:type==="support"?280:220,
     alive:true,boss,type,lv,
     phase:1,
     windup:0,attackCd:70+Math.random()*70,hit:0,parried:0,
-    shotCd:type==="ranged"?60:type==="sniper"?82:0,
+    shotCd:type==="ranged"?60:type==="sniper"?82:type==="fireCrystal"?72:0,
     supportCd:type==="support"?150:0,
     strafeSeed:Math.random()<.5?-1:1,
     aiTick: Math.floor(Math.random()*8),
@@ -4955,7 +5164,14 @@ function createEnemy(x,y,boss=false,type="normal"){
     cachedDist:999,
     rage:false,
     freeze:0,
-    chill:0
+    chill:0,
+    statuses:{},special,
+    immunityClock:Math.floor(Math.random()*150),
+    pullExposure:0,pullImmune:false,
+    flankAngle:(Math.random()<.5?-1:1)*(0.35+Math.random()*.35),
+    attackLaneOffset:(Math.random()-.5)*110,
+    tacticClock:55+Math.random()*85,
+    repositionTimer:0
   };
 }
 
@@ -4997,6 +5213,27 @@ const AREA_DIALOGUES = I18N_RES.AREA_DIALOGUES || {
 };
 
 function triggerAreaDialogue(){
+  if(selectedMainChapter===3){
+    const zh={
+      2:["调查北区疏散线，确认扩张影响。","读取媒体终端，核对幸存者公开信息。","监测 Project 4 边界与降雨变化。"],
+      4:["你是独自返回。沿小赖留下的记号深入。","高楼结构不稳定，避开地面预警区域。","坍塌打开了新裂隙，确认入口后继续。"],
+      5:["启动外围稳定器，恢复裂隙通路。","第二台装置已经断裂，重新校准晶体回路。","同步路径核心，打开通往深层的道路。"],
+      6:["辨认回声来源，同时突破正在聚集的晶体怪。","脚印在空间扭曲处中断，检查残留方向。","小赖的信号就在前方，清出最后通道。"],
+      7:["小赖被包围，先抵达她身边。","守住外围，不让新一波怪物靠近。","确认小赖状况；空间正在被强行撕开。"]
+    };
+    const en={
+      2:["Inspect the northern evacuation line and confirm the expansion.","Read the media terminal and verify the survivor reports.","Monitor Project 4's boundary and the changing rain."],
+      4:["You returned alone. Follow Lai's marks deeper inside.","The tower is unstable. Avoid the marked impact zones.","The collapse exposed a new rift. Confirm its entrance."],
+      5:["Activate the outer stabilizer and restore the rift route.","Recalibrate the fractured crystal circuit.","Synchronize the path core and open the deep route."],
+      6:["Identify the echo while breaking through the converging creatures.","The footprints stop at a distortion. Inspect the remaining direction.","Lai's signal is ahead. Open the final passage."],
+      7:["Lai is surrounded. Reach her first.","Hold the perimeter and stop the next wave.","Confirm Lai's condition. Space is being forced open."]
+    };
+    const lines=(language==="en"?en:zh)[selectedStage];
+    if(!lines)return;
+    const key="ch3-"+selectedStage+"-"+area;
+    if(areaDialogueShown[key])return;
+    areaDialogueShown[key]=true;showActionPrompt(lines[area-1]||lines[0],150);return;
+  }
   if(selectedMainChapter===2){
     const zh={
       3:["关闭旧监视器，确认第一处警戒盲区。","巡逻间隔正在缩短，记录重叠时间。","维护通道就在前方，不要触发警戒。"],
@@ -5411,8 +5648,41 @@ function clearTransientBattleState(){
   noxDamageAmpTimer=0;
   windFields=[];
   ailoUltimateBurst={active:false,life:0,max:0};
+  playerStatuses={};
+  battleRouteStates={};
 
   trimRuntimeCollections();
+}
+
+function clearRouteTransientCombat(){
+  // Route-bound hitboxes and visuals must never follow the player. Persistent
+  // role resources, cooldowns, team state and long-lived player buffs remain.
+  projectiles=[];frostFields=[];windFields=[];bossHazards=[];kaneSigils=[];
+  protagonistBindings=[];protagonistSweeps=[];protagonistDomain={active:false,life:0,max:180,tick:0,sweepIndex:0};
+  chloeHealingFields=[];chloeAttackCharge.active=false;ailoUltimateBurst={active:false,life:0,max:0};
+  particles=[];slashes=[];texts=[];lockTarget=null;chainTarget=null;chainReady=false;
+  ult.active=false;attackBuffer=0;skillBuffer=0;ultBuffer=0;dashBuffer=0;
+  clearKaneBasicStacks();
+}
+
+function routeStateKey(route=battleRoute){return selectedMainChapter+":"+selectedStage+":"+area+":"+route;}
+function captureRouteState(route=battleRoute){
+  const persistentEnemies=cloneBattleResumeValue(enemies,[]);
+  for(const e of persistentEnemies)if(e)e.kaneBasicHits=0;
+  battleRouteStates[routeStateKey(route)]={
+    enemies:persistentEnemies,
+    explore:cloneBattleResumeValue(battleExploreObjects,[]),
+    areaCleared:!!areaCleared,
+    exitDelay:Math.max(0,battleExitDelay||0)
+  };
+}
+function restoreRouteState(route){
+  const state=battleRouteStates[routeStateKey(route)];
+  if(!state)return false;
+  enemies=cloneBattleResumeValue(state.enemies,[]);
+  battleExploreObjects=cloneBattleResumeValue(state.explore,[]);
+  areaCleared=!!state.areaCleared;battleExitDelay=Math.max(0,state.exitDelay||0);
+  return true;
 }
 
 function clearBossKrosRuntime(){
@@ -5623,7 +5893,7 @@ function spawnCrystalWarArea(){
   }
   for(let i=0;i<18;i++)crystalWarTerrain.push({x:245+((seed+i*173)%790),y:120+((seed*7+i*109)%410),kind:(seed+i*3)%4,size:12+((seed+i*19)%28),rot:((seed+i*37)%628)/100});
   const count=Math.min(8,2+Math.floor(area*.65));
-  const types=["normal","skirmisher","ranged","shield","support","berserker"];
+  const types=["normal","skirmisher","ranged","shield","support","berserker","fireCrystal","elite"];
   for(let i=0;i<count;i++)enemies.push(createEnemy(610+(i%4)*115,H/2+25+(i%3)*70,false,types[(seed+i)%types.length]));
   if(area%10===0)enemies.push(createEnemy(770,H/2+90,true,"boss"));
   showCenter((language==="en"?"CRYSTAL FRONT · SECTOR ":"晶体战区 · 区段 ")+area+" · Lv."+crystalWarScaledLevel(),65);
@@ -5691,7 +5961,8 @@ function updateCrystalWarIndustryV8(){
   if(justPressed("b")){crystalWarBuildMenu=!crystalWarBuildMenu;mouseDown=false;mouseAttackConsumed=true;clicked=false;showActionPrompt(crystalWarBuildMenu?(language==="en"?"DEVICE RACK OPEN · SELECT A DEVICE, THEN A RESOURCE":"设备栏已打开 · 先选设备，再选资源点"):(language==="en"?"DEVICE RACK CLOSED":"设备栏已关闭"),55);}
   if(crystalWarBuildMenu&&clicked){
     let handled=false;
-    for(let i=0;i<CRYSTAL_WAR_FIELD_DEVICES.length;i++){const y=112+i*58;if(inRect(W-317,y,272,50)){crystalWarBuildSelected=CRYSTAL_WAR_FIELD_DEVICES[i].id;handled=true;break;}}
+    const rackX=crystalWarRackPos.x,rackY=crystalWarRackPos.y;
+    for(let i=0;i<CRYSTAL_WAR_FIELD_DEVICES.length;i++){const y=rackY+36+i*58;if(inRect(rackX+13,y,272,50)){crystalWarBuildSelected=CRYSTAL_WAR_FIELD_DEVICES[i].id;handled=true;break;}}
     if(!handled)for(const mine of crystalWarMines){if(!inRect(mine.x-42,mine.y-42,84,84))continue;const device=crystalWarDeviceFor(crystalWarBuildSelected);if(crystalWarMiners.some(m=>m.mineId===mine.id))showActionPrompt(language==="en"?"A DEVICE IS ALREADY WORKING HERE":"该资源点已有设备",50);else if(mine.remaining<=0)showActionPrompt(language==="en"?"RESOURCE DEPLETED":"资源点已经枯竭",50);else if(!device.resources.includes(mine.resource))showActionPrompt((language==="en"?"WRONG DEVICE · USE ":"设备不匹配 · 需要 ")+(language==="en"?crystalWarDeviceFor(mine.device).e:crystalWarDeviceFor(mine.device).z),70);else{crystalWarMiners.push({mineId:mine.id,device:device.id,progress:0,phase:Math.random()*6.28});showCenter((language==="en"?device.e:device.z)+(language==="en"?" DEPLOYED":" 已部署"),45);}handled=true;break;}
     if(handled){clicked=false;mouseDown=false;mouseAttackConsumed=true;}
   }
@@ -5704,12 +5975,13 @@ function drawCrystalWarIndustryV8(){
   for(const o of crystalWarTerrain){ctx.save();ctx.translate(o.x,o.y);ctx.rotate(o.rot);ctx.fillStyle=o.kind===0?"rgba(96,111,122,.28)":o.kind===1?"rgba(75,92,105,.25)":o.kind===2?"rgba(111,83,72,.23)":"rgba(91,78,119,.22)";ctx.beginPath();ctx.moveTo(-o.size,8);ctx.lineTo(-o.size*.3,-o.size*.65);ctx.lineTo(o.size*.7,-o.size*.25);ctx.lineTo(o.size,8);ctx.closePath();ctx.fill();ctx.restore();}
   for(const mine of crystalWarMines){const miner=crystalWarMiners.find(m=>m.mineId===mine.id),active=!!miner;ctx.save();ctx.translate(mine.x,mine.y);ctx.shadowBlur=active?20:10;ctx.shadowColor=mine.color;if(mine.kind==="tree"){ctx.fillStyle="#3d342b";ctx.fillRect(-6,-4,12,38);ctx.fillStyle=mine.remaining>0?mine.color:"#3f4645";ctx.beginPath();ctx.arc(0,-18,27,0,Math.PI*2);ctx.arc(-18,-4,19,0,Math.PI*2);ctx.arc(18,-4,19,0,Math.PI*2);ctx.fill();}else if(mine.kind==="growth"){ctx.strokeStyle=mine.color;ctx.lineWidth=5;for(let i=0;i<5;i++){ctx.save();ctx.rotate(i*Math.PI*2/5);ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(0,-28);ctx.stroke();ctx.restore();}ctx.fillStyle=mine.color;ctx.beginPath();ctx.arc(0,0,10,0,Math.PI*2);ctx.fill();}else{ctx.fillStyle=mine.remaining>0?(active?mine.color:"#536075"):"#333a45";ctx.beginPath();ctx.moveTo(0,-30);ctx.lineTo(30,18);ctx.lineTo(0,34);ctx.lineTo(-30,18);ctx.closePath();ctx.fill();}ctx.shadowBlur=0;if(active){const device=crystalWarDeviceFor(miner.device),a=performance.now()/420+(miner.phase||0);ctx.fillStyle="rgba(5,12,20,.96)";ctx.fillRect(-25,18,50,18);ctx.strokeStyle=device.color;ctx.lineWidth=3;ctx.beginPath();ctx.arc(0,4,18,a,a+Math.PI*1.55);ctx.stroke();ctx.fillStyle=device.color;ctx.fillRect(-4,-2,8,18);}ctx.restore();ctx.fillStyle="#fff";ctx.font="bold 9px "+FONT_UI;ctx.textAlign="center";ctx.fillText((language==="en"?mine.e:mine.z)+" "+Math.floor(mine.remaining),mine.x,mine.y+57);}
   ctx.restore();
-  if(crystalWarBuildMenu){ctx.save();const x=W-330,y=76,w=300,h=224;ctx.fillStyle="rgba(4,9,18,.94)";ctx.fillRect(x,y,w,h);ctx.strokeStyle="#ffe066";ctx.strokeRect(x,y,w,h);ctx.fillStyle="#fff";ctx.font="bold 12px "+FONT_UI;ctx.textAlign="left";ctx.fillText(language==="en"?"FIELD DEVICE RACK [B]":"战区设备栏 [B]",x+15,y+25);CRYSTAL_WAR_FIELD_DEVICES.forEach((d,i)=>{const yy=112+i*58,on=crystalWarBuildSelected===d.id;ctx.fillStyle=on?"rgba(130,255,226,.18)":"rgba(255,255,255,.055)";ctx.fillRect(W-317,yy,272,50);ctx.strokeStyle=on?d.color:"rgba(255,255,255,.15)";ctx.strokeRect(W-317,yy,272,50);ctx.fillStyle=d.color;ctx.font="bold 18px "+FONT_UI;ctx.fillText(d.icon,W-302,yy+30);ctx.fillStyle="#fff";ctx.font="bold 10px "+FONT_UI;ctx.fillText(language==="en"?d.e:d.z,W-270,yy+20);ctx.fillStyle="rgba(255,255,255,.5)";ctx.font="8px "+FONT_UI;ctx.fillText(d.resources.map(k=>({rawOre:"晶矿",scrap:"合金",stone:"岩石",wood:"树材",resin:"树脂",materials:"原料",fiber:"纤维",herbs:"植株"}[k]||k)).join(" / "),W-270,yy+37);});ctx.restore();}
+  if(crystalWarBuildMenu){ctx.save();const x=crystalWarRackPos.x,y=crystalWarRackPos.y,w=300,h=224;ctx.fillStyle="rgba(4,9,18,.94)";ctx.fillRect(x,y,w,h);ctx.strokeStyle="#ffe066";ctx.strokeRect(x,y,w,h);ctx.fillStyle="rgba(255,224,102,.13)";ctx.fillRect(x,y,w,34);ctx.fillStyle="#fff";ctx.font="bold 12px "+FONT_UI;ctx.textAlign="left";ctx.fillText(language==="en"?"FIELD DEVICE RACK [B] · DRAG":"战区设备栏 [B] · 拖动",x+15,y+23);CRYSTAL_WAR_FIELD_DEVICES.forEach((d,i)=>{const yy=y+36+i*58,on=crystalWarBuildSelected===d.id;ctx.fillStyle=on?"rgba(130,255,226,.18)":"rgba(255,255,255,.055)";ctx.fillRect(x+13,yy,272,50);ctx.strokeStyle=on?d.color:"rgba(255,255,255,.15)";ctx.strokeRect(x+13,yy,272,50);ctx.fillStyle=d.color;ctx.font="bold 18px "+FONT_UI;ctx.fillText(d.icon,x+28,yy+30);ctx.fillStyle="#fff";ctx.font="bold 10px "+FONT_UI;ctx.fillText(language==="en"?d.e:d.z,x+60,yy+20);ctx.fillStyle="rgba(255,255,255,.5)";ctx.font="8px "+FONT_UI;ctx.fillText(d.resources.map(k=>({rawOre:"晶矿",scrap:"合金",stone:"岩石",wood:"树材",resin:"树脂",materials:"原料",fiber:"纤维",herbs:"植株"}[k]||k)).join(" / "),x+60,yy+37);});ctx.restore();}
   ctx.save();ctx.fillStyle="rgba(5,10,19,.82)";ctx.fillRect(370,18,380,45);ctx.strokeStyle="rgba(130,255,226,.35)";ctx.strokeRect(370,18,380,45);ctx.fillStyle="#82ffe2";ctx.font="bold 11px "+FONT_UI;ctx.textAlign="center";ctx.fillText((language==="en"?"SECTOR ":"无限区段 ")+area+" · ENEMY Lv."+crystalWarScaledLevel()+" · B "+(language==="en"?"DEVICE RACK":"设备栏"),560,46);ctx.restore();
 }
 function startBattle(){
   // Defensive gate: stale bossKros state must never replace a normal stage.
-  if(battleModeSource==="bossKros" && (!bossKrosRun || selectedTab!=="dungeon")) resetBattleSourceToMain();
+  if(battleModeSource==="bossKros" && (!bossKrosRun || (selectedTab!=="dungeon"&&!bossKrosRun.storyMode))) resetBattleSourceToMain();
+  battleHardMode=battleModeSource==="main"&&battleDifficulty==="hard"&&hardModeUnlocked(selectedStage);
   battlePaused=false;
   battleResumeSnapshot=null;
   clearTransientBattleState();
@@ -5720,12 +5992,12 @@ function startBattle(){
   battleRoleUlt = Array.from({length:roles.length}, ()=>0);
   syncPlayerResourcesFromRole();
   player.x=150; player.y=H/2+115; player.vx=0; player.vy=0;
-  player.attackCd=0; player.skillCd=0; player.ultCd=0; player.dashCd=0; player.switchCd=0; chainSelect=false; chainSelectTimer=0; player.inv=0; player.chain=0; player.chainTimer=0; player.guardTimer=0; player.parryReady=0; player.parryTarget=null; player.perfectBuff=0; player.perfectDodgeTimer=0; combo=0; comboTimer=0; stylishScore=0; combatRank="D"; actionPromptTimer=0; chainReady=false; chainTarget=null; area=1; areaCleared=false; commissionComplete=false; areaDialogueShown={}; battleExploreObjects=[]; battleExploreOpened={}; battleRewardNotices=[]; battleRoute="center"; battleExitDelay=0; battleSideArea=""; particles=[]; slashes=[]; texts=[];
+  player.attackCd=0; player.skillCd=0; player.ultCd=0; player.dashCd=0; player.switchCd=0; chainSelect=false; chainSelectTimer=0; player.inv=0; player.chain=0; player.chainTimer=0; player.guardTimer=0; player.parryReady=0; player.parryTarget=null; player.perfectBuff=0; player.perfectDodgeTimer=0; combo=0; comboTimer=0; stylishScore=0; combatRank="D"; actionPromptTimer=0; chainReady=false; chainTarget=null; area=1; areaCleared=false; commissionComplete=false; areaDialogueShown={}; battleExploreObjects=[]; battleExploreOpened={}; battleRewardNotices=[]; battleRoute="center"; battleExitDelay=0; battleSideArea=""; battleRouteStates={};playerStatuses={}; particles=[]; slashes=[]; texts=[];
   if(battleModeSource==="commission"){
     const st=currentCommissionStage(); commissionTimeMax=st.time||180; commissionTimeLeft=commissionTimeMax;
   }
   chapter2EvacTimeLeft=battleModeSource==="main"&&selectedMainChapter===2&&selectedStage===10?180:0;
-  spawnArea(); showCenter(battleModeSource==="crystalWar"?(language==="en"?"CRYSTAL WAR · ENDLESS FRONT":"晶体战争 · 无限战区"):(battleModeSource==="showcase"?(language==="en"?"MAX BUILD · TRAINING":"满配模板 · 训练"):(battleModeSource==="daydream" ? ((language==="en"?"DAYDREAM · ":"白日梦 · ")+(daydreamBattleConfig?daydreamBattleConfig.name:"")) : (battleModeSource==="projectArea" ? "Project Area" : (battleModeSource==="materialDungeon" ? ((language==="en"?"Material Dungeon":"材料副本")+" "+roman(materialDungeonDifficulty)) : (battleModeSource==="commission" ? ("C"+currentCommissionStage().chapter+"-"+currentCommissionStage().localId) : stageCode(selectedStage)))))),70);
+  spawnArea(); showCenter(battleHardMode?((language==="en"?"HARD · ":"困难 · ")+stageCode(selectedStage)):battleModeSource==="crystalWar"?(language==="en"?"CRYSTAL WAR · ENDLESS FRONT":"晶体战争 · 无限战区"):(battleModeSource==="showcase"?(language==="en"?"MAX BUILD · TRAINING":"满配模板 · 训练"):(battleModeSource==="daydream" ? ((language==="en"?"DAYDREAM · ":"白日梦 · ")+(daydreamBattleConfig?daydreamBattleConfig.name:"")) : (battleModeSource==="projectArea" ? "Project Area" : (battleModeSource==="materialDungeon" ? ((language==="en"?"Material Dungeon":"材料副本")+" "+roman(materialDungeonDifficulty)) : (battleModeSource==="commission" ? ("C"+currentCommissionStage().chapter+"-"+currentCommissionStage().localId) : stageCode(selectedStage)))))),70);
 }
 function enterLobby(){
   releaseMobileButtons();
@@ -5758,8 +6030,9 @@ function updateProjectiles(){
     p.life -= frameScale;
     if(withinDist(player.x,player.y,p.x,p.y,22) && player.inv<=0 && gameMode==="battle"){
       if(p.krosBullet && battleModeSource==="bossKros") playerPoisonTimer=Math.max(playerPoisonTimer,110);
+      if(p.fireProjectile) applyPlayerStatus("burn",120,{tick:1,damage:battleHardMode?5:4});
       p.life=0;
-      if(damageCurrentRoleHp(10, p.krosBullet?"DRAGON":"SHOT", "#ff5555")) return;
+      if(damageCurrentRoleHp(p.fireProjectile?12:10, p.krosBullet?"DRAGON":p.fireProjectile?(language==="en"?"FIRE":"火焰"):"SHOT", p.fireProjectile?"#ff785f":"#ff5555")) return;
       doShake(5);
       flash=Math.max(flash,3);
     }
@@ -5908,6 +6181,7 @@ function floraAttack(){
   addIceParticles(p.x,p.y,16,radius);
   addText(p.x,p.y-radius-10,language==="en"?"ICE BLOOM":"冰晶绽放","#88d8ff",false);
   const targets=enemiesInCircle(p.x,p.y,radius);
+  damageNearbyBattleCrates(p.x,p.y,radius);
   for(const e of targets){
     e.chill = Math.max(e.chill||0,60);
     hitEnemy(e, panelDamage(player.role,0.78,"normal",Math.random()*18)*floraTargetDamageScale(targets.length,e), 4, panelShieldDamage(player.role,18,"normal"), "#88d8ff", "ICE");
@@ -5930,6 +6204,7 @@ function floraSkill(){
     life:210,max:210,tick:0,
     damage:panelDamage(player.role,0.45,"skill",Math.random()*12)
   });
+  damageNearbyBattleCrates(p.x,p.y,145);
   addIceCircle(p.x,p.y,145,48,"frostField");
   addIceParticles(p.x,p.y,20,145);
   showCenter(language==="en"?"FROST DOMAIN":"极寒领域",32);
@@ -5949,7 +6224,7 @@ function updateFrostFields(){
         e.chill = Math.max(e.chill||0,70);
         e.vx *= .72;
         e.vy *= .72;
-        hitEnemy(e, f.damage*floraTargetDamageScale(enemiesInCircle(f.x,f.y,f.r).length,e), 2, 14, "#88d8ff", "FROST");
+        hitEnemy(e, f.damage*floraTargetDamageScale(enemiesInCircle(f.x,f.y,f.r).length,e), 2, 14, "#88d8ff", "FROST", "dot", 3);
       }
       addIceParticles(f.x,f.y,5,f.r);
     }
@@ -5993,9 +6268,10 @@ function floraUltimateResolve(){
   doHitStop(5);
   flash=18;
   const targets=enemiesInCircle(player.x,player.y,radius);
+  damageNearbyBattleCrates(player.x,player.y,radius);
   for(const e of targets){
     freezeEnemy(e,55);
-    hitEnemy(e,panelDamage(3,5.20,"ultimate",Math.random()*90)*floraTargetDamageScale(targets.length,e),14,panelShieldDamage(3,125,"ultimate"),"#88d8ff","EVERWINTER");
+    hitEnemy(e,panelDamage(3,5.20,"ultimate",Math.random()*90)*floraTargetDamageScale(targets.length,e),14,panelShieldDamage(3,125,"ultimate"),"#88d8ff","EVERWINTER","ultimate",3);
   }
   addText(player.x,player.y-radius*.55,language==="en"?"EVERWINTER DESCENT":"永冬降临","#88d8ff",true);
   sfx("ultBoom");
@@ -6019,13 +6295,14 @@ function addWindField(x,y,r,life,type="normal",damage=0){
 function ailoAttack(){
   if(player.attackCd>0 || attackInputLock>0 || ult.active) return;
   const p=getAimPoint(360),radius=98;
-  player.attackCd=50;attackInputLock=24;player.facing=p.x>=player.x?1:-1;
-  addWindField(p.x,p.y,radius,180,"normal",0);
+  player.attackCd=150;attackInputLock=26;player.facing=p.x>=player.x?1:-1;
+  addWindField(p.x,p.y,radius,105,"normal",0);
   const targets=enemiesInCircle(p.x,p.y,radius);
+  damageNearbyBattleCrates(p.x,p.y,radius);
   for(const e of targets){
-    hitEnemy(e,panelDamage(1,.56,"normal",Math.random()*10)*windDamageScale(e,1),3,panelShieldDamage(1,13,"normal"),"#74ffb7","WIND");
+    hitEnemy(e,panelDamage(1,.24,"normal",Math.random()*5)*windDamageScale(e,1),3,panelShieldDamage(1,10,"normal"),"#74ffb7","WIND");
   }
-  addText(p.x,p.y-radius-12,language==="en"?"LINGERING CURRENT · 3s":"滞留风场 · 3秒","#74ffb7",true);
+  addText(p.x,p.y-radius-12,language==="en"?"LINGERING CURRENT · 1.8s":"滞留风场 · 1.8秒","#74ffb7",true);
   sfx("skill");doShake(5);
 }
 
@@ -6035,11 +6312,12 @@ function ailoSkill(){
     if(player.energy<cost) showCenter(mt("notEnoughEnergy"),24);
     return;
   }
-  player.energy-=cost;player.skillCd=150;
-  addWindField(player.x,player.y,195,180,"skill",panelDamage(1,.22,"skill",Math.random()*5));
+  player.energy-=cost;player.skillCd=300;
+  addWindField(player.x,player.y,195,120,"skill",panelDamage(1,.16,"skill",Math.random()*4));
+  damageNearbyBattleCrates(player.x,player.y,205);
   for(const e of enemiesInCircle(player.x,player.y,205)){
     e.weathering=Math.max(e.weathering||0,360);
-    hitEnemy(e,panelDamage(1,.72,"skill",Math.random()*12)*windDamageScale(e,1),4,panelShieldDamage(1,28,"skill"),"#74ffb7","WEATHERING");
+    hitEnemy(e,panelDamage(1,.48,"skill",Math.random()*8)*windDamageScale(e,1),4,panelShieldDamage(1,26,"skill"),"#74ffb7","WEATHERING","skill",1);
   }
   addText(player.x,player.y-135,language==="en"?"WEATHERING VORTEX":"风化涡流","#74ffb7",true);
   sfx("skill");doShake(9);flash=Math.max(flash,5);
@@ -6052,13 +6330,18 @@ function updateAiloCombatEffects(){
       if(!e.alive) continue;
       const d=dist(f.x,f.y,e.x,e.y);
       if(d>f.r+e.r || d<5) continue;
+      if(e.special==="pullResist"&&!e.pullImmune){
+        e.pullExposure=(e.pullExposure||0)+frameScale;
+        if(e.pullExposure>=60){e.pullImmune=true;e.vx=0;e.vy=0;addText(e.x,e.y-e.r-46,language==="en"?"PULL IMMUNE":"聚怪免疫","#82ffe2",true);}
+      }
+      if(e.pullImmune)continue;
       const pull=(f.type==="skill"?2.7:1.35)*frameScale;
       e.vx+=(f.x-e.x)/d*pull;e.vy+=(f.y-e.y)/d*pull;
       if(f.type==="skill") e.weathering=Math.max(e.weathering||0,90);
     }
     if(f.type==="skill" && f.tick<=0){
       f.tick+=30;
-      for(const e of enemiesInCircle(f.x,f.y,f.r)) hitEnemy(e,f.damage*windDamageScale(e,1),1,6,"#74ffb7","GALE");
+      for(const e of enemiesInCircle(f.x,f.y,f.r)) hitEnemy(e,f.damage*windDamageScale(e,1),1,6,"#74ffb7","GALE","dot",1);
     }
   }
   windFields=windFields.filter(f=>f.life>0);
@@ -6068,6 +6351,8 @@ function updateAiloCombatEffects(){
     for(const e of enemies){
       if(!e.alive) continue;
       const d=Math.max(1,dist(player.x,player.y,e.x,e.y));
+      if(e.special==="pullResist"&&!e.pullImmune){e.pullExposure=(e.pullExposure||0)+frameScale;if(e.pullExposure>=60){e.pullImmune=true;e.vx=0;e.vy=0;addText(e.x,e.y-e.r-46,language==="en"?"PULL IMMUNE":"聚怪免疫","#82ffe2",true);}}
+      if(e.pullImmune)continue;
       e.vx+=(player.x-e.x)/d*4.2*frameScale;e.vy+=(player.y-e.y)/d*4.2*frameScale;
       e.weathering=Math.max(e.weathering||0,360);
     }
@@ -6076,7 +6361,7 @@ function updateAiloCombatEffects(){
       addSlash(player.x,player.y,470,"#74ffb7",38,"windUltimate");
       addSlash(player.x,player.y,310,"#ffffff",28,"windUltimate");
       addParticles(player.x,player.y,"#74ffb7",34,9);
-      for(const e of enemies) if(e.alive) hitEnemy(e,panelDamage(1,3.85,"ultimate",Math.random()*55)*windDamageScale(e,1),12,panelShieldDamage(1,82,"ultimate"),"#74ffb7","TEMPEST");
+      for(const e of enemies) if(e.alive) hitEnemy(e,panelDamage(1,3.05,"ultimate",Math.random()*42)*windDamageScale(e,1),12,panelShieldDamage(1,82,"ultimate"),"#74ffb7","TEMPEST","ultimate",1);
       addText(player.x,player.y-180,language==="en"?"TEMPEST COLLAPSE":"风暴坍缩","#74ffb7",true);
       doShake(24);doHitStop(5);flash=16;sfx("ultBoom");
     }
@@ -6198,11 +6483,12 @@ function noxSkill(){
     return;
   }
   applyNoxRuinAttackCost();
-  player.energy-=cost;player.skillCd=260;
+  player.energy-=cost;player.skillCd=190;
   addSlash(W/2,H/2+60,560,"#b47cff",42,"noxBlast");
   addSlash(W/2,H/2+60,390,"#ffffff",28,"noxBlast");
   addParticles(W/2,H/2+60,"#b47cff",38,10);
-  for(const e of enemies) if(e.alive) hitEnemy(e,panelDamage(2,3.25,"skill",Math.random()*48),16,panelShieldDamage(2,94,"skill"),"#b47cff","VOID BLAST");
+  for(const o of battleExploreObjects)if(!o.done&&o.type==="crate")damageNearbyBattleCrates(o.x,o.y,1);
+  for(const e of enemies) if(e.alive) hitEnemy(e,panelDamage(2,3.25,"skill",Math.random()*48),16,panelShieldDamage(2,94,"skill"),"#b47cff","VOID BLAST","skill",2);
   addText(W/2,H*.27,language==="en"?"MAP-WIDE DETONATION":"全域爆破","#d9baff",true);
   sfx("ultBoom");doShake(25);doHitStop(6);flash=17;
 }
@@ -6217,7 +6503,7 @@ function noxUltimateResolve(){
   addSlash(W/2,H/2+60,620,"#b47cff",52,"noxUltimate");
   addSlash(W/2,H/2+60,430,"#15111f",38,"noxUltimate");
   addSlash(W/2,H/2+60,270,"#ffffff",30,"noxUltimate");
-  for(const e of enemies) if(e.alive) hitEnemy(e,panelDamage(2,4.55,"ultimate",Math.random()*68),24,panelShieldDamage(2,118,"ultimate"),"#b47cff","ANNIHILATION");
+  for(const e of enemies) if(e.alive) hitEnemy(e,panelDamage(2,4.55,"ultimate",Math.random()*68),24,panelShieldDamage(2,118,"ultimate"),"#b47cff","ANNIHILATION","ultimate",2);
   addText(W/2,H*.24,language==="en"?"RUIN · DMG +20% · ATTACK HP COST":"毁灭状态 · 增伤20% · 攻击消耗生命","#d9baff",true);
   sfx("ultBoom");doShake(30);doHitStop(7);flash=22;
 }
@@ -6232,8 +6518,68 @@ function applyNoxRuinAttackCost(){
   if(actualCost>0) addText(player.x,player.y-44,(language==="en"?"RUIN OVERLOAD -":"毁灭过载 -")+actualCost,"#c9a2ff",true);
 }
 
-function hitEnemy(e,dmg,knock=8,stunDmg=16,color="#fff",label=null){
-  const periodicImpact=label==="GALE"||label==="FROST"||label==="DOMAIN"||label==="BIND";
+function enemyImmunityActive(e,kind){
+  if(!e||e.special!==kind) return false;
+  return ((e.immunityClock||0)%240)<90;
+}
+
+function applyEnemyStatus(e,key,frames,data={}){
+  if(!e||!e.alive) return;
+  if(!e.statuses||typeof e.statuses!=="object")e.statuses={};
+  const old=e.statuses[key]||{};
+  e.statuses[key]=Object.assign({},old,data,{life:Math.max(old.life||0,frames)});
+}
+
+function applyPlayerStatus(key,frames,data={}){
+  const old=playerStatuses[key]||{};
+  playerStatuses[key]=Object.assign({},old,data,{life:Math.max(old.life||0,frames)});
+}
+
+function updateElementStatuses(){
+  for(const e of enemies){
+    if(!e.alive){e.statuses={};continue;}
+    e.immunityClock=(e.immunityClock||0)+frameScale;
+    const burn=e.statuses&&e.statuses.burn;
+    if(burn){
+      burn.life-=frameScale;burn.tick=(burn.tick||1)-frameScale;
+      if(burn.tick<=0){burn.tick+=30;hitEnemy(e,burn.damage||8,0,0,"#ff785f","BURN","dot",burn.ownerRole??0);}
+      if(burn.life<=0)delete e.statuses.burn;
+    }
+    const armor=e.statuses&&e.statuses.armorBreak;
+    if(armor){armor.life-=frameScale;if(armor.life<=0)delete e.statuses.armorBreak;}
+  }
+  const burn=playerStatuses.burn;
+  if(burn){
+    burn.life-=frameScale;burn.tick=(burn.tick||1)-frameScale;
+    if(burn.tick<=0){burn.tick+=30;damageCurrentRoleHp(burn.damage||4,language==="en"?"BURN":"燃烧","#ff785f");}
+    if(burn.life<=0)delete playerStatuses.burn;
+  }
+}
+
+function registerKaneBasicHit(e){
+  if(!e||!e.alive)return;
+  if(kaneComboTargetUid!==e.uid){clearKaneBasicStacks();kaneComboTargetUid=e.uid;}
+  e.kaneBasicHits=(e.kaneBasicHits||0)+1;
+  if(e.kaneBasicHits<3)return;
+  e.kaneBasicHits=0;
+  applyEnemyStatus(e,"burn",120,{tick:1,damage:Math.max(7,Math.floor(battleRoleAtk(0)*.16)),ownerRole:-1});
+  applyEnemyStatus(e,"armorBreak",120,{amount:.30});
+  addText(e.x,e.y-e.r-62,language==="en"?"BURN · ARMOR -30%":"燃烧 · 破甲30%","#ff9a5c",true);
+  addSlash(e.x,e.y,e.r+34,"#ff785f",28,"burnStatus");
+  addParticles(e.x,e.y,"#ff9a5c",12,5);
+}
+
+function clearKaneBasicStacks(){for(const e of enemies)if(e)e.kaneBasicHits=0;kaneComboTargetUid=0;}
+
+function hitEnemy(e,dmg,knock=8,stunDmg=16,color="#fff",label=null,sourceKind="basic",sourceRole=player.role){
+  if(!e||!e.alive)return false;
+  if(enemyImmunityActive(e,"physicalImmune")&&isPhysicalRole(sourceRole)){
+    addText(e.x,e.y-e.r-42,language==="en"?"PHYSICAL IMMUNE":"物理免疫","#ffe0a8",true);return false;
+  }
+  if(enemyImmunityActive(e,"skillImmune")&&sourceKind==="skill"){
+    addText(e.x,e.y-e.r-42,language==="en"?"SKILL IMMUNE":"技能免疫","#caa7ff",true);return false;
+  }
+  const periodicImpact=label==="GALE"||label==="FROST"||label==="DOMAIN"||label==="BIND"||label==="BURN";
   if(!periodicImpact) sfx("hit");
   sfxElementImpact(player.role,label||"");
   let final=dmg, crit=false;
@@ -6259,13 +6605,14 @@ function hitEnemy(e,dmg,knock=8,stunDmg=16,color="#fff",label=null){
       addSlash(e.x,e.y,170,"#ffe066",26,"break");
       addBladeTrail(e.x-90,e.y-48,e.x+90,e.y+48,"#ffe066",20,12,"breakTrail");
       triggerBreak(e);
-      gainUlt(180, "shieldBreak");
+      if(sourceKind==="basic")gainUlt(180, "shieldBreak");
       doShake(10);
       doHitStop(3);
     }
   }
 
   if(player.perfectBuff>0){ final*=1.20; player.perfectBuff=0; crit=true; addText(e.x,e.y-e.r-48,"DODGE BONUS","#7cc7ff",true); }
+  if(e.statuses&&e.statuses.armorBreak) final*=1+(e.statuses.armorBreak.amount||.30);
   if(e.stun<=0) final*=1.3;
   final = Math.max(1, Math.floor(final));
   e.hp-=final;
@@ -6280,10 +6627,14 @@ function hitEnemy(e,dmg,knock=8,stunDmg=16,color="#fff",label=null){
   e.hit = Math.min(10, Math.max(4, Math.floor(effectiveStunDmg/4)));
   const dx=e.x-player.x, dy=e.y-player.y, l=Math.hypot(dx,dy)||1;
   e.vx+=dx/l*knock; e.vy+=dy/l*knock;
-  combo++; comboTimer=100; addStyle(label==="PARRY!"?65:label==="ULT"?80:label==="3rd HIT"?35:18); player.energy=clamp(player.energy+8,0,100);
-  const repeatedHit=label==="GALE"||label==="FROST"||label==="DOMAIN"||label==="BIND";
-  const heavyUltGain=label==="HEAVY HIT"||label==="3rd HIT"||label==="FOCUS HIT";
-  gainUlt(repeatedHit?18:heavyUltGain?110:70,"hit");
+  combo++; comboTimer=100; addStyle(label==="PARRY!"?65:label==="ULT"?80:label==="3rd HIT"?35:18);
+  // Only normal attacks feed normal skill/ultimate resources. Chain, parry,
+  // break and dodge keep their explicit, separate resource grants.
+  if(sourceKind==="basic"){
+    player.energy=clamp(player.energy+8,0,100);
+    gainUlt(label==="HEAVY HIT"||label==="3rd HIT"||label==="FOCUS HIT"?110:70,"basicHit");
+    if(sourceRole===0)registerKaneBasicHit(e);
+  }
   addParticles(e.x,e.y,color,e.boss?14:10,e.boss?5:4);
   if(label==="PARRY!" || label==="3rd HIT" || label==="FOCUS HIT") spawnMetalImpact(e.x,e.y,e.boss?20:12,e.boss?8:6,!!e.boss);
   addSlash(e.x,e.y,e.boss?105:74,color,14,"hit");
@@ -6347,11 +6698,12 @@ function hitEnemy(e,dmg,knock=8,stunDmg=16,color="#fff",label=null){
 
     if(e.phase===3){
       // The full-map blast happens after the phase title breathes for a moment.
-      addBossHazard(W/2,H/2+80,520,110,"full");
+      addBossHazard(W/2,H/2+80,900,110,"full");
     }
     return;
   }
-  if(e.hp<=0 && e.alive){ gainUlt(e.boss ? 420 : 180, "kill"); e.alive=false; totalKills++; if(e.boss) totalBossKills++; checkAchievements(); addText(e.x,e.y,e.boss?"BOSS DOWN":"K.O.","#fff",true); addParticles(e.x,e.y,"#fff",9,5); }
+  if(e.hp<=0 && e.alive){ e.alive=false;e.statuses={};e.kaneBasicHits=0; totalKills++; if(e.boss) totalBossKills++; checkAchievements(); addText(e.x,e.y,e.boss?"BOSS DOWN":"K.O.","#fff",true); addParticles(e.x,e.y,"#fff",9,5); }
+  return true;
 }
 
 
@@ -6456,11 +6808,11 @@ function chainAttack(choiceIndex=0){
     addIceCircle(target.x,target.y,170,42,"ice");
     for(const e of enemiesInCircle(target.x,target.y,170)){
       freezeEnemy(e,32);
-      hitEnemy(e, panelDamage(player.role, 1.75, "skill", Math.random()*35), 18, panelShieldDamage(player.role, 90, "skill"), "#88d8ff", "CHAIN");
+      hitEnemy(e, panelDamage(player.role, 1.75, "skill", Math.random()*35), 18, panelShieldDamage(player.role, 90, "skill"), "#88d8ff", "CHAIN", "chain", player.role);
     }
     addText(target.x,target.y-120,"CHAIN FROST","#88d8ff",true);
   }else{
-    hitEnemy(target, panelDamage(player.role, 2.25, "skill", Math.random()*55), 32, panelShieldDamage(player.role, 110, "skill"), role.color, "CHAIN");
+    hitEnemy(target, panelDamage(player.role, 2.25, "skill", Math.random()*55), 32, panelShieldDamage(player.role, 110, "skill"), role.color, "CHAIN", "chain", player.role);
   }
   addStyle(120);
   doShake(24);
@@ -6549,7 +6901,7 @@ function protagonistFixedDamage(e,amount,color="#ffffff",label="BIND"){
   const dealt=Math.min(amount,Math.max(0,e.hp));
   if(e.hp<=amount){
     e.hp=1;
-    hitEnemy(e,1,0,0,color,label);
+    hitEnemy(e,1,0,0,color,label,"dot",PROTAGONIST_ROLE);
   }else{
     e.hp-=amount;
     e.hit=Math.max(e.hit||0,3);
@@ -6597,7 +6949,7 @@ function updateProtagonistCombatEffects(){
       addProtagonistSweep(protagonistDomain.sweepIndex++);
       for(const e of enemies){
         if(!e.alive) continue;
-        hitEnemy(e,panelDamage(PROTAGONIST_ROLE,.18,"ultimate",Math.random()*6),2,panelShieldDamage(PROTAGONIST_ROLE,8,"ultimate"),"#ffffff","DOMAIN");
+        hitEnemy(e,panelDamage(PROTAGONIST_ROLE,.18,"ultimate",Math.random()*6),2,panelShieldDamage(PROTAGONIST_ROLE,8,"ultimate"),"#ffffff","DOMAIN","dot",PROTAGONIST_ROLE);
       }
       sfx("slash2");
     }
@@ -6616,6 +6968,7 @@ function isPhysicalRole(roleId){
 
 function updateKaneCombatEffects(){
   for(const sigil of kaneSigils){
+    if(!sigil.hit||typeof sigil.hit.has!=="function")sigil.hit=new WeakSet();
     sigil.life-=frameScale;
     for(const e of enemies){
       if(!e.alive || sigil.hit.has(e) || dist(sigil.x,sigil.y,e.x,e.y)>sigil.r) continue;
@@ -6623,7 +6976,7 @@ function updateKaneCombatEffects(){
       addSlash(e.x,e.y,120,"#ff5757",24,"ultimate");
       addSlash(e.x,e.y,74,"#ffe066",18,"ultimate");
       addParticles(e.x,e.y,"#ffbe5c",18,7);
-      hitEnemy(e,panelDamage(0,2.35,"ultimate",Math.random()*45),20,panelShieldDamage(0,82,"ultimate"),"#ff735f","MARK BURST");
+      hitEnemy(e,panelDamage(0,2.35,"ultimate",Math.random()*45),20,panelShieldDamage(0,82,"ultimate"),"#ff735f","MARK BURST","ultimate",0);
       doShake(16);doHitStop(3);flash=Math.max(flash,9);sfx("ultBoom");
     }
   }
@@ -6631,7 +6984,7 @@ function updateKaneCombatEffects(){
 }
 
 function attack(){
-  damageNearbyBattleCrates(player.x+player.facing*55,player.y,105);
+  damageNearbyBattleCrates(player.x+player.facing*55,player.y,118);
   harvestCrystalWarNodeByAttack();
   if(isProtagonist(player.role)){ protagonistAttack(); return; }
   if(isFloraRole()){ floraAttack(); return; }
@@ -6664,6 +7017,7 @@ function attack(){
         }
       }
       hitEnemy(e,panelDamage(player.role,[0.72,0.90,1.35][step-1],"normal",Math.random()*18)*damageScale,step===3?20:8,shieldDamage,color,label);
+      if(player.role===0)break;
     }
   }
 }
@@ -6676,6 +7030,7 @@ function skill(){
   if(player.skillCd>0 || player.energy<SKILL_ENERGY_COST || ult.active){ if(player.energy<SKILL_ENERGY_COST) showCenter(mt("notEnoughEnergy"),24); return; }
   const role=roles[player.role]; const cd=charData[player.role]; player.energy-=SKILL_ENERGY_COST; player.skillCd=68;
   const sx=player.x+player.facing*65;
+  damageNearbyBattleCrates(sx,player.y,147);
   addSlash(sx,player.y,118,role.color,18,"skill");
   addBladeTrail(player.x-player.facing*20,player.y-44,sx+player.facing*70,player.y+34,role.color,18,14,"skillTrail");
   addParticles(sx,player.y,role.color,12,5);
@@ -6691,7 +7046,7 @@ function skill(){
         e.physicalPain=0;
       }else if(player.role===0){e.physicalPain=360;label="PHYSICAL PAIN";}
     }
-    hitEnemy(e,panelDamage(player.role,2.05,"skill",Math.random()*35)*damageScale,16,shieldDamage,role.color,label);
+    hitEnemy(e,panelDamage(player.role,2.05,"skill",Math.random()*35)*damageScale,16,shieldDamage,role.color,label,"skill",player.role);
   }
 }
 function ultimate(){
@@ -6710,6 +7065,7 @@ function resolveUltimate(){
   if(ult.role===2){ noxUltimateResolve(); return; }
   if(ult.role===5){ lisaUltimateResolve(); return; }
   const role=roles[ult.role]; const cd=charData[ult.role];
+  damageNearbyBattleCrates(player.x,player.y,330);
   if(ult.role===0){
     kaneSigils.push({x:player.x+player.facing*75,y:player.y,r:175,life:360,max:360,hit:new WeakSet()});
     addSlash(player.x+player.facing*75,player.y,175,"#ff5757",32,"ultimate");
@@ -6719,7 +7075,7 @@ function resolveUltimate(){
   }
   addSlash(player.x,player.y,260,role.color,28,"ultimate"); addSlash(player.x,player.y,180,"#fff",22,"ultimate");
   addParticles(player.x,player.y,role.color,14,6); doShake(22); doHitStop(4); flash=12;
-  for(const e of enemies) if(e.alive && dist(player.x,player.y,e.x,e.y)<330) hitEnemy(e,panelDamage(ult.role,5.20,"ultimate",Math.random()*90),24,panelShieldDamage(ult.role,105,"ultimate"),role.color,"ULT");
+  for(const e of enemies) if(e.alive && dist(player.x,player.y,e.x,e.y)<330) hitEnemy(e,panelDamage(ult.role,5.20,"ultimate",Math.random()*90),24,panelShieldDamage(ult.role,105,"ultimate"),role.color,"ULT","ultimate",ult.role);
 }
 
 // V43.5 Perfect Dodge
@@ -6815,6 +7171,7 @@ function switchRole(){
     showCenter(language==="en"?"No available reserve executor":"没有可上场的后备执行官",28);
     return;
   }
+  clearKaneBasicStacks();
   setBattleRole(nextRole);
 
   const role=roles[player.role];
@@ -6829,7 +7186,7 @@ function switchRoleByTeamSlot(slot){
   const roleId=team[slot];
   if(!Number.isInteger(roleId) || roleId<0 || roleId>=roles.length || roleId===player.role) return false;
   if(Array.isArray(battleRoleHp) && (battleRoleHp[roleId]||0)<=0){showCenter(language==="en"?"Executor unavailable":"该执行官无法上场",24);return false;}
-  setBattleRole(roleId);player.switchCd=SWITCH_CD_FRAMES;player.chain=0;player.chainTimer=0;player.attackCd=Math.max(player.attackCd,12);
+  clearKaneBasicStacks();setBattleRole(roleId);player.switchCd=SWITCH_CD_FRAMES;player.chain=0;player.chainTimer=0;player.attackCd=Math.max(player.attackCd,12);
   const role=roles[player.role];showCenter(roleName(player.role)+mt("entrySuffix"),35);addSlash(player.x+player.facing*54,player.y,110,role.color,16,"entry");
   return true;
 }
@@ -6871,7 +7228,7 @@ function parryCounter(){
   addSlash(t.x,t.y,t.boss?155:112,"#ffe082",22,"parry");
   addSlash(t.x,t.y,105,role.color,18,"parry");
   doShake(t.boss?18:12); doHitStop(t.boss?12:9);
-  hitEnemy(t,panelDamage(player.role,1.80,"skill",Math.random()*35),24,panelShieldDamage(player.role,52,"skill"),"#fff","PARRY!"); showActionPrompt(t.boss?"PERFECT PARRY!":"PARRY COUNTER!",78); addStyle(t.boss?180:130); player.energy=clamp(player.energy+25,0,100); gainUlt(420, "ultimateHit"); slowMo=t.boss?18:14;
+  hitEnemy(t,panelDamage(player.role,1.80,"skill",Math.random()*35),24,panelShieldDamage(player.role,52,"skill"),"#fff","PARRY!","parry",player.role); showActionPrompt(t.boss?"PERFECT PARRY!":"PARRY COUNTER!",78); addStyle(t.boss?180:130); player.energy=clamp(player.energy+25,0,100); gainUlt(420, "parry"); slowMo=t.boss?18:14;
 }
 function toggleLock(){ if(lockTarget&&lockTarget.alive){lockTarget=null; showCenter("LOCK OFF",22);} else {lockTarget=nearestEnemy(); if(lockTarget)showCenter("LOCK ON",22);} }
 
@@ -8936,14 +9293,14 @@ function updateOperation(){
           mainChapterView="stages";
         }else showFeatureLocked("chapter1");
         handled=true;
+      }else if(inRect(674,184,164,305)){
+        if(storyChapterComplete(2)){loadMainChapter(3);mainChapterView="stages";}else showFeatureLocked("chapter2");
+        handled=true;
+      }else if(inRect(858,184,164,305)){
+        if(cleared.ch3p1_8){loadMainChapter(4);mainChapterView="stages";}else showCenter(language==="en"?"Complete Chapter 3 Part 1":"请先通关第三章 Part 1",80);
+        handled=true;
       }else{
-        for(let i=3;i<5;i++){
-          if(inRect(306+(i-1)*184,184,164,305)){
-            showFeatureLocked("future");
-            handled=true;
-            break;
-          }
-        }
+        handled=false;
       }
     }
 
@@ -8989,7 +9346,9 @@ function updateOperation(){
 
     if(!handled && operationDetailVisible && selectedTab!=="dungeon" && selectedTab!=="sideStory" && selectedTab!=="daydream"){
       const locked = selectedTab==="combat" ? false : (selectedStage>1 && !isMainStageCleared(selectedStage-1));
-      if(inRect(W-338,486,255,52)){
+      if(selectedTab==="main"&&hardModeUnlocked()&&inRect(W-126,486,43,52)){
+        setBattleDifficulty(battleDifficulty==="hard"?"normal":"hard");sfx("ui");handled=true;
+      }else if(inRect(W-338,486,selectedTab==="main"&&hardModeUnlocked()?202:255,52)){
         if(!locked){
           if(selectedTab==="combat"){
             startCommissionBattle(selectedStage);
@@ -9012,6 +9371,7 @@ function updateOperation(){
         const locked = selectedTab==="combat" ? false : (i>0&&!isMainStageCleared(i));
         if(!locked && dist(mouseX,mouseY,p.x,p.y)<28){
           selectedStage=list[i].id;
+          battleDifficulty="normal";
           operationDetailVisible=true;
           picked = true;
           handled = true;
@@ -9053,6 +9413,7 @@ function completeStoryOnlyStage(){
     if(selectedMainChapter===0) setProtagonistStoryLevel(Math.min(9,Math.max(protagonistStoryLevel||1,selectedStage)));
     if(selectedMainChapter===1&&selectedStage===10) setProtagonistStoryLevel(20);
     if(selectedMainChapter===2&&selectedStage===11) setProtagonistStoryLevel(30);
+    if(selectedMainChapter===4&&selectedStage===8){setProtagonistStoryLevel(40);cleared.ch3_complete=true;}
     checkAchievements();
     saveGame(); autoCloudSaveNow(true);
   }
@@ -9062,6 +9423,10 @@ function completeStoryOnlyStage(){
     cleared.ch2_complete=true;
     saveGame();autoCloudSaveNow(true);
     showCenter(language==="en"?"Chapter 2 Complete · Daydream Reconstruction Unlocked":"第二章完成｜白日梦重现已解锁",130);
+  }else if(selectedMainChapter===3&&selectedStage===8){
+    showCenter(language==="en"?"Chapter 3 Part 1 Complete · Kros Unlocked":"第三章 Part 1 完成｜克罗斯决战已解锁",120);
+  }else if(selectedMainChapter===4&&selectedStage===8){
+    showCenter(language==="en"?"Ravenhado Arc Complete · Protagonist Lv.40":"雷文哈多篇·完｜主角同步至 Lv.40",140);
   }else showCenter(selectedMainChapter===1 && selectedStage===10
       ? (language==="en"?"Chapter 1 Complete · The rescue operation begins":"第一章完成｜真正的救援行动即将开始")
       : (granted?((language==="en"?"Story Clear · Crystal +":"剧情完成｜水晶 +")+granted):(language==="en"?"Story replay complete":"剧情回顾完成")),100);
@@ -9095,6 +9460,12 @@ function updateSettlement(){
       selectedTab="dungeon";
       dungeonPanelMode="boss";
       operationDetailVisible=false;
+      battleModeSource="main";
+      bossKrosRun=null;
+      bossHazards=[];
+    }else if(settlement && settlement.mode==="mainStoryBoss"){
+      selectedTab="main";
+      operationDetailVisible=true;
       battleModeSource="main";
       bossKrosRun=null;
       bossHazards=[];
@@ -9141,13 +9512,13 @@ function updateOperators(){
       else if(inRect(rx+68,ry+20,52,36)){operatorTab="skill";moduleWarehouseSlot=null;}
       else if(inRect(rx+126,ry+20,52,36)){operatorTab="weapon";moduleWarehouseSlot=null;}
       else if(inRect(rx+184,ry+20,52,36)) operatorTab="module";
-      else if(inRect(rx+242,ry+20,52,36)){operatorTab="break";moduleWarehouseSlot=null;}
+      else if(inRect(rx+242,ry+20,52,36)){operatorTab="profile";moduleWarehouseSlot=null;}
       if(operatorTab==="weapon"){
         ensureWeaponBag();
-        const wx=rx+22, wy=ry+68+122;
+        const wx=rx+22, wy=ry+68+132;
         const list=compatibleWeaponsForRole(selectedOperator);
         for(let wi=0;wi<Math.min(3,list.length);wi++){
-          if(inRect(wx,wy+wi*48,258,40)){
+          if(inRect(wx,wy+wi*46,258,40)){
             selectedWeaponId=list[wi].id;
             clicked=false;
             return;
@@ -9396,6 +9767,61 @@ function updateShop(){
   }
   clicked=false;
 }
+function enemyTravelSpeed(){
+  const activeRole=roles[player.role]||roles[0];
+  return activeRole.speed*MOVE_SPEED_MULT*(battleHardMode?.70:.60);
+}
+
+function enemyInsideActivePull(e){
+  if(ailoUltimateBurst.active) return true;
+  return windFields.some(f=>f.life>0&&withinDist(f.x,f.y,e.x,e.y,f.r+e.r));
+}
+
+function applyEnemyTravelSpeed(e,activeMovement){
+  if(!activeMovement||enemyInsideActivePull(e)) return;
+  const current=Math.hypot(e.vx,e.vy);
+  if(current<.001) return;
+  const target=enemyTravelSpeed();
+  e.vx=e.vx/current*target;
+  e.vy=e.vy/current*target;
+}
+
+function enemyPredictionLead(e){
+  if(e.boss) return battleHardMode?10:7;
+  if(["ranged","sniper","fireCrystal","support"].includes(e.type)) return battleHardMode?16:11;
+  return battleHardMode?11:7;
+}
+
+function updateEnemyTacticalState(e){
+  e.tacticClock=Math.max(0,(e.tacticClock||0)-frameScale);
+  e.repositionTimer=Math.max(0,(e.repositionTimer||0)-frameScale);
+  if(e.tacticClock>0) return;
+  e.strafeSeed=(e.strafeSeed||1)*-1;
+  e.attackLaneOffset=(Math.random()-.5)*(battleHardMode?155:125);
+  e.flankAngle=e.strafeSeed*(.38+Math.random()*(battleHardMode?.48:.34));
+  e.tacticClock=(battleHardMode?48:70)+Math.random()*(battleHardMode?55:80);
+}
+
+function applyEnemyArenaAwareness(e){
+  let corrected=false;
+  const push=(battleHardMode?.16:.12)*frameScale;
+  if(e.x<82){e.vx+=push;corrected=true;}
+  else if(e.x>W-82){e.vx-=push;corrected=true;}
+  if(e.y<145){e.vy+=push;corrected=true;}
+  else if(e.y>H-72){e.vy-=push;corrected=true;}
+  return corrected;
+}
+
+function enemyCanBeginMelee(e){
+  const simultaneousLimit=battleHardMode?3:2;
+  let committed=0;
+  for(const ally of enemies){
+    if(ally===e||!ally.alive||(ally.windup||0)<=0) continue;
+    if(withinDist(player.x,player.y,ally.x,ally.y,230)) committed++;
+  }
+  return committed<simultaneousLimit;
+}
+
 function updateBattle(){
   if(battlePaused){
     updateBattlePauseMenu();
@@ -9486,12 +9912,16 @@ function updateBattle(){
     else {
       e.aiTick = Math.max(0, (e.aiTick||0) - frameScale);
       if(e.aiTick<=0){
-        e.cachedDx = player.x-e.x;
-        e.cachedDy = player.y-e.y;
+        const lead=enemyPredictionLead(e);
+        const forecastX=clamp(player.x+player.vx*lead,35,W-35);
+        const forecastY=clamp(player.y+player.vy*lead,105,H-35);
+        e.cachedDx = forecastX-e.x;
+        e.cachedDy = forecastY-e.y;
         e.cachedDist = Math.sqrt(e.cachedDx*e.cachedDx+e.cachedDy*e.cachedDy)||1;
-        e.aiTick = e.boss ? 6 : 10;
+        e.aiTick = battleHardMode?(e.boss?3:5):(e.boss?4:7);
       }
       const dx=e.cachedDx, dy=e.cachedDy, l=e.cachedDist||1;
+      updateEnemyTacticalState(e);
       if(e.boss && !e.crystalColossus && e.hp < e.maxHp*0.55 && e.phase===1){ e.phase=2; e.shield=Math.max(e.shield,900); e.maxShield=Math.max(e.maxShield,900); showActionPrompt(msg("bossPhase2"),90); }
       if(e.boss && !e.crystalColossus && e.hp < e.maxHp*0.25 && e.phase===2){ e.phase=3; e.rage=true; showActionPrompt(msg("bossPhase3"),90); }
       if(e.type==="berserker" && e.hp < e.maxHp*0.55) e.rage=true;
@@ -9501,13 +9931,16 @@ function updateBattle(){
         for(const ally of enemies){
           if(ally===e || !ally.alive) continue;
           const sx=e.x-ally.x,sy=e.y-ally.y,sd=Math.hypot(sx,sy)||1;
-          if(sd<68){e.vx+=sx/sd*.025*frameScale;e.vy+=sy/sd*.025*frameScale;}
+          const separation=battleHardMode?82:72;
+          if(sd<separation){e.vx+=sx/sd*(battleHardMode?.050:.035)*frameScale;e.vy+=sy/sd*(battleHardMode?.050:.035)*frameScale;}
         }
       }
 
+      let activeMovement=false;
       if(e.type==="support"){
         e.supportCd-=slow;
         const direction=l<165?-1:l>235?1:0;
+        activeMovement=direction!==0;
         e.vx+=dx/l*.042*direction*slow*frameScale;
         e.vy+=dy/l*.042*direction*slow*frameScale;
         if(e.supportCd<=0){
@@ -9521,36 +9954,66 @@ function updateBattle(){
           if(helped){addText(e.x,e.y-38,language==="en"?"CRYSTAL SUPPORT":"晶体支援","#7cffd0",true);}
           e.supportCd=240;
         }
+      } else if(e.type==="fireCrystal"){
+        e.shotCd-=slow;
+        if(l>165){
+          const desired=255,direction=l<desired-45?-1:l>desired+35?1:0;
+          activeMovement=true;
+          e.vx+=dx/l*.050*direction*slow*frameScale;e.vy+=dy/l*.050*direction*slow*frameScale;
+          e.vx+=(-dy/l)*.022*(e.strafeSeed||1)*slow*frameScale;e.vy+=(dx/l)*.022*(e.strafeSeed||1)*slow*frameScale;
+          if(e.shotCd<=0){
+            const speed=battleHardMode?4.8:4.25;
+            projectiles.push({x:e.x,y:e.y,vx:dx/l*speed,vy:dy/l*speed,life:105,fireProjectile:true});
+            e.repositionTimer=battleHardMode?50:36;
+            e.shotCd=battleHardMode?82:105;addText(e.x,e.y-38,language==="en"?"FLAME SHARD":"火焰晶片","#ff785f");
+          }
+        }else{
+          activeMovement=true;
+          const flankX=dx/l+(-dy/l)*(e.flankAngle||.45),flankY=dy/l+(dx/l)*(e.flankAngle||.45);
+          e.vx+=flankX*.092*slow*frameScale;e.vy+=flankY*.092*slow*frameScale;
+          e.attackCd-=slow;
+          if(e.attackCd<=0&&e.windup<=0&&l<118&&enemyCanBeginMelee(e)){e.windup=battleHardMode?24:31;e.attackCd=battleHardMode?62:82;}
+        }
       } else if((e.type==="ranged" || e.type==="sniper")){
         const ideal=e.type==="sniper"?330:235;
+        activeMovement=true;
         e.shotCd -= slow;
         const direction=l<ideal-55?-1:l>ideal+45?1:0;
         e.vx += dx/l*0.034*direction*slow*frameScale;
         e.vy += dy/l*0.034*direction*slow*frameScale;
-        e.vx += (-dy/l)*.014*(e.strafeSeed||1)*slow*frameScale;
-        e.vy += (dx/l)*.014*(e.strafeSeed||1)*slow*frameScale;
+        const reposition=(e.repositionTimer||0)>0?2.35:1;
+        e.vx += (-dy/l)*.014*reposition*(e.strafeSeed||1)*slow*frameScale;
+        e.vy += (dx/l)*.014*reposition*(e.strafeSeed||1)*slow*frameScale;
         if(e.shotCd<=0){
           const speed=e.type==="sniper"?5.2:4.0;
           projectiles.push({x:e.x,y:e.y,vx:dx/l*speed,vy:dy/l*speed,life:e.type==="sniper"?115:90});
+          e.repositionTimer=battleHardMode?55:40;
           e.shotCd=e.type==="sniper"?145:105;
           addText(e.x,e.y-35,e.type==="sniper"?"AIMED SHOT":"SHOT",e.type==="sniper"?"#ffcc77":"#ff8888");
         }
       } else {
-        const spd = e.rage ? .095 : (e.boss?.05:e.type==="skirmisher"?.086:.068);
-        e.vx+=dx/l*spd*slow*frameScale; e.vy+=dy/l*spd*slow*frameScale;
+        activeMovement=true;
+        const aggression=battleHardMode?1.28:1;
+        const spd = (e.rage ? .105 : (e.boss?.05:e.type==="skirmisher"?.096:.076))*aggression;
+        const surround=(e.attackLaneOffset||0)/Math.max(90,l);
+        e.vx+=(dx/l+(-dy/l)*surround)*spd*slow*frameScale; e.vy+=(dy/l+(dx/l)*surround)*spd*slow*frameScale;
         if(e.type==="skirmisher" && l>95){
           e.vx+=(-dy/l)*.055*(e.strafeSeed||1)*slow*frameScale;
           e.vy+=(dx/l)*.055*(e.strafeSeed||1)*slow*frameScale;
         }
         e.attackCd-=slow;
-        if(e.attackCd<=0&&e.windup<=0&&withinDist(player.x,player.y,e.x,e.y,(e.boss?190:128))){
-          e.windup=e.boss?(e.phase===3?32:50):(e.rage?28:38);
-          e.attackCd=e.boss?(e.phase===3?75:120):(e.rage?70:105);
+        if(e.attackCd<=0&&e.windup<=0&&enemyCanBeginMelee(e)&&withinDist(player.x,player.y,e.x,e.y,(e.boss?190:128))){
+          e.windup=e.boss?(e.phase===3?32:50):(e.rage?26:(battleHardMode?30:36));
+          e.attackCd=e.boss?(e.phase===3?75:120):(e.rage?64:(battleHardMode?78:98));
         }
-      } }
+      }
+      activeMovement=applyEnemyArenaAwareness(e)||activeMovement;
+      applyEnemyTravelSpeed(e,activeMovement);
+    }
     if(e.windup>0){ e.windup-=slow; if(e.windup<=0) enemyHit(e); }
     e.x+=e.vx*slow*frameScale; e.y+=e.vy*slow*frameScale; e.vx*=Math.pow(.88,frameScale); e.vy*=Math.pow(.88,frameScale); e.x=clamp(e.x,35,W-35); e.y=clamp(e.y,105,H-35); e.hit=Math.max(0,e.hit-frameScale);
   }
+  updateElementStatuses();
   const combatFinished=enemies.every(e=>!e.alive);
   const objectivePending=hasPendingChapterAreaObjective();
   if(combatFinished && objectivePending && !chapterObjectivePrompted){
@@ -9560,7 +10023,8 @@ function updateBattle(){
       ? (language==="en"?"Area secure. Destroy the marked blockade.":"区域已安全。破坏标记的封锁障碍。")
       : (language==="en"?"Area secure. Approach the marked point and press F.":"区域已安全。靠近标记点并按 F 完成目标。"),150);
   }
-  if(combatFinished && !objectivePending && !areaCleared){
+  const storyObjectiveExit=storyClearRule()==="objective"&&!objectivePending;
+  if((combatFinished||storyObjectiveExit) && !objectivePending && !areaCleared){
     areaCleared=true; battleExitDelay=35; player.energy=clamp(player.energy+35,0,100); gainUlt(520, "chain");
     if(battleSideArea){ showCenter(language==="en"?"SIDE AREA CLEAR":"支线区域已清理",65); }
     else if(area<battleAreaLimit()){
@@ -9587,8 +10051,14 @@ function updateBattle(){
         const projectAreaReward = applyProjectAreaReward();
         settlement={stage:0,reward:projectAreaReward.crystal||0,expReward:projectAreaReward.expReward||0,stars:3,mode:"projectArea",projectAreaReward};
       }else if(battleModeSource==="bossKros"){
-        const bossReward = applyBossKrosReward();
-        settlement={stage:0,reward:bossReward.crystal||0,expReward:bossReward.expReward||0,stars:3,mode:"bossKros",bossReward};
+        if(bossKrosRun&&bossKrosRun.storyMode){
+          const clearKey="ch3p2_2";
+          if(!cleared[clearKey]){reward=grantFreeCrystals(chapter3Part2Stages[1].reward);gold+=5000;totalGoldEarned+=5000;expBooks+=8;addPlayerExp(1200);cleared[clearKey]=true;saveGame();autoCloudSaveNow(true);}
+          settlement={stage:2,reward,expReward:1200,stars:3,mode:"mainStoryBoss"};
+        }else{
+          const bossReward = applyBossKrosReward();
+          settlement={stage:0,reward:bossReward.crystal||0,expReward:bossReward.expReward||0,stars:3,mode:"bossKros",bossReward};
+        }
       }else if(battleModeSource==="materialDungeon"){
         const matReward = applyMaterialDungeonReward();
         settlement={stage:0,reward:matReward.crystal||0,expReward:matReward.expReward||0,stars:3,mode:"material",matReward};
@@ -9614,7 +10084,17 @@ function updateBattle(){
       }else{
         const st=stages[selectedStage-1];
         const clearKey=mainStageClearKey(selectedStage);
-        if(!cleared[clearKey]){
+        if(battleHardMode){
+          const hardKey=hardStageClearKey(selectedStage);
+          expReward=750;
+          if(!hardCleared[hardKey]){
+            reward=grantFreeCrystals(100);
+            gold+=1100+selectedStage*120;totalGoldEarned+=1100+selectedStage*120;
+            expBooks+=3;weaponOre+=2;addPlayerExp(expReward);hardCleared[hardKey]=true;
+            saveGame();autoCloudSaveNow(true);
+          }
+          settlement={stage:selectedStage,reward,expReward,stars:3,mode:"mainHard",hard:true};
+        }else if(!cleared[clearKey]){
           reward=st.reward;
           reward=grantFreeCrystals(reward);
           gold += 500 + selectedStage*80;
@@ -9626,7 +10106,7 @@ function updateBattle(){
           if(battleModeSource==="main" && selectedMainChapter===0) setProtagonistStoryLevel(Math.min(9, Math.max(protagonistStoryLevel||1, selectedStage)));
           saveGame(); autoCloudSaveNow(true);
         }
-        settlement={stage:selectedStage,reward,expReward:500,stars:3,mode:"main"};
+        if(!battleHardMode)settlement={stage:selectedStage,reward,expReward:500,stars:3,mode:"main"};
       }
       sfx("reward"); gameMode="settlement"; showCenter(ui("settlement"),60);
     }
@@ -9639,8 +10119,8 @@ function updateBattle(){
     else if(battleSideArea==="lower" && player.y<125) returnToMainBattleArea();
     else if(!battleSideArea && areaCleared){
     if(area<battleAreaLimit() && player.x>W-85) enterNextBattleArea("center");
-      else if(Math.abs(player.x-W/2)<155 && player.y<125) enterSideBattleArea("upper");
-      else if(Math.abs(player.x-W/2)<155 && player.y>H-55) enterSideBattleArea("lower");
+      else if(storyAllowsSideRoutes() && Math.abs(player.x-W/2)<155 && player.y<125) enterSideBattleArea("upper");
+      else if(storyAllowsSideRoutes() && Math.abs(player.x-W/2)<155 && player.y>H-55) enterSideBattleArea("lower");
     }
   }else if(areaCleared && area<battleAreaLimit() && battleExitDelay<=0 && player.x>W-85){
     enterNextBattleArea("center");
@@ -9651,8 +10131,10 @@ function updateBattle(){
 function enemyHit(e){
   if(dist(player.x,player.y,e.x,e.y)<(e.boss?105:78)&&player.inv<=0&&player.guardTimer<=0){
     if(e.bossKros && e.phase>=2) playerBleedTimer=Math.max(playerBleedTimer,150);
-    let dmg = e.boss ? (e.phase===3?26:18) : (e.rage?14:10);
+    let dmg = e.boss ? (e.phase===3?26:18) : (e.rage?14:e.type==="fireCrystal"?12:10);
+    if(battleHardMode)dmg*=1.12;
     if(e.crystalColossus && e.phase>=2) dmg*=1.10;
+    if(e.type==="fireCrystal")applyPlayerStatus("burn",120,{tick:1,damage:battleHardMode?5:4});
     if(damageCurrentRoleHp(dmg, "HIT", "#ff5555")) return;
     doShake(e.boss?10:6); flash=Math.max(flash,5);
   }
@@ -9664,15 +10146,23 @@ function updateEffects(){
   slashes=slashes.filter(s=>(s.life-=frameScale)>0); texts=texts.filter(t=>(t.life-=frameScale)>0); for(const t of texts){t.y+=t.vy*frameScale;t.vy*=Math.pow(.96,frameScale);}
   if(particles.length>70)particles.splice(0,particles.length-70); if(slashes.length>18)slashes.splice(0,slashes.length-18); if(frostFields.length>8)frostFields.splice(0,frostFields.length-8); if(texts.length>9)texts.splice(0,texts.length-9); if(projectiles.length>18)projectiles.splice(0,projectiles.length-18);
   shake*=Math.pow(.82,frameScale); slowMo=Math.max(0,slowMo-frameScale); flash=Math.max(0,flash-frameScale); centerTimer=Math.max(0,centerTimer-frameScale); actionPromptTimer=Math.max(0,actionPromptTimer-frameScale); if(player) player.perfectDodgeTimer=Math.max(0,(player.perfectDodgeTimer||0)-frameScale);
+  for(const o of battleExploreObjects||[])if(o.hitFlash>0)o.hitFlash=Math.max(0,o.hitFlash-frameScale);
 }
 
 
 
 function enterTeamSetup(){
-  if(selectedTab==="main" && !daydreamTeamSetupPending) resetBattleSourceToMain();
+  if(selectedTab==="main" && !daydreamTeamSetupPending){
+    resetBattleSourceToMain();
+    if(selectedMainChapter===4&&selectedStage===2){
+      bossKrosRun={key:"kros",multiplier:1,storyMode:true,storyChapter:4,storyStage:2};
+      battleModeSource="bossKros";
+    }
+  }
   gameMode = "team";
   teamSelectSlot = 0;
-  team=normalizeBattleTeam(team);
+  const storyTeam=forcedMainStoryTeam();
+  team=normalizeBattleTeam(storyTeam||team);
   teamPresets=normalizeTeamPresets(teamPresets);
   teamPresetNames=normalizeTeamPresetNames(teamPresetNames);
   cancelTeamPresetRename();
@@ -9728,8 +10218,15 @@ function updateTeam(){
     teamRosterWheelDelta = 0;
   }
   teamRosterScrollX = clamp(teamRosterScrollX || 0, 0, maxScroll);
+  const storyTeam=forcedMainStoryTeam();
+  if(storyTeam) team=normalizeBattleTeam(storyTeam);
 
   if(clicked){
+    if(storyTeam && mouseY>=145 && mouseY<=520){
+      showCenter(language==="en"?"Story-restricted squad":"本关为剧情限定队伍",60);
+      clicked=false;
+      return;
+    }
     for(let i=0;i<3;i++){
       const x=95+i*260,y=155;
       if(i<team.length&&inRect(x+184,y+8,28,28)){
@@ -9771,7 +10268,7 @@ function updateTeam(){
     }
 
     if(inRect(W-330,560,250,56)){
-      team=normalizeBattleTeam(team);
+      team=normalizeBattleTeam(storyTeam||team);
       player.role = team[0];
       selectedOperator = team[0];
       saveGame();
@@ -10148,10 +10645,29 @@ function updateSettingsAccountRequest(){
 
 function updateSettings(){
   menuPulse++;
+  if(performanceWarning){
+    if(justPressed("escape")){performanceWarning=null;clicked=false;return;}
+    if(clicked){
+      if(inRect(W/2-190,H/2+72,175,48)){
+        const choice=performanceWarning;performanceWarning=null;
+        applyPerformanceChoice(choice.kind,choice.value);
+      }else if(inRect(W/2+15,H/2+72,175,48)) performanceWarning=null;
+    }
+    clicked=false;return;
+  }
   if(accountCredentialPanelActive){
     updateSettingsAccountRequest();
     clicked=false;
     return;
+  }
+  if(accountDeletionConfirmStep>0){
+    if(justPressed("escape")){accountDeletionConfirmStep=0;clicked=false;return;}
+    if(clicked&&!accountBusy){
+      if(accountDeletionConfirmStep===1&&inRect(W/2-190,H/2+92,175,48))accountDeletionConfirmStep=2;
+      else if(accountDeletionConfirmStep===2&&inRect(W/2-190,H/2+92,175,48))requestDeleteAccount();
+      else if(inRect(W/2+15,H/2+92,175,48))accountDeletionConfirmStep=0;
+    }
+    clicked=false;return;
   }
   if(accountSignOutPromptActive){
     if(justPressed("escape")){accountSignOutPromptActive=false;clicked=false;return;}
@@ -10173,13 +10689,16 @@ function updateSettings(){
     if(settingsReturnMode!=="login" && inRect(310,560,220,52)){ returnToLogin(); clicked=false; return; }
 
     if(settingsTab==="graphics"){
-      if(inRect(120,265,120,38)){ setRenderQualitySetting("STANDARD"); clicked=false; return; }
-      if(inRect(250,265,120,38)){ setRenderQualitySetting("1080P"); clicked=false; return; }
-      if(inRect(380,265,120,38)){ setRenderQualitySetting("2K"); clicked=false; return; }
-      if(inRect(510,265,120,38)){ setRenderQualitySetting("AUTO"); clicked=false; return; }
+      if(inRect(120,265,100,38)){ setRenderQualitySetting("STANDARD"); clicked=false; return; }
+      if(inRect(230,265,100,38)){ setRenderQualitySetting("1080P"); clicked=false; return; }
+      if(inRect(340,265,100,38)){ setRenderQualitySetting("2K"); clicked=false; return; }
+      if(inRect(450,265,100,38)){ setRenderQualitySetting("4K"); clicked=false; return; }
+      if(inRect(560,265,100,38)){ setRenderQualitySetting("AUTO"); clicked=false; return; }
 
-      if(inRect(120,340,120,38)){ setTargetFPSSetting(30); clicked=false; return; }
-      if(inRect(250,340,120,38)){ setTargetFPSSetting(60); clicked=false; return; }
+      if(inRect(120,340,100,38)){ setTargetFPSSetting(30); clicked=false; return; }
+      if(inRect(230,340,100,38)){ setTargetFPSSetting(60); clicked=false; return; }
+      if(inRect(340,340,100,38)){ setTargetFPSSetting(120); clicked=false; return; }
+      if(inRect(450,340,140,38)){ setTargetFPSSetting(0); clicked=false; return; }
 
       if(inRect(120,405,220,42)){ particlesEnabled=!particlesEnabled; saveGame(); clicked=false; return; }
       if(inRect(360,405,220,42)){ damageTextEnabled=!damageTextEnabled; saveGame(); clicked=false; return; }
@@ -10213,7 +10732,7 @@ function updateSettings(){
       if(!cloudUser && inRect(720,305,170,46)){ openAccountCredentialPanel("login"); clicked=false; return; }
       if(!cloudUser && inRect(910,305,170,46)){ openAccountCredentialPanel("register"); clicked=false; return; }
       if(cloudUser && inRect(720,435,170,46)){ accountSignOutPromptActive=true; }
-      if(cloudUser && inRect(910,435,190,46)){ requestDeleteAccount(); }
+      if(cloudUser && inRect(910,435,190,46)){ accountDeletionConfirmStep=1; }
     }
   }
   if(justPressed("escape")) closeSettingsToOrigin();
@@ -10242,20 +10761,44 @@ function drawSettings(){
     ctx.fillStyle="rgba(255,255,255,.58)";
     ctx.font="14px " + FONT_UI;
     ctx.fillText(language==="en" ? "Clarity" : "画质清晰度",120,250);
-    drawBtn(language==="en"?"Standard":"标准","",120,265,120,38,renderQuality==="STANDARD","#7cc7ff");
-    drawBtn("1080P","",250,265,120,38,renderQuality==="1080P","#7cc7ff");
-    drawBtn("2K","",380,265,120,38,renderQuality==="2K","#7cc7ff");
-    drawBtn(language==="en"?"Auto":"自动",qualityName("AUTO"),510,265,120,38,renderQuality==="AUTO","#7cc7ff");
+    drawBtn(language==="en"?"Standard":"标准","",120,265,100,38,renderQuality==="STANDARD","#7cc7ff");
+    drawBtn("1080P","",230,265,100,38,renderQuality==="1080P","#7cc7ff");
+    drawBtn("2K","",340,265,100,38,renderQuality==="2K","#7cc7ff");
+    drawBtn("4K","",450,265,100,38,renderQuality==="4K","#7cc7ff");
+    drawBtn(language==="en"?"Auto":"自动",qualityName("AUTO"),560,265,100,38,renderQuality==="AUTO","#7cc7ff");
 
     ctx.fillStyle="rgba(255,255,255,.58)";
     ctx.font="14px " + FONT_UI;
     ctx.fillText(language==="en" ? "Frame Rate" : "帧数",120,325);
-    drawBtn("30 FPS","",120,340,120,38,targetFPS===30,"#ffe066");
-    drawBtn("60 FPS","",250,340,120,38,targetFPS===60,"#ffe066");
+    drawBtn("30 FPS","",120,340,100,38,targetFPS===30,"#ffe066");
+    drawBtn("60 FPS","",230,340,100,38,targetFPS===60,"#ffe066");
+    drawBtn("120 FPS","",340,340,100,38,targetFPS===120,"#ffe066");
+    drawBtn(language==="en"?"Unlimited":"无限制","",450,340,140,38,targetFPS===0,"#ff9f6a");
 
     drawBtn(tr(ui("particles"),"Particles"),particlesEnabled?tr(ui("on"),"On"):tr(ui("off"),"Off"),120,405,220,42,particlesEnabled,"#7cc7ff");
     drawBtn(tr(ui("damageText"),"Damage Text"),damageTextEnabled?tr(ui("on"),"On"):tr(ui("off"),"Off"),360,405,220,42,damageTextEnabled,"#ffe066");
     drawBtn(tr(ui("language"),"Language"),language==="zh"?"中文":"English",120,465,220,42,true,"#7cc7ff");
+
+    const deviceLoad=estimatedDeviceLoad();
+    ctx.fillStyle="rgba(7,12,27,.72)";ctx.fillRect(710,205,350,298);
+    ctx.strokeStyle="rgba(124,199,255,.34)";ctx.strokeRect(710,205,350,298);
+    ctx.fillStyle="rgba(255,255,255,.78)";ctx.font="bold 18px "+FONT_UI;
+    ctx.fillText(language==="en"?"Device Load · measured + estimated":"设备负担 · 实测与估算",735,240);
+    ctx.fillStyle=deviceLoad>=85?"#ff766f":deviceLoad>=65?"#ffb35c":deviceLoad>=40?"#ffe066":"#78e5ba";
+    ctx.font="bold 34px "+FONT_UI;ctx.fillText(deviceLoad+" / 100",735,286);
+    ctx.font="bold 15px "+FONT_UI;ctx.fillText(deviceLoadLabel(deviceLoad),935,282);
+    ctx.fillStyle="rgba(255,255,255,.12)";ctx.fillRect(735,306,300,14);
+    ctx.fillStyle=deviceLoad>=85?"#ff766f":deviceLoad>=65?"#ffb35c":deviceLoad>=40?"#ffe066":"#78e5ba";ctx.fillRect(735,306,300*deviceLoad/100,14);
+    ctx.fillStyle="rgba(255,255,255,.58)";ctx.font="14px "+FONT_UI;
+    const gpu=(deviceProfile.gpuRenderer||deviceProfile.gpuVendor||"Browser masked").replace(/^ANGLE \(/,"").slice(0,35);
+    const cpuText=(deviceProfile.architecture?deviceProfile.architecture.toUpperCase()+" ":"")+(deviceProfile.bitness?deviceProfile.bitness+"-bit · ":"")+(deviceProfile.cores||"?")+(language==="en"?" threads":" 线程");
+    ctx.fillText((language==="en"?"Render: ":"渲染：")+qualityName(activeRenderQuality())+" · "+(targetFPS===0?"Unlimited":targetFPS+" FPS"),735,345);
+    ctx.fillText((language==="en"?"Actual: ":"实测：")+Math.round(runtimeFPS)+" FPS · "+runtimeRenderMs.toFixed(1)+" ms",735,369);
+    ctx.fillText("GPU: "+gpu,735,393);
+    ctx.fillText("CPU: "+cpuText,735,417);
+    ctx.fillText((language==="en"?"Memory: ":"内存：")+(deviceProfile.memoryGB?deviceProfile.memoryGB+" GB":"Browser masked")+" · "+deviceProfile.screen+" @"+deviceProfile.dpr.toFixed(1)+"x",735,441);
+    ctx.fillStyle="rgba(255,255,255,.40)";ctx.font="11px "+FONT_UI;
+    ctx.fillText(language==="en"?"Browser hardware details may be masked; load uses measured frame work.":"浏览器可能隐藏硬件型号；负担值已结合实测帧耗时。",735,475);
 
     ctx.fillStyle=deviceMayHeatFor(activeRenderQuality(), targetFPS) ? "rgba(255,160,120,.90)" : "rgba(255,255,255,.45)";
     ctx.font="14px " + FONT_UI;
@@ -10364,9 +10907,36 @@ function drawSettings(){
     drawBtn(language==="en"?"Sign Out":"退出登录","",W/2-190,H/2+70,175,48,true,"#ff8888");
     drawBtn(language==="en"?"Cancel":"取消","ESC",W/2+15,H/2+70,175,48,true,"#7cc7ff");
   }
+  if(accountDeletionConfirmStep>0){
+    ctx.fillStyle="rgba(2,5,12,.92)";ctx.fillRect(0,0,W,H);
+    const x=W/2-290,y=H/2-155,w=580,h=310;
+    ctx.fillStyle="rgba(25,18,29,.99)";ctx.fillRect(x,y,w,h);
+    ctx.strokeStyle="#ff7777";ctx.lineWidth=2;ctx.strokeRect(x,y,w,h);
+    ctx.textAlign="center";ctx.fillStyle="#fff";ctx.font="bold 25px "+FONT_UI;
+    ctx.fillText(accountDeletionConfirmStep===1?(language==="en"?"Request account deletion?":"申请注销账号？"):(language==="en"?"Final confirmation":"最终确认"),W/2,y+55);
+    ctx.fillStyle="rgba(255,255,255,.72)";ctx.font="14px "+FONT_UI;
+    ctx.fillText(language==="en"?"The account and cloud save enter a 7-day grace period.":"账号与云存档将进入7天注销期。",W/2,y+100);
+    ctx.fillText(language==="en"?"Sign in during that period to cancel. After it ends, deletion is permanent.":"注销期内重新登录可取消；到期后将永久删除。",W/2,y+128);
+    ctx.fillStyle=accountDeletionConfirmStep===2?"#ff9c9c":"#ffe066";ctx.font="bold 13px "+FONT_UI;
+    ctx.fillText(accountDeletionConfirmStep===2?(language==="en"?"This is the last confirmation step.":"这是最后一次确认。"):(language==="en"?"No browser pop-up will be used.":"全程使用游戏内确认，不调用浏览器弹窗。"),W/2,y+166);
+    drawBtn(accountDeletionConfirmStep===1?(language==="en"?"Continue":"继续"):(accountBusy?(language==="en"?"Processing":"处理中"):(language==="en"?"Confirm Deletion":"确认注销")),"",W/2-190,H/2+92,175,48,!accountBusy,"#ff6666");
+    drawBtn(language==="en"?"Cancel":"取消","ESC",W/2+15,H/2+92,175,48,!accountBusy,"#7cc7ff");
+  }
 
   if(accountCredentialPanelActive)drawSettingsAccountRequest();
 
+  if(performanceWarning){
+    ctx.save();ctx.fillStyle="rgba(0,0,0,.78)";ctx.fillRect(0,0,W,H);
+    uiPanel(W/2-235,H/2-145,470,300,"rgba(12,16,30,.99)","#ff8b68");
+    ctx.textAlign="center";ctx.fillStyle="#ffb06f";ctx.font="bold 26px "+FONT_UI;
+    ctx.fillText(language==="en"?"HIGH DEVICE LOAD":"设备负担较高",W/2,H/2-92);
+    ctx.fillStyle="#fff";ctx.font="bold 38px "+FONT_UI;ctx.fillText(performanceWarning.load+" / 100",W/2,H/2-38);
+    ctx.fillStyle="rgba(255,255,255,.68)";ctx.font="14px "+FONT_UI;
+    ctx.fillText(language==="en"?"This option may cause heat or unstable frame pacing.":"该选项可能导致发热或帧时间不稳定。",W/2,H/2+4);
+    ctx.fillText(language==="en"?"You can change it back at any time.":"可随时返回设置恢复较低选项。",W/2,H/2+28);
+    drawBtn(language==="en"?"Apply":"仍然应用","",W/2-190,H/2+72,175,48,true,"#ff8b68");
+    drawBtn(language==="en"?"Cancel":"取消","ESC",W/2+15,H/2+72,175,48,true,"#fff");ctx.restore();
+  }
 
 }
 
@@ -11194,13 +11764,13 @@ function drawDeletionPeriodPrompt(){
   ctx.textAlign="center";
   ctx.fillStyle="#fff";
   ctx.font="bold 27px " + FONT_UI;
-  ctx.fillText(language==="en"?"Account is still in the deletion period":"账号仍处于注销期",W/2,boxY+65);
+  ctx.fillText(language==="en"?"Enter this account?":"是否进入该账号？",W/2,boxY+65);
   ctx.fillStyle="rgba(255,255,255,.7)";
   ctx.font="15px " + FONT_UI;
   const remain = deletionScheduledAtMs ? Math.max(0,Math.ceil((deletionScheduledAtMs-Date.now())/(24*60*60*1000))) : DELETE_GRACE_DAYS;
-  ctx.fillText(language==="en"?("About "+remain+" day(s) remain. Cancel deletion to continue playing."):("注销期尚余约"+remain+"天。取消后可正常进入游戏。"),W/2,boxY+110);
-  drawBtn(language==="en"?"Cancel Deletion":"取消注销","",W/2-175,H/2+95,165,48,false,"#7cc7ff");
-  drawBtn(language==="en"?"Never Mind":"算了","",W/2+10,H/2+95,165,48,false,"#ff9999");
+  ctx.fillText(language==="en"?("About "+remain+" day(s) remain. Entering will cancel deletion."):("注销期尚余约"+remain+"天；进入游戏会取消注销。"),W/2,boxY+110);
+  drawBtn(language==="en"?"Enter Game":"进入游戏","",W/2-175,H/2+95,165,48,false,"#7cc7ff");
+  drawBtn(language==="en"?"Keep Deletion":"保持注销","",W/2+10,H/2+95,165,48,false,"#ff9999");
 }
 
 function drawGuestCloudOverwritePrompt(){
@@ -11730,6 +12300,7 @@ function nextLobbyRole(){
       return;
     }
   }
+
 }
 
 const LOBBY_BACKGROUND_THEMES = [
@@ -13020,7 +13591,7 @@ function drawLobby(){
   const vg=ctx.createLinearGradient(28,470,278,604);vg.addColorStop(0,"rgba(35,55,91,.92)");vg.addColorStop(1,"rgba(4,7,15,.98)");
   ctx.beginPath();ctx.roundRect(28,470,250,134,12);ctx.fillStyle=vg;ctx.fill();ctx.strokeStyle="rgba(124,199,255,.42)";ctx.stroke();
   ctx.beginPath();ctx.roundRect(28,470,5,134,3);ctx.fillStyle=versionSlide.color;ctx.fill();
-  ctx.fillStyle="#7cc7ff";ctx.font="bold 11px Arial";ctx.textAlign="left";ctx.fillText("VERSION 49.19.11",44,492);
+  ctx.fillStyle="#7cc7ff";ctx.font="bold 11px Arial";ctx.textAlign="left";ctx.fillText("VERSION 49.20.7",44,492);
   ctx.fillStyle="#fff";ctx.font="bold 23px "+FONT_UI;ctx.fillText(versionSlide.title,44,529);
   ctx.fillStyle=versionSlide.color;ctx.font="bold 16px "+FONT_UI;ctx.fillText(versionSlide.headline,44,555);
   ctx.fillStyle="rgba(255,255,255,.68)";ctx.font="11px "+FONT_UI;ctx.fillText(versionSlide.sub,44,579);
@@ -13079,6 +13650,8 @@ function battleAreaLimit(){
   if(battleModeSource==="commission") return 4;
   if(battleModeSource==="daydream") return clamp((daydreamBattleConfig&&daydreamBattleConfig.areas)||2,1,3);
   if(battleModeSource==="crystalWar") return Number.MAX_SAFE_INTEGER;
+  const storyCfg=mainStoryBehavior();
+  if(storyCfg) return clamp(storyCfg.areas||3,1,3);
   return 3;
 }
 
@@ -13123,6 +13696,7 @@ function roman(n){ return ["","Ⅰ","Ⅱ","Ⅲ","Ⅳ","Ⅴ","Ⅵ"][n] || String(
 function storyChapterComplete(chapter){
   if(chapter===1) return !!cleared["ch1_10"];
   if(chapter===2) return !!cleared.ch2_complete || !!cleared.ch2_11;
+  if(chapter===3) return !!cleared.ch3_complete || !!cleared.ch3p2_8;
   return !!cleared["ch"+chapter+"_complete"] || !!cleared["ch"+chapter+"_10"];
 }
 
@@ -13158,6 +13732,12 @@ function currentWeekKey(){
 function normalizeDungeonRuntime(){
   if(typeof dungeonStamina !== "number") dungeonStamina = Math.max(dungeonStamina || 0, 240);
   dungeonStamina = clamp(dungeonStamina, 0, 9999);
+  if(typeof dungeonLastStaminaDate !== "string") dungeonLastStaminaDate = "";
+  const today = currentDateKey();
+  if(dungeonLastStaminaDate !== today){
+    dungeonLastStaminaDate = today;
+    dungeonStamina = Math.max(dungeonStamina,240);
+  }
   if(typeof dungeonWeeklyCrystalLeft !== "number") dungeonWeeklyCrystalLeft = 3;
   const wk = currentWeekKey();
   if(dungeonCrystalWeekKey !== wk){
@@ -13167,7 +13747,7 @@ function normalizeDungeonRuntime(){
 
   if(typeof dungeonCandyDailyUsed !== "number") dungeonCandyDailyUsed = 0;
   if(typeof dungeonCandyDailyKey !== "string") dungeonCandyDailyKey = "";
-  const dk = currentDateKey();
+  const dk = today;
   if(dungeonCandyDailyKey !== dk){
     dungeonCandyDailyKey = dk;
     dungeonCandyDailyUsed = 0;
@@ -13651,7 +14231,13 @@ function switchBossChallenge(dir){
   const list = bossChallengeList();
   if(!list.length) return;
   bossSelectedIndex = (bossSelectedIndex + dir + list.length) % list.length;
+  const b=list[bossSelectedIndex];bossDifficulty=clamp(Math.floor(bossDifficulties[b.key]||1),1,6);
 }
+
+const BOSS_DUNGEON_MODULES={
+  crystalHumanoid:{module:"boss_crystal_humanoid",bars:2,baseHp:1850,baseLevel:10,radius:43,introZh:"独立晶体人Boss作战模组",introEn:"Independent Crystal Humanoid boss module"},
+  kros:{module:"boss_kros",bars:3,baseHp:3150,baseLevel:20,radius:56,introZh:"三阶段首领作战",introEn:"Three-phase boss encounter"}
+};
 
 function bossKrosData(){
   const b = currentBossChallenge();
@@ -13660,7 +14246,8 @@ function bossKrosData(){
     name:b.name,
     shortName:b.shortName || (language==="en" ? "Kros" : "克罗斯"),
     recLv:b.recLv || 20,
-    staminaBase:25
+    staminaBase:25,
+    unlocked:b.unlocked!==false
   };
 }
 
@@ -13675,13 +14262,15 @@ function bossKrosWeeklyAvailable(){
 function bossKrosRewardPreview(run=null){
   const mult = clamp(Math.floor(run ? run.multiplier : bossMultiplier),1,4);
   const key=(run&&run.key)||(currentBossChallenge()&&currentBossChallenge().key)||"kros";
+  const diff=clamp(Math.floor(run?run.difficulty:bossDifficulty),1,6),rewardScale=1+(diff-1)*.45;
   return {
-    dragonClaw: key==="kros" ? 1 * mult : 0,
-    crystalHand: key==="crystalHumanoid" ? 1 * mult : 0,
-    gold: (key==="crystalHumanoid"?9000:20000) * mult,
-    expReward: (key==="crystalHumanoid"?320:500) * mult,
+    dragonClaw: key==="kros" ? Math.ceil(diff/2) * mult : 0,
+    crystalHand: key==="crystalHumanoid" ? Math.ceil(diff/2) * mult : 0,
+    gold: Math.floor((key==="crystalHumanoid"?9000:20000) * mult*rewardScale),
+    expReward: Math.floor((key==="crystalHumanoid"?320:500) * mult*rewardScale),
     crystal: bossKrosWeeklyAvailable() ? 50 : 0,
-    staminaCost: 25 * mult
+    staminaCost: (25+(diff-1)*5) * mult,
+    difficulty:diff
   };
 }
 
@@ -14038,7 +14627,8 @@ function drawDungeonInlinePanel(){
 function drawBossKrosDetail(){
   const b = bossKrosData();
   const r = bossKrosRewardPreview();
-  const unlocked = b.unlocked!==false && playerLevel >= b.recLv;
+  const difficultyReq=materialDifficultyRequirement("boss",bossDifficulty);
+  const unlocked = b.unlocked!==false && playerLevel >= b.recLv && difficultyReq.ok;
 
   ctx.fillStyle="#fff";
   ctx.font="bold 26px " + FONT_UI;
@@ -14046,7 +14636,7 @@ function drawBossKrosDetail(){
   ctx.fillText(language==="en"?"Boss Challenge":"Boss挑战",95,190);
   ctx.fillStyle="rgba(255,255,255,.55)";
   ctx.font="14px " + FONT_UI;
-  ctx.fillText(language==="en"?"Weekly Crystal / Breakthrough Material":"每周水晶 / 突破材料",97,214);
+  ctx.fillText(language==="en"?"Independent Boss Dungeon / Difficulty Ⅰ–Ⅵ":"独立Boss副本 / 难度Ⅰ–Ⅵ",97,214);
   drawBtn(language==="en"?"Back":"返回","",930,165,90,36,false,"#fff");
 
   ctx.fillStyle=unlocked?"rgba(72,32,55,.82)":"rgba(31,39,56,.94)";
@@ -14099,20 +14689,22 @@ function drawBossKrosDetail(){
 
   ctx.fillStyle="rgba(255,255,255,.62)";
   ctx.font="14px " + FONT_UI;
-  ctx.fillText(language==="en"?"Multiplier":"倍率",525,438);
-  drawBtn("－","",525,452,48,38,false,"#fff");
+  ctx.fillText((language==="en"?"Difficulty ":"难度 ")+roman(bossDifficulty)+"  ·  "+(difficultyReq.ok?(language==="en"?"Unlocked":"已解锁"):(language==="en"?difficultyReq.en:difficultyReq.zh)),525,426);
+  for(let i=1;i<=6;i++) drawBtn(roman(i),"",525+(i-1)*43,434,38,28,materialDifficultyUnlocked("boss",i),i===bossDifficulty?"#ff6b9b":"#777");
+  ctx.fillText(language==="en"?"Multiplier":"倍率",790,426);
+  drawBtn("－","",790,434,34,28,false,"#fff");
   ctx.fillStyle="#fff";
   ctx.font="bold 22px " + FONT_UI;
   ctx.textAlign="center";
-  ctx.fillText("×"+bossMultiplier,615,479);
-  drawBtn("＋","",660,452,48,38,false,"#fff");
+  ctx.fillText("×"+bossMultiplier,850,456);
+  drawBtn("＋","",876,434,34,28,false,"#fff");
 
   ctx.fillStyle="rgba(255,255,255,.55)";
   ctx.font="13px " + FONT_UI;
   ctx.textAlign="left";
-  ctx.fillText((language==="en"?"Cost: ":"消耗：")+r.staminaCost,725,477);
+  ctx.fillText((language==="en"?"Cost: ":"消耗：")+r.staminaCost,525,485);
 
-  drawBtn(language==="en"?"Start Challenge":"开始挑战",language==="en"?"Team":"编队",820,445,170,48,unlocked && dungeonStamina>=r.staminaCost,unlocked?"#ffe066":"#888");
+  drawBtn(language==="en"?"Start Challenge":"开始挑战",language==="en"?"Team":"编队",820,465,170,28,unlocked && dungeonStamina>=r.staminaCost,unlocked?"#ffe066":"#888");
 }
 
 function updateDungeonInlineClicks(){
@@ -14135,7 +14727,7 @@ function updateDungeonInlineClicks(){
       return true;
     }
     if(inRect(805,445,185,48)){
-      startProjectAreaTeam();
+      if(paState){projectAreaPaused=false;gameMode="projectArea";}else startProjectAreaTeam();
       clicked=false;
       return true;
     }
@@ -14169,17 +14761,20 @@ function updateDungeonInlineClicks(){
       clicked=false;
       return true;
     }
-    if(inRect(525,452,48,38)){
+    for(let i=1;i<=6;i++) if(inRect(525+(i-1)*43,434,38,28)){
+      const req=materialDifficultyRequirement("boss",i);if(req.ok){bossDifficulty=i;const cb=currentBossChallenge();bossDifficulties[cb.key]=i;saveGame();}else showCenter(language==="en"?req.en:req.zh,70);clicked=false;return true;
+    }
+    if(inRect(790,434,34,28)){
       bossMultiplier=clamp(bossMultiplier-1,1,4);
       clicked=false;
       return true;
     }
-    if(inRect(660,452,48,38)){
+    if(inRect(876,434,34,28)){
       bossMultiplier=clamp(bossMultiplier+1,1,4);
       clicked=false;
       return true;
     }
-    if(inRect(820,445,170,48)){
+    if(inRect(820,465,170,28)){
       const currentBoss = currentBossChallenge();
       if(currentBoss.unlocked){
         startBossKrosTeam();
@@ -14282,12 +14877,14 @@ function updateDungeonInlineClicks(){
 function startBossKrosTeam(){
   normalizeDungeonRuntime();
   const b=bossKrosData();
+  const req=materialDifficultyRequirement("boss",bossDifficulty);
+  if(!req.ok){showCenter(language==="en"?req.en:req.zh,70);return;}
   const preview=bossKrosRewardPreview();
   if(dungeonStamina < preview.staminaCost){
     openStaminaRecover(language==="en" ? "Not enough stamina." : "体力不足。");
     return;
   }
-  bossKrosRun = {key:b.key,multiplier:bossMultiplier, preview};
+  bossKrosRun = {key:b.key,module:(BOSS_DUNGEON_MODULES[b.key]||BOSS_DUNGEON_MODULES.kros).module,difficulty:bossDifficulty,multiplier:bossMultiplier, preview};
   battleModeSource = "bossKros";
   clearTransientBattleState();
   gameMode = "team";
@@ -14295,15 +14892,16 @@ function startBossKrosTeam(){
 
 function createKrosEnemy(){
   const humanoid=!!(bossKrosRun&&bossKrosRun.key==="crystalHumanoid");
+  const cfg=BOSS_DUNGEON_MODULES[humanoid?"crystalHumanoid":"kros"],diff=clamp(Math.floor(bossKrosRun&&bossKrosRun.difficulty||1),1,6),combatScale=1+(diff-1)*.32;
   const e=createEnemy(W-250,H/2+105,true,"boss");
   e.bossKros=true;
-  e.krosBarsLeft=humanoid?2:3;
-  e.krosMaxBars=humanoid?2:3;
+  e.krosBarsLeft=cfg.bars;
+  e.krosMaxBars=cfg.bars;
   e.phase=1;
-  e.lv=humanoid?10:20;
-  e.r=humanoid?43:56;
+  e.lv=cfg.baseLevel+(diff-1)*5;
+  e.r=cfg.radius;
   // Light balance pass: retain all three phases while shortening each health bar.
-  e.maxHp=humanoid?1850:3150;
+  e.maxHp=Math.floor(cfg.baseHp*combatScale);
   e.hp=e.maxHp;
   e.maxShield=0;
   e.shield=0;
@@ -14328,7 +14926,8 @@ function spawnBossKrosArea(){
   k.krosPattern=Math.max(k.krosPattern||0,210);
   const humanoid=bossKrosRun&&bossKrosRun.key==="crystalHumanoid";
   showCenter(humanoid?(language==="en"?"CRYSTAL HUMANOID":"晶体人"):(language==="en"?"CRYSTAL DRAGON · KROS":"晶体恶龙 · 克罗斯"),150);
-  showActionPrompt(humanoid?(language==="en"?"Chapter 0 boss challenge":"第零章首领挑战"):(language==="en"?"Three-phase boss encounter":"三阶段首领作战"),120);
+  const cfg=BOSS_DUNGEON_MODULES[humanoid?"crystalHumanoid":"kros"];
+  showActionPrompt((language==="en"?cfg.introEn:cfg.introZh)+" · "+(language==="en"?"Difficulty ":"难度 ")+roman(bossKrosRun&&bossKrosRun.difficulty||1),120);
   doShake(18);flash=Math.max(flash,12);
 }
 
@@ -14352,6 +14951,8 @@ function spawnDaydreamBattleArea(){
     enemies.push(createEnemy(480,H/2+120,false,"shield"));
     enemies.push(createEnemy(690,H/2+70,false,pressure>=3?"berserker":"elite"));
     enemies.push(createEnemy(875,H/2+125,false,"ranged"));
+    if(pressure>=3) enemies.push(createEnemy(790,H/2+185,false,"fireCrystal"));
+    if(pressure>=5) enemies.push(createEnemy(570,H/2+45,false,"support"));
   }
   for(const e of enemies){
     const pollutionScale=1+clamp((cfg.pollution||0)/250,0,.4);
@@ -14392,7 +14993,7 @@ function spawnStageExploreContent(){
   const laneY=battleRoute==="upper"?190:battleRoute==="lower"?H-115:H/2+145;
   const addObject=(type,x,y,index,reward={},text="",required=false,label="")=>{
     const key=stageExploreKey(type,index);
-    const names={chest:["Area Chest","区域宝箱"],crate:["Wooden Crate","木箱"],reading:["Field Record","现场记录"],npc:["Survivor","幸存者"]};
+    const names={chest:["Area Chest","区域宝箱"],crate:["Wooden Crate","木箱"],reading:["Field Record","现场记录"],npc:["Survivor","幸存者"],terminal:["Field Terminal","战地终端"],switch:["Route Switch","路线开关"],crystalDevice:["Crystal Device","晶体装置"],door:["Security Door","安全门"]};
     let chestTier=null;
     if(type==="chest"){
       const weightedSeed=(seed*97)+(index*37)+(battleSideArea?53:0);
@@ -14508,6 +15109,26 @@ function spawnStageExploreContent(){
       addObject("reading",820,laneY-50,280+area,{},language==="en"?"The giant core is exposed. Clear the area and confirm the resonance point.":"巨人核心已经暴露，清理区域并确认共鸣点。",true,labels[Math.min(area-1,2)]);
     }
   }
+  if(selectedMainChapter===3 && !battleSideArea){
+    if(selectedStage===2){
+      const labels=language==="en"?["Evacuation Marker","Media Terminal","Project 4 Monitor"]:["北区疏散标记","媒体采访终端","Project 4 扩张监测器"];
+      const texts=language==="en"?["The evacuation line now reaches beyond the northern district.","Survivor interviews confirm people remained inside after twelve reviews.","Project 4 is still expanding under the rain clouds."]:["疏散线已经越过北区边缘，大量居民正在外撤。","幸存者采访证实，十二次审查后 Project 4 内仍然有人。","监测器显示 Project 4 仍在雨云下持续扩张。"];
+      addObject(area===1?"reading":"terminal",805,laneY-50,500+area,{},texts[area-1],true,labels[area-1]);
+    }else if(selectedStage===4){
+      const labels=language==="en"?["Lai's Route Mark","Fresh Crystal Trace","Collapse Gap"]:["小赖的路线记号","新生晶体痕迹","坍塌后的缺口"];
+      const texts=language==="en"?["A hurried mark points deeper into Project 4.","The trace is recent and mixed with a familiar signal.","The collapsed tower exposed a rift that did not exist before."]:["仓促留下的记号指向 Project 4 深处。","晶体痕迹刚刚形成，其中混有熟悉的信号。","高楼坍塌后露出了一道此前不存在的裂隙。"];
+      addObject("reading",805,laneY-50,520+area,{},texts[area-1],true,labels[area-1]);
+    }else if(selectedStage===5){
+      const labels=language==="en"?["Outer Stabilizer","Fractured Stabilizer","Rift Path Core"]:["外围稳定器","断裂稳定器","裂隙路径核心"];
+      addObject("crystalDevice",810,laneY-50,540+area,{},language==="en"?"The device restores another segment of the route through the rift.":"装置恢复了裂隙通道的一段结构。",true,labels[area-1]);
+    }else if(selectedStage===6){
+      const labels=language==="en"?["Voice Echo","Distorted Footprint","Deep Rift Signal"]:["声音回声","扭曲脚印","裂隙深层信号"];
+      addObject("reading",815,laneY-50,560+area,{},language==="en"?"The echo belongs to Lai. The signal is close, but creatures are converging.":"回声属于小赖。信号已经很近，但晶体怪正在聚集。",true,labels[area-1]);
+    }else if(selectedStage===7){
+      const labels=language==="en"?["Reach Lai","Secure the Perimeter","Confirm Lai's Condition"]:["抵达小赖身边","守住裂隙外围","确认小赖状况"];
+      addObject(area===1||area===3?"npc":"crystalDevice",835,laneY-45,580+area,{},language==="en"?"The immediate threat is contained. Keep the rift creatures away from Lai.":"眼前威胁暂时被压制，继续阻止晶体怪靠近小赖。",true,labels[area-1]);
+    }
+  }
   if(selectedMainChapter===1 && battleSideArea){
     if(selectedStage===3) addObject("reading",700,laneY-45,30,{},language==="en"?"A side archive confirms the district was active after evacuation.":"支路档案证实，撤离之后城区内仍有活动。",false,language==="en"?"Side Archive":"支路档案");
     else if(selectedStage===4) addObject("chest",250,laneY,30,{expBooks:1,gold:180},"",false,language==="en"?"Emergency Supplies":"应急补给");
@@ -14527,6 +15148,17 @@ function spawnStageExploreContent(){
     }
     if(layout===2 || layout===4) addObject("reading",720,laneY,0,{},records[seed%records.length]);
     if(layout===1 && seed%2===0) addObject("npc",820,laneY-35,0,{},npcLines[seed%npcLines.length]);
+  }
+  if(!battleSideArea && !battleExploreObjects.some(o=>["terminal","switch","crystalDevice","door"].includes(o.type))){
+    const interactiveTypes=["terminal","switch","crystalDevice","door"];
+    const type=interactiveTypes[seed%interactiveTypes.length];
+    const texts={
+      terminal:language==="en"?"The terminal reveals a safer enemy entry route.":"终端标出了更安全的敌人进场路线。",
+      switch:language==="en"?"The switch powers a short-range defensive pulse.":"开关为近距离防御脉冲供能。",
+      crystalDevice:language==="en"?"The device disrupts nearby crystal armor.":"装置会干扰附近敌人的晶体护甲。",
+      door:language==="en"?"The security door opens a new exploration lane.":"安全门打开了一条新的探索路线。"
+    };
+    addObject(type,960,clamp(laneY-78,150,H-95),200+area,{},texts[type],false,"");
   }
 }
 
@@ -14555,6 +15187,17 @@ function battleExploreInteract(){
   if(target.type==="chest") showActionPrompt(language==="en"?"Chest opened":"宝箱已开启",75);
   else if(target.type==="reading") showActionPrompt(target.text,180);
   else showActionPrompt(target.label+"："+target.text,150);
+  if(target.type==="crystalDevice"){
+    for(const e of enemies){if(!e.alive)continue;e.shield=Math.max(0,(e.shield||0)-90);e.stun-=35;}
+    addSlash(target.x,target.y,230,"#82ffe2",30,"break");
+  }else if(target.type==="switch"){
+    for(const e of enemies){if(e.alive)freezeEnemy(e,20);}
+    addSlash(target.x,target.y,190,"#7cc7ff",24,"parry");
+  }else if(target.type==="terminal"){
+    for(const e of enemies){e.attackCd=Math.max(e.attackCd||0,75);e.shotCd=Math.max(e.shotCd||0,75);}
+  }else if(target.type==="door"){
+    pushBattleReward(language==="en"?"Route Intel":"路线情报",1,"#7cc7ff");
+  }
   if(target.required){
     chapterObjectivePrompted=false;
     showCenter(language==="en"?"OBJECTIVE COMPLETE":"目标完成",55);
@@ -14570,15 +15213,16 @@ function hasPendingChapterAreaObjective(){
 
 function damageNearbyBattleCrates(x,y,range){
   for(const o of battleExploreObjects){
-    if(o.done || o.type!=="crate" || !withinDist(x,y,o.x,o.y,range)) continue;
+    if(o.done || o.type!=="crate" || !withinDist(x,y,o.x,o.y,range+12)) continue;
     o.hp--;
-    addParticles(o.x,o.y,"#c59b5f",7,4);
+    o.hitFlash=12;o.hitSeed=(o.hitSeed||0)+1;
+    addParticles(o.x,o.y,"#c59b5f",12,5);doShake(3);sfx("hit");
     addText(o.x,o.y-30,language==="en"?"CRATE":"木箱","#ffe0a8");
     if(o.hp<=0){
       o.done=true; battleExploreOpened[o.key]=true;
       const reward=o.reward||{};
       if(reward.gold){ gold+=reward.gold; totalGoldEarned+=reward.gold; pushBattleReward(language==="en"?"Gold":"金币",reward.gold,"#ffe066"); }
-      sfx("reward"); saveGame(); autoCloudSaveNow(true);
+      addParticles(o.x,o.y,"#e7c38d",18,7);doShake(6);sfx("reward"); saveGame(); autoCloudSaveNow(true);
     }
   }
 }
@@ -14587,6 +15231,7 @@ function enterNextBattleArea(route){
   if(!areaCleared || area>=battleAreaLimit() || battleExitDelay>0) return;
   if(battleModeSource==="projectArea" && typeof ensureProjectAreaRun==="function") ensureProjectAreaRun().areasCleared=Math.max(ensureProjectAreaRun().areasCleared,area);
   area++;
+  clearRouteTransientCombat();
   battleRoute="center";
   battleSideArea="";
   player.x=95; player.y=H/2+115;
@@ -14595,26 +15240,33 @@ function enterNextBattleArea(route){
 }
 
 function enterSideBattleArea(route){
-  if(!areaCleared || battleExitDelay>0 || battleSideArea) return;
+  if(!areaCleared || battleExitDelay>0 || battleSideArea || !storyAllowsSideRoutes()) return;
+  captureRouteState("center");
+  clearRouteTransientCombat();
   battleSideArea=route;
   battleRoute=route;
-  enemies=[]; projectiles=[]; lockTarget=null; areaCleared=false;
-  const seed=selectedStage*31+area*11+(route==="upper"?3:7);
-  if(seed%3===0) enemies.push(createEnemy(W/2+170,H/2+70,false,seed%2?"normal":"ranged"));
-  if(seed%7===0) enemies.push(createEnemy(W/2-80,H/2+110,false,"normal"));
-  if(!enemies.length) areaCleared=true;
+  enemies=[];areaCleared=false;
+  if(!restoreRouteState(route)){
+    const seed=selectedStage*31+area*11+(route==="upper"?3:7);
+    if(seed%3===0) enemies.push(createEnemy(W/2+170,H/2+70,false,seed%2?"normal":"ranged"));
+    if(seed%7===0) enemies.push(createEnemy(W/2-80,H/2+110,false,"normal"));
+    if(battleHardMode&&enemies.length)enemies.push(createEnemy(W/2+310,H/2+40,false,"skirmisher"));
+    if(!enemies.length) areaCleared=true;
+    spawnStageExploreContent();
+  }
   player.x=W/2; player.y=route==="upper"?H-70:145;
-  spawnStageExploreContent();
   showCenter(language==="en"?(route==="upper"?"UPPER SIDE AREA":"LOWER SIDE AREA"):(route==="upper"?"上方支线区域":"下方支线区域"),70);
 }
 
 function returnToMainBattleArea(){
   const from=battleSideArea;
   if(!from) return;
+  captureRouteState(from);
+  clearRouteTransientCombat();
   battleSideArea=""; battleRoute="center";
-  enemies=[]; projectiles=[]; lockTarget=null; areaCleared=true; battleExitDelay=20;
+  enemies=[];areaCleared=true; battleExitDelay=20;
   player.x=W/2; player.y=from==="upper"?145:H-70;
-  spawnStageExploreContent();
+  if(!restoreRouteState("center"))spawnStageExploreContent();
   showCenter(language==="en"?"RETURNED TO MAIN AREA":"已返回主区域",55);
 }
 
@@ -14639,7 +15291,8 @@ function spawnArea(){
     return;
   }
   const commissionStage = battleModeSource==="commission" ? currentCommissionStage() : null;
-  const t = commissionStage ? commissionStage.type : (missionTypes[selectedStage-1] || "annihilation");
+  const storyCfg=mainStoryBehavior();
+  const t = storyCfg&&storyCfg.combat==="none"?"search":storyCfg&&storyCfg.combatType?storyCfg.combatType:(commissionStage ? commissionStage.type : (missionTypes[selectedStage-1] || "annihilation"));
   if(t==="evacuation"){
     if(area===1) enemies.push(createEnemy(680,H/2+105,false,"normal"));
     else if(area===2){enemies.push(createEnemy(610,H/2+105,false,"skirmisher"));enemies.push(createEnemy(835,H/2+65,false,"ranged"));}
@@ -14647,7 +15300,10 @@ function spawnArea(){
   } else if(t==="search"){
     // Environmental investigation: the player advances by finding the required trace in each Area.
   } else if(t==="duel"){
-    enemies.push(createEnemy(area===3?720:650,H/2+95,false,area===3?"elite":area===2?"shield":"normal"));
+    const crystalMan=battleModeSource==="main"&&selectedMainChapter===0&&selectedStage===5;
+    const foe=createEnemy(crystalMan?720:(area===3?720:650),H/2+95,false,crystalMan?"elite":area===3?"elite":area===2?"shield":"normal");
+    if(crystalMan){foe.maxShield=Math.max(foe.maxShield||0,260);foe.shield=foe.maxShield;foe.crystalMan=true;}
+    enemies.push(foe);
   } else if(t==="stabilize"){
     if(area===1) enemies.push(createEnemy(680,H/2+105,false,"normal"));
     else if(area===2){enemies.push(createEnemy(550,H/2+115,false,"shield"));enemies.push(createEnemy(820,H/2+70,false,"ranged"));}
@@ -14721,6 +15377,20 @@ function spawnArea(){
     else { enemies.push(createEnemy(700,H/2+90,false,"elite")); enemies.push(createEnemy(500,H/2+145,false,"normal")); }
   }
   if(commissionStage && area>=2) enemies.push(createEnemy(930,H/2+155,false,area>=3?"ranged":"normal"));
+  if(battleModeSource==="main" && selectedStage>=4 && (area===2 || battleHardMode)){
+    // One hybrid elemental unit per formation at most; it changes spacing and
+    // status pressure without making a specific damage type mandatory.
+    enemies.push(createEnemy(900,H/2+(area%2?55:145),false,"fireCrystal"));
+  }
+  if(battleHardMode && enemies.length && !enemies.some(e=>e.boss)){
+    const hardType=area%3===0?"support":area%2===0?"skirmisher":"ranged";
+    const entryX=area%2?1010:260,entryY=area%3===0?125:H/2+(area%2?145:55);
+    enemies.push(createEnemy(entryX,entryY,false,hardType));
+  }
+  if(storyCfg&&storyCfg.kind==="solo-search-hazard"){
+    addBossHazard(520+area*95,H/2+(area%2?55:145),72,75+area*14,"circle");
+    addBossHazard(790-area*35,H/2+(area%2?150:70),58,130+area*10,"circle");
+  }
   spawnStageExploreContent();
   const phaseLabel=battleModeSource==="commission"
     ? (language==="en"?(area===battleAreaLimit()?"FINAL WAVE":"WAVE "+String(area).padStart(2,"0")):(area===battleAreaLimit()?"最终波次":"波次 "+String(area).padStart(2,"0")))
@@ -14731,6 +15401,7 @@ function spawnArea(){
 
 function krosPhaseFromBars(e){
   if(!e || !e.bossKros) return 1;
+  if(e.krosMaxBars===2) return e.krosBarsLeft>=2?1:2;
   if(e.krosBarsLeft>=3) return 1;
   if(e.krosBarsLeft===2) return 2;
   return 3;
@@ -14817,6 +15488,10 @@ function startKrosPhaseTransition(e){
   e.krosPattern = 130;
   e.vx = 0;
   e.vy = 0;
+  if(e.krosMaxBars===2&&e.phase===2){
+    e.humanoidPhase2Opener=165;
+    e.humanoidOpenerStep=0;
+  }
 
   // clean immediate pressure so transition has breathing room
   if(Array.isArray(projectiles)) projectiles = projectiles.filter(p => !p.krosBullet);
@@ -14899,7 +15574,7 @@ function drawKrosIntroOverlay(){
   const humanoid=bossKrosRun&&bossKrosRun.key==="crystalHumanoid";
   ctx.fillText(humanoid?(language==="en"?"CRYSTAL HUMANOID":"晶体人"):(language==="en"?"CRYSTAL DRAGON · KROS":"晶体恶龙 · 克罗斯"),W/2,H*.42);
   ctx.shadowBlur=0;ctx.fillStyle="rgba(255,255,255,.72)";ctx.font="15px "+FONT_UI;
-  ctx.fillText(humanoid?(language==="en"?"Chapter 0 boss challenge":"第零章首领挑战"):(language==="en"?"Three-phase boss encounter":"三阶段首领作战"),W/2,H*.48);
+  ctx.fillText((language==="en"?BOSS_DUNGEON_MODULES[humanoid?"crystalHumanoid":"kros"].introEn:BOSS_DUNGEON_MODULES[humanoid?"crystalHumanoid":"kros"].introZh)+" · "+roman(bossKrosRun&&bossKrosRun.difficulty||1),W/2,H*.48);
   ctx.strokeStyle="#ff5f8d";ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(W*.22,H*.54);ctx.lineTo(W*.78,H*.54);ctx.stroke();
   ctx.restore();
 }
@@ -14917,6 +15592,42 @@ function updateBossKrosBattleLogic(){
   }
 
   if(updateKrosPhaseTransition(e)) return;
+
+  // Crystal Humanoid phase-II opener: teleport, marked slam, shockwave and
+  // delayed afterwaves. This is isolated from normal control immunities.
+  if((e.humanoidPhase2Opener||0)>0){
+    e.humanoidPhase2Opener=Math.max(0,e.humanoidPhase2Opener-frameScale);
+    if(!e.humanoidOpenerStep){
+      e.humanoidOpenerStep=1;e.x=W-170;e.y=115;
+      e.humanoidSlamX=player.x;e.humanoidSlamY=player.y;
+      addBossHazard(e.humanoidSlamX,e.humanoidSlamY,92,58,"circle");
+      showActionPrompt(language==="en"?"TELEPORT · IMPACT MARK":"瞬移 · 坠击印记",70);
+    }else if(e.humanoidOpenerStep===1&&e.humanoidPhase2Opener<=96){
+      e.humanoidOpenerStep=2;e.x=e.humanoidSlamX;e.y=e.humanoidSlamY-12;
+      addBossHazard(e.x,e.y,175,2,"circle");
+      addBossHazard(e.x,e.y,235,22,"circle");
+      addBossHazard(e.x,e.y,300,42,"circle");
+      doShake(30);flash=Math.max(flash,18);
+      showActionPrompt(language==="en"?"SLAM · SHOCKWAVE · AFTERWAVES":"坠击 · 冲击波 · 连续余波",90);
+    }
+    return;
+  }
+
+  // Kros phase-III survival chain. The opening blast covers the complete
+  // arena; the following slashes arrive every 0.5 seconds at 60 Hz.
+  if((e.krosSurvivalTimer||0)>0){
+    e.krosSurvivalTimer=Math.max(0,e.krosSurvivalTimer-frameScale);
+    e.krosSlashTick=(e.krosSlashTick||0)-frameScale;
+    e.x=clamp(W/2+Math.sin(e.krosSurvivalTimer*.11)*430,90,W-90);
+    e.y=clamp(170+Math.cos(e.krosSurvivalTimer*.08)*115,110,H-120);
+    if(e.krosSlashTick<=0){
+      e.krosSlashTick=30;
+      addBossHazard(100+Math.random()*(W-200),135+Math.random()*(H-205),68,24,"slash");
+      showActionPrompt(language==="en"?"SPACE SLASH · KEEP MOVING":"空间斩 · 持续移动",34);
+    }
+    if(e.krosSurvivalTimer<=0){e.x=W-250;e.y=H/2+105;e.krosPattern=145;showActionPrompt(language==="en"?"KROS RETURNS TO THE GROUND":"克罗斯重新落地",55);}
+    return;
+  }
 
   e.krosPattern=(e.krosPattern||0)-frameScale;
   if(e.krosPattern<=0){
@@ -14945,9 +15656,10 @@ function updateBossKrosBattleLogic(){
       }
       e.krosPattern=112;
     }else{
-      addBossHazard(W/2,H/2+80,520,70,"full");
-      showActionPrompt(language==="en"?"Full-field Crystal Blast":"全图晶体爆破",70);
-      e.krosPattern=175;
+      addBossHazard(W/2,H/2+80,900,70,"full");
+      e.krosSurvivalTimer=250;e.krosSlashTick=100;
+      showActionPrompt(language==="en"?"FULL-FIELD BLAST · SPACE TEAR":"全图爆破 · 撕裂空间",90);
+      e.krosPattern=390;
     }
   }
 }
@@ -14969,7 +15681,7 @@ function drawBossKrosTopBar(){
   ctx.fillText(b.name,560,42);
 
   ctx.textAlign="left";
-  const total=3;
+  const total=e.krosMaxBars||3;
   for(let i=0;i<total;i++){
     ctx.fillStyle=i < e.krosBarsLeft ? "#ff6b9b" : "rgba(255,255,255,.20)";
     ctx.font="bold 18px Arial";
@@ -15303,14 +16015,14 @@ function drawChapterSelectPage(){
     {no:"00", title:"Arrival", sub:"11 stages", color:"#d4a85f", open:true},
     {no:"01", title:"Project 4", sub:"Ravenhado · 10 stages", color:"#7d91a8", open:chapter0Complete()},
     {no:"02", title:"Choice", sub:"Ravenhado · 11 stages", color:"#8b647d", open:chapter1Complete()},
-    {no:"03", title:"Distant City", sub:"Coming soon", color:"#587f82"},
-    {no:"04", title:"Zero Boundary", sub:"Coming soon", color:"#6b657f"}
+    {no:"03-I", title:"Expansion", sub:"Ravenhado · 8 stages", color:"#587f82",open:storyChapterComplete(2)},
+    {no:"03-II", title:"Kros", sub:"Ravenhado · 8 stages", color:"#8a526f",open:!!cleared.ch3p1_8}
   ] : [
     {no:"00", title:"初入", sub:"11个关卡", color:"#d4a85f", open:true},
     {no:"01", title:"Project 4", sub:"雷文哈多篇 · 10关", color:"#7d91a8", open:chapter0Complete()},
     {no:"02", title:"抉择", sub:"雷文哈多篇 · 11关", color:"#8b647d", open:chapter1Complete()},
-    {no:"03", title:"远方之城", sub:"尚未开放", color:"#587f82"},
-    {no:"04", title:"零点边界", sub:"尚未开放", color:"#6b657f"}
+    {no:"03-I", title:"Project 4 扩张", sub:"雷文哈多篇 · 8关", color:"#587f82",open:storyChapterComplete(2)},
+    {no:"03-II", title:"晶体恶龙·克罗斯", sub:"雷文哈多篇 · 8关", color:"#8a526f",open:!!cleared.ch3p1_8}
   ];
 
   ctx.save();
@@ -15490,6 +16202,7 @@ function drawOperation(){
     const p=selectedTab==="combat" ? operationNodePos(i) : nodePos(i);
     const locked=selectedTab==="combat" ? false : (i>0&&!isMainStageCleared(i));
     const done=selectedTab==="combat" ? !!cleared["c"+st.id] : isMainStageCleared(st.id);
+    const hardDone=selectedTab==="main"&&isHardStageCleared(st.id);
     const sel=operationDetailVisible && selectedStage===st.id;
     const hover=dist(mouseX,mouseY,p.x,p.y)<28&&!locked;
     const isStoryNode=selectedTab==="main"&&!!st.storyOnly;
@@ -15508,6 +16221,7 @@ function drawOperation(){
     ctx.font="12px " + FONT_UI;
     ctx.fillStyle="rgba(255,255,255,.70)";
     ctx.fillText(selectedTab==="combat" ? (language==="en"?"Commission":"委托") : stageDisplayName(st),p.x,p.y+48);
+    if(hardDone){ctx.fillStyle="#ff5a62";ctx.font="bold 9px "+FONT_UI;ctx.fillText(language==="en"?"HARD ✓":"困难 ✓",p.x,p.y+62);}
     ctx.globalAlpha=1;
   }
 
@@ -15527,7 +16241,8 @@ function drawOperation(){
   if(selectedTab!=="dungeon" && selectedTab!=="sideStory" && selectedTab!=="daydream" && selectedTab!=="dualCrystal" && operationDetailVisible){
     const st=currentStageData();
     const locked=selectedTab==="combat" ? false : (selectedStage>1&&!isMainStageCleared(selectedStage-1));
-    const done=selectedTab==="combat" ? !!cleared["c"+st.id] : isMainStageCleared(st.id);
+    const hardSelected=selectedTab==="main"&&battleDifficulty==="hard"&&hardModeUnlocked();
+    const done=selectedTab==="combat" ? !!cleared["c"+st.id] : hardSelected?isHardStageCleared(st.id):isMainStageCleared(st.id);
 
     ctx.save();
     ctx.globalAlpha=.97;
@@ -15537,7 +16252,7 @@ function drawOperation(){
     ctx.strokeRect(W-360,145,300,390);
     ctx.restore();
 
-    ctx.fillStyle=locked?"#888":st.boss?"#ff6b9b":"#ffe066";
+    ctx.fillStyle=locked?"#888":hardSelected?"#ff5a62":st.boss?"#ff6b9b":"#ffe066";
     ctx.font="bold 26px " + FONT_UI;
     ctx.textAlign="left";
     const code = selectedTab==="combat" ? ("C"+st.chapter+"-"+st.localId) : stageCode(st.id);
@@ -15550,17 +16265,22 @@ function drawOperation(){
     ctx.restore();
     ctx.fillStyle="rgba(255,255,255,.68)";
     ctx.font="15px " + FONT_UI;
-    ctx.fillText(tx("typeLabel")+(selectedTab==="combat" ? (language==="en"?st.mechanicEn:st.mechanicZh) : missionLabel()),W-330,315);
+    ctx.fillText(tx("typeLabel")+(selectedTab==="combat" ? (language==="en"?st.mechanicEn:st.mechanicZh) : missionLabel()+(hardSelected?(language==="en"?" · Advanced formation":" · 强化编队"):"")),W-330,315);
     ctx.fillText(tx("statusLabel")+(done?tx("ownedStatus"):locked?ui("locked"):tx("availableStatus")),W-330,350);
     if(selectedTab==="combat") ctx.fillText("Lv."+st.lv+"  ·  "+(language==="en"?"Limit ":"限时 ")+st.time+"s",W-330,382);
+    else ctx.fillText(hardSelected?(language==="en"?"Intel: special units · Recommend mixed damage":"敌情：特殊单位 · 推荐混合伤害"):(language==="en"?"Intel: standard formation · Recommended Lv."+(selectedStage*3+4):"敌情：标准编队 · 推荐等级 "+(selectedStage*3+4)),W-330,382);
     ctx.fillStyle="rgba(20,28,43,.96)"; ctx.fillRect(W-338,402,255,66);
-    ctx.strokeStyle="rgba(255,224,102,.42)"; ctx.strokeRect(W-338,402,255,66);
-    ctx.fillStyle="#ffe066"; ctx.font="bold 16px "+FONT_UI; ctx.fillText(language==="en"?"FIRST CLEAR REWARD":"首通奖励",W-320,426);
+    ctx.strokeStyle=hardSelected?"rgba(255,90,98,.62)":"rgba(255,224,102,.42)"; ctx.strokeRect(W-338,402,255,66);
+    ctx.fillStyle=hardSelected?"#ff7b82":"#ffe066"; ctx.font="bold 16px "+FONT_UI; ctx.fillText(hardSelected?(language==="en"?"HARD CLEAR REWARD":"困难通关奖励"):(language==="en"?"FIRST CLEAR REWARD":"首通奖励"),W-320,426);
     ctx.fillStyle="#7cc7ff"; ctx.font="bold 19px "+FONT_UI;
     ctx.fillText(selectedTab==="combat"
       ? ("◆ 200 "+tx("crystalWord")+"  ·  "+st.exp+" EXP")
-      : ("◆ "+(st.reward||0)+" "+tx("crystalWord")+"  ·  500 EXP"),W-320,454);
-    drawBtn(locked?ui("locked"):ui("startAction"),locked?"LOCK":"CLICK",W-338,486,255,52,!locked,locked?"#888":"#ffe066");
+      : ("◆ "+(hardSelected?100:(st.reward||0))+" "+tx("crystalWord")+"  ·  "+(hardSelected?750:500)+" EXP"),W-320,454);
+    const startWidth=selectedTab==="main"&&hardModeUnlocked()?202:255;
+    drawBtn(locked?ui("locked"):ui("startAction"),locked?"LOCK":"CLICK",W-338,486,startWidth,52,!locked,locked?"#888":hardSelected?"#ff4f59":"#ffe066");
+    if(selectedTab==="main"&&hardModeUnlocked()){
+      drawBtn("↔",hardSelected?(language==="en"?"HARD":"困难"):(language==="en"?"NORMAL":"普通"),W-126,486,43,52,true,hardSelected?"#ff5a62":"#7cc7ff");
+    }
   }else if(selectedTab!=="dungeon"){
     // V49.13: removed obsolete stage-detail hint text.
   }
@@ -16072,13 +16792,13 @@ function drawOperatorRightGrowthPanel(i,x,y,w,h){
   drawBtn(language==="en"?"Skill":"技能","",x+68,y+20,52,36,operatorTab==="skill","#ffe066");
   drawBtn(language==="en"?"Weapon":"武器","",x+126,y+20,52,36,operatorTab==="weapon","#ffe066");
   drawBtn(language==="en"?"Module":"模块","",x+184,y+20,52,36,operatorTab==="module","#b98cff");
-  drawBtn(language==="en"?"File":"档案","",x+242,y+20,52,36,operatorTab==="break","#ffe066");
+  drawBtn(language==="en"?"File":"档案","",x+242,y+20,52,36,operatorTab==="profile","#7cc7ff");
   if(!owned[i]){ ctx.fillStyle="#aaa"; ctx.font="bold 24px "+FONT_UI; ctx.textAlign="center"; ctx.fillText(mt("notOwned"),x+w/2,y+h/2); return; }
   if(operatorTab==="level") drawOperatorStatsTab(i,x,y,w,h);
   else if(operatorTab==="skill") drawOperatorSkillTab(i,x,y,w,h);
   else if(operatorTab==="weapon") drawOperatorWeaponTab(i,x,y,w,h);
   else if(operatorTab==="module") drawOperatorModuleTab(i,x,y,w,h);
-  else drawOperatorBreakTab(i,x,y,w,h);
+  else drawOperatorProfileTab(i,x,y,w,h);
 }
 
 function drawOperatorDetailPage(){
@@ -16135,7 +16855,7 @@ function roleUpgradeCost(i){
 }
 function roleFragmentKey(i){const e=(roles[i]&&roles[i].element)||"physical";return e==="monochrome"?"crystal":e;}
 function fragmentName(key){return language==="en"?({fire:"Fire",physical:"Physical",ice:"Ice",wind:"Wind",dark:"Dark",crystal:"Crystal"}[key]||key)+" Fragment":({fire:"火",physical:"物理",ice:"冰",wind:"风",dark:"暗",crystal:"晶"}[key]||key)+"属性碎片";}
-function breakthroughCostText(i){const c=BREAK_COSTS[roleBreakStage(i)],key=roleFragmentKey(i),boss=i===3?(language==="en"?"Dragon Claw":"龙爪"):(language==="en"?"Crystal Hand":"水晶手");return c?boss+" "+(i===3?dragonClaw:crystalHand)+"/"+c.boss+" · "+fragmentName(key)+" "+(elementalFragments[key]||0)+"/"+c.shards+" · "+(language==="en"?"Gold ":"金币 ")+gold+"/"+c.gold:"MAX";}
+function breakthroughCostText(i){const c=BREAK_COSTS[roleBreakStage(i)],key=roleFragmentKey(i);return c?fragmentName(key)+" "+(elementalFragments[key]||0)+"/"+c.shards+" · "+(language==="en"?"EXP Books ":"经验书 ")+expBooks+"/"+c.books+" · "+(language==="en"?"Gold ":"金币 ")+gold+"/"+c.gold:"MAX";}
 function drawOperatorStatsTab(i,x=780,y=112,w=302,h=506){
   const auto=isProtagonist(i), lv=roleDisplayLevel(i), cap=roleLevelCap(i), bx=x+22, by=y+82;
   drawInsetLabel((language==="en"?"LEVEL ":"等级 Lv.")+lv+" / "+cap,bx,by,258,32,"#fff","rgba(124,199,255,.08)","rgba(124,199,255,.18)",14,true,"center");
@@ -16147,20 +16867,27 @@ function drawOperatorStatsTab(i,x=780,y=112,w=302,h=506){
     drawInsetLabel(protagonistSyncStatusText(),bx,by+128,258,34,"#ffe066","rgba(255,224,102,.08)","rgba(255,224,102,.20)",12,true,"center");
     drawBtn(language==="en"?"Story Sync":"主线同步","",bx+18,y+h-78,222,46,false,"#777");
   }else{
-    const bonus=canBreakthrough(i)?breakthroughPreviewBonus(i):{hp:60,atk:12,def:6};
+    const stage=roleBreakStage(i),nextCap=BREAK_LEVEL_CAPS[Math.min(stage+1,BREAK_LEVEL_CAPS.length-1)],atCap=lv>=cap,canAscend=canBreakthrough(i);
+    const bonus=atCap?breakthroughPreviewBonus(i):{hp:60,atk:12,def:6};
     drawStatCompare(language==="en"?"HP":"生命",operatorStatHp(i),operatorStatHp(i)+bonus.hp,bx,by+84,258);
     drawStatCompare(language==="en"?"ATK":"攻击",operatorStatAtk(i),operatorStatAtk(i)+bonus.atk,bx,by+122,258);
     drawStatCompare(language==="en"?"DEF":"防御",operatorStatDef(i),operatorStatDef(i)+bonus.def,bx,by+160,258);
-    if(canBreakthrough(i)){
-      drawInsetLabel(language==="en"?"Breakthrough Bonus Preview":"突破收益预览",bx,by+198,258,28,"#ffe066","rgba(255,224,102,.08)","rgba(255,224,102,.20)",11,true,"center");
-    }
+    const stageText=stage>=5
+      ? (language==="en"?"ASCENSION MAX":"突破阶段已满")
+      : canAscend
+        ? ((language==="en"?"ASCENSION READY  ·  Lv.":"突破准备  ·  Lv.")+cap+" → Lv."+nextCap)
+        : atCap
+          ? (language==="en"?"NEXT ASCENSION LOCKED BY MAIN STORY":"下一次突破需要推进主线")
+          : ((language==="en"?"ASCENSION ":"突破 ")+stage+" / 5  ·  "+(language==="en"?"Next at Lv.":"下次突破 Lv.")+cap+"  ·  "+(language==="en"?"Levels left ":"还差 ")+(cap-lv));
+    drawInsetLabel(stageText,bx,by+198,258,28,canAscend?"#ffe066":"#7cc7ff",canAscend?"rgba(255,224,102,.10)":"rgba(124,199,255,.07)",canAscend?"rgba(255,224,102,.28)":"rgba(124,199,255,.18)",canAscend?11:9,true,"center");
     let btn=language==="en"?"Upgrade":"升级", enabled=true;
     if(lv>=60){ btn="MAX"; enabled=false; }
-    else if(canBreakthrough(i)) btn=language==="en"?"Level Breakthrough":"等级突破";
+    else if(canAscend) btn=language==="en"?"ASCEND LEVEL CAP":"突破等级上限";
     else if(lv>=cap){btn=language==="en"?"Advance Main Story":"推进主线解锁";enabled=false;}
     const upCost=roleUpgradeCost(i);
-    drawInsetLabel(canBreakthrough(i)?breakthroughCostText(i):((language==="en"?"EXP Books ":"经验书 ")+upCost.books+"  ·  "+(language==="en"?"Gold ":"金币 ")+upCost.gold),bx,by+232,258,34,"#bfe8ff","rgba(124,199,255,.08)","rgba(124,199,255,.18)",canBreakthrough(i)?9:11,true,"center");
-    drawBtn(btn,"CLICK",bx+18,y+h-78,222,46,enabled,"#ffe066");
+    const costText=atCap&&stage<BREAK_COSTS.length?breakthroughCostText(i):((language==="en"?"Level cost · EXP Books ":"升级消耗 · 经验书 ")+upCost.books+"  ·  "+(language==="en"?"Gold ":"金币 ")+upCost.gold);
+    drawInsetLabel(costText,bx,by+232,258,34,canAscend?"#ffe066":"#bfe8ff",canAscend?"rgba(255,224,102,.08)":"rgba(124,199,255,.08)",canAscend?"rgba(255,224,102,.22)":"rgba(124,199,255,.18)",atCap?9:10,true,"center");
+    drawBtn(btn,canAscend?(language==="en"?"RAISE TO Lv.":"开放至 Lv.")+nextCap:"CLICK",bx+18,y+h-78,222,46,enabled,canAscend?"#ffcf4d":"#ffe066");
   }
 }
 
@@ -16227,13 +16954,13 @@ function performBreakthrough(i){
   if(!canBreakthrough(i)) return false;
   const stage=roleBreakStage(i);
   const cost=BREAK_COSTS[stage];
-  const key=roleFragmentKey(i),bossOwned=i===3?dragonClaw:crystalHand;
-  if(bossOwned<cost.boss || (elementalFragments[key]||0)<cost.shards || gold<cost.gold){
+  const key=roleFragmentKey(i);
+  if((elementalFragments[key]||0)<cost.shards || expBooks<cost.books || gold<cost.gold){
     showCenter(language==="en"?"Not enough materials":"等级突破材料不足",70);
     return false;
   }
-  if(i===3)dragonClaw-=cost.boss;else crystalHand-=cost.boss;
   elementalFragments[key]-=cost.shards;
+  expBooks-=cost.books;
   gold-=cost.gold;
   charData[i].breakStage=stage+1;
   showCenter((language==="en"?"Level cap raised to Lv.":"等级上限提升至 Lv.")+roleLevelCap(i),90);
@@ -16419,6 +17146,10 @@ function compatibleWeaponsForRole(i){
   const type=roleWeaponType(i);
   return weaponInventory.filter(item=>item.owned && weaponData(item.id).type===type);
 }
+function weaponClassShareText(i){
+  const type=weaponTypeLabel(roleWeaponType(i));
+  return language==="en"?type+" weapons are shared by all matching operators":type+"职业武器可由所有同职业角色共用";
+}
 function equipWeaponToRole(i,id){
   if(isProtagonist(i)) return false;
   const w=weaponData(id);
@@ -16542,10 +17273,11 @@ function drawOperatorWeaponTab(i,x=780,y=112,w=302,h=506){
   ctx.fillStyle="#ffe066";ctx.font="bold 12px "+FONT_UI;ctx.fillText("Lv."+roleEquippedWeaponLevel(i)+" / 60",bx+64,by+70);
   ctx.fillStyle="rgba(255,255,255,.12)";ctx.fillRect(bx+64,by+80,176,7);ctx.fillStyle="#ffe066";ctx.fillRect(bx+64,by+80,176*roleEquippedWeaponLevel(i)/60,7);
   ctx.fillStyle="#a8b6cc";ctx.font="10px "+FONT_UI;ctx.fillText((language==="en"?"Type: ":"类型：")+weaponTypeLabel(roleWeaponType(i)),bx+64,by+102);
+  ctx.fillStyle="rgba(124,255,178,.72)";ctx.font="9px "+FONT_UI;ctx.fillText(weaponClassShareText(i),bx,by+118);
 
   const list=compatibleWeaponsForRole(i);
   for(let n=0;n<Math.min(3,list.length);n++){
-    const item=list[n], wd=weaponData(item.id), yy=by+122+n*48, active=selectedWeaponId===item.id, eq=equipped===item.id;
+    const item=list[n], wd=weaponData(item.id), yy=by+132+n*46, active=selectedWeaponId===item.id, eq=equipped===item.id;
     ctx.fillStyle=active?"rgba(124,199,255,.16)":"rgba(255,255,255,.055)";
     ctx.fillRect(bx,yy,258,40);
     ctx.strokeStyle=active?"rgba(124,199,255,.70)":"rgba(255,255,255,.11)";
@@ -16565,14 +17297,22 @@ function drawOperatorWeaponTab(i,x=780,y=112,w=302,h=506){
   drawBtn(language==="en"?"Upgrade":"强化",weaponCost.ore+"◇ "+weaponCost.gold+"G",bx+134,y+h-78,106,46,isEq,"#ffe066");
 }
 
-function drawOperatorBreakTab(i,x=780,y=112,w=302,h=506){
-  const bx=x+22, by=y+88;
-  drawInsetLabel(language==="en"?"PROFILE":"档案",bx,by,258,36,"#bfe8ff","rgba(124,199,255,.08)","rgba(124,199,255,.18)",14,true,"center");
-  const lines=isProtagonist(i)
-    ? [language==="en"?"Identity: Traveler":"身份：旅者", language==="en"?"Weapon: Gray Core Blade":"武器：灰白核心刃", language==="en"?"Growth: Story Sync":"成长：主线同步", protagonistSyncStatusText()]
-    : [(language==="en"?"Executor: ":"执行官：")+roleName(i), (language==="en"?"Element: ":"元素：")+executorElement(i), (language==="en"?"Weapon: ":"武器：")+weaponName(i), (language==="en"?"Role: ":"定位：")+roleStyle(i)];
-  for(let n=0;n<lines.length;n++) drawInsetLabel(lines[n],bx,by+62+n*50,258,34,"#fff","rgba(255,255,255,.065)","rgba(255,255,255,.11)",12,true,"left");
-  drawBtn(language==="en"?"Coming Soon":"后续开放","",bx+18,y+h-78,222,46,false,"#777");
+function drawOperatorProfileTab(i,x=780,y=112,w=302,h=506){
+  const bx=x+22,by=y+76,r=roles[i]||{};
+  drawInsetLabel(language==="en"?"OPERATOR FILE":"执行官档案",bx,by,258,36,"#7cc7ff","rgba(124,199,255,.08)","rgba(124,199,255,.22)",14,true,"center");
+  const rows=isProtagonist(i)?[
+    [language==="en"?"Identity":"身份",language==="en"?"Hermit / Protagonist":"隐者 / 主角"],
+    [language==="en"?"Growth":"成长",language==="en"?"Synchronized with main story":"随主线进度同步"],
+    [language==="en"?"Weapon":"武器",language==="en"?"Gray Core Blade":"灰白核心刃"],
+    [language==="en"?"Status":"状态",protagonistSyncStatusText()]
+  ]:[
+    [language==="en"?"Class":"身份",language==="en"?"Executor":"执行官"],
+    [language==="en"?"Element":"属性",fragmentName(roleFragmentKey(i)).replace(language==="en"?" Fragment":"属性碎片","")],
+    [language==="en"?"Weapon Type":"武器类型",weaponTypeLabel(roleWeaponType(i))],
+    [language==="en"?"Combat Role":"战斗定位",roleStyle(i)]
+  ];
+  rows.forEach((row,n)=>{drawInsetLabel(row[0],bx,by+56+n*52,82,38,"#a8b6cc","rgba(255,255,255,.045)","rgba(255,255,255,.10)",10,true,"left");drawInsetLabel(row[1],bx+90,by+56+n*52,168,38,"#fff","rgba(255,255,255,.06)","rgba(255,255,255,.12)",10,true,"center");});
+  drawInsetLabel(language==="en"?"Level breakthrough is performed in the Stats tab at each level cap.":"等级达到上限后，请在“属性”页直接完成基础等级突破。",bx,by+278,258,58,"#ffe066","rgba(255,224,102,.07)","rgba(255,224,102,.18)",10,true,"center");
 }
 
 function drawFloraImageBox(x,y,w,h,alpha=1){
@@ -16923,9 +17663,17 @@ function drawGiftPack(x,y,w,h,title,desc,price,bought){
   ctx.fillText(bought?"SOLD":"BUY",x+w-22,y+132);
 }
 function drawGrid(){ ctx.strokeStyle="rgba(255,255,255,.035)"; for(let x=0;x<W;x+=80){ctx.beginPath();ctx.moveTo(x,100);ctx.lineTo(x,H);ctx.stroke();} for(let y=100;y<H;y+=80){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();} }
-function drawEnemy(e){ if(!e.alive)return; ctx.save(); ctx.translate(e.x,e.y); if((e.freeze||0)>0){ctx.globalAlpha=.92;} if(e.windup>0){ctx.strokeStyle="#ff3333";ctx.lineWidth=4;ctx.beginPath();ctx.arc(0,0,e.boss?110:82,0,Math.PI*2);ctx.stroke();ctx.fillStyle="#ff3333";ctx.font="bold 13px " + FONT_UI;ctx.textAlign="center";ctx.fillText("SPACE",0,-e.r-42);} const enemyTypeColor={normal:"#33384f",shield:"#46506b",berserker:"#6a3f46",ranged:"#4b4568",elite:"#55476b",sniper:"#6c4b63",skirmisher:"#355868",support:"#356054"}; ctx.fillStyle=e.hit>0?"#fff":e.boss?"#5b2d42":(enemyTypeColor[e.type]||"#33384f"); ctx.beginPath();ctx.arc(0,0,e.r,0,Math.PI*2);ctx.fill(); const hw=e.boss?105:62; ctx.fillStyle="#fff";ctx.font="bold 10px " + FONT_UI;ctx.textAlign="right";ctx.fillText("Lv."+((e.lv!==undefined)?e.lv:"?"),-hw/2-6,-e.r-18); ctx.fillStyle="#ff4d4d";ctx.fillRect(-hw/2,-e.r-24,hw,6);ctx.fillStyle="#ffe066";ctx.fillRect(-hw/2,-e.r-24,hw*(e.hp/e.maxHp),6);
+function drawEnemy(e){ if(!e.alive)return; ctx.save(); ctx.translate(e.x,e.y); if((e.freeze||0)>0){ctx.globalAlpha=.92;} if(e.windup>0){ctx.strokeStyle="#ff3333";ctx.lineWidth=4;ctx.beginPath();ctx.arc(0,0,e.boss?110:82,0,Math.PI*2);ctx.stroke();ctx.fillStyle="#ff3333";ctx.font="bold 13px " + FONT_UI;ctx.textAlign="center";ctx.fillText("SPACE",0,-e.r-42);} const enemyTypeColor={normal:"#33384f",shield:"#46506b",berserker:"#6a3f46",ranged:"#4b4568",elite:"#55476b",sniper:"#6c4b63",skirmisher:"#355868",support:"#356054",fireCrystal:"#8a3f35"}; ctx.fillStyle=e.hit>0?"#fff":e.boss?"#5b2d42":(enemyTypeColor[e.type]||"#33384f"); ctx.beginPath();ctx.arc(0,0,e.r,0,Math.PI*2);ctx.fill(); const hw=e.boss?105:62; ctx.fillStyle="#fff";ctx.font="bold 10px " + FONT_UI;ctx.textAlign="right";ctx.fillText("Lv."+((e.lv!==undefined)?e.lv:"?"),-hw/2-6,-e.r-18); ctx.fillStyle="#ff4d4d";ctx.fillRect(-hw/2,-e.r-24,hw,6);ctx.fillStyle="#ffe066";ctx.fillRect(-hw/2,-e.r-24,hw*(e.hp/e.maxHp),6);
   if((e.freeze||0)>0){ ctx.strokeStyle="#88d8ff"; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(0,0,e.r+13,0,Math.PI*2); ctx.stroke(); ctx.fillStyle="#88d8ff"; ctx.font="bold 11px " + FONT_UI; ctx.textAlign="center"; ctx.fillText("FROZEN",0,-e.r-45); }
   else if((e.chill||0)>0){ ctx.strokeStyle="rgba(136,216,255,.55)"; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(0,0,e.r+10,0,Math.PI*2); ctx.stroke(); }
+  if(e.statuses&&e.statuses.burn){ctx.strokeStyle="#ff785f";ctx.lineWidth=3;ctx.setLineDash([7,5]);ctx.beginPath();ctx.arc(0,0,e.r+16,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);}
+  if(e.statuses&&e.statuses.armorBreak){ctx.fillStyle="#ffcf8a";ctx.font="bold 10px "+FONT_UI;ctx.textAlign="center";ctx.fillText(language==="en"?"ARMOR↓":"破甲↓",0,e.r+31);}
+  if(e.special){
+    const active=e.special==="pullResist"?e.pullImmune:enemyImmunityActive(e,e.special);
+    const c=e.special==="physicalImmune"?"#ffe0a8":e.special==="skillImmune"?"#caa7ff":"#82ffe2";
+    ctx.strokeStyle=c;ctx.globalAlpha=active?.95:.35;ctx.lineWidth=3;ctx.beginPath();ctx.arc(0,0,e.r+22,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1;
+    ctx.fillStyle=c;ctx.font="bold 9px "+FONT_UI;ctx.textAlign="center";ctx.fillText(e.special==="physicalImmune"?(language==="en"?"PHYS IMMUNE":"物理免疫"):e.special==="skillImmune"?(language==="en"?"SKILL IMMUNE":"技能免疫"):(e.pullImmune?(language==="en"?"PULL IMMUNE":"聚怪免疫"):(language==="en"?"PULL RESIST":"聚怪抗性")),0,-e.r-47);
+  }
   if(e.maxShield>0){
     ctx.fillStyle="rgba(124,199,255,.20)";
     ctx.fillRect(-hw/2,-e.r-34,hw,5);
@@ -16935,11 +17683,20 @@ function drawEnemy(e){ if(!e.alive)return; ctx.save(); ctx.translate(e.x,e.y); i
   ctx.fillStyle=e.type==="shield"?"#7cc7ff":e.type==="ranged"?"#ff8888":e.type==="berserker"?"#ff5555":e.boss?"#ff6b9b":"rgba(255,255,255,.65)";
   ctx.font="bold 11px " + FONT_UI;
   ctx.textAlign="center";
-  ctx.fillText(e.boss?"BOSS":e.type.toUpperCase(),0,e.r+18); if(lockTarget===e){ctx.strokeStyle="#ffe066";ctx.lineWidth=3;ctx.beginPath();ctx.arc(0,0,e.r+10,0,Math.PI*2);ctx.stroke();} ctx.restore(); }
+  const enemyLabel=e.type==="fireCrystal"?(language==="en"?"FIRE CRYSTAL":"火焰晶体"):e.type.toUpperCase();
+  ctx.fillText(e.boss?"BOSS":enemyLabel,0,e.r+18); if(lockTarget===e){ctx.strokeStyle="#ffe066";ctx.lineWidth=3;ctx.beginPath();ctx.arc(0,0,e.r+10,0,Math.PI*2);ctx.stroke();} ctx.restore(); }
 function drawPlayer(){
   const r=roles[player.role];
+  const moving=Math.hypot(player.vx||0,player.vy||0)>.12;
+  const animTime=performance.now()/1000;
+  const bob=moving?Math.sin(animTime*12)*2.4:Math.sin(animTime*3.2)*.8;
+  const lean=clamp((player.vx||0)*.035,-.12,.12);
+  const weaponSwing=player.attackCd>0?Math.sin(clamp(player.attackCd/18,0,1)*Math.PI)*.65:0;
   ctx.save();
-  ctx.translate(player.x,player.y);
+  ctx.translate(player.x,player.y+bob);
+  ctx.rotate(lean);
+
+  if(playerStatuses.burn){ctx.strokeStyle="#ff785f";ctx.lineWidth=3;ctx.setLineDash([8,5]);ctx.beginPath();ctx.arc(0,0,player.r+14,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);}
 
   if(player.guardTimer>0||player.parryReady>0){
     ctx.strokeStyle=player.parryReady>0?"#fff":"#7cc7ff";
@@ -16964,10 +17721,12 @@ function drawPlayer(){
 
   ctx.fillStyle=r.color;
   ctx.beginPath();
-  ctx.arc(0,0,player.r,0,Math.PI*2);
+  ctx.ellipse(0,0,player.r*(moving?1.06:1),player.r*(moving?.94:1),0,0,Math.PI*2);
   ctx.fill();
 
   ctx.shadowBlur=0;
+  ctx.save();
+  ctx.rotate(player.facing*weaponSwing);
   ctx.fillStyle=r.sub;
   ctx.beginPath();
   ctx.moveTo(player.facing*33,0);
@@ -16975,6 +17734,13 @@ function drawPlayer(){
   ctx.lineTo(player.facing*10,11);
   ctx.closePath();
   ctx.fill();
+  ctx.restore();
+
+  // Small block-color posture accents keep the established style while
+  // making direction changes and attack recovery easier to read.
+  ctx.fillStyle="rgba(255,255,255,.36)";
+  ctx.fillRect(-9,-player.r+4,18,5);
+  if(moving){ctx.fillStyle=r.sub;ctx.fillRect(-12,player.r-2,8,8);ctx.fillRect(4,player.r-2,8,8);}
 
   ctx.globalAlpha=1;
   ctx.fillStyle="#fff";
@@ -17172,9 +17938,9 @@ function drawEffects(){
   }
   for(const p of projectiles){
     ctx.save();
-    ctx.fillStyle="#ff7777";
+    ctx.fillStyle=p.fireProjectile?"#ff8a48":"#ff7777";
     ctx.shadowBlur=12;
-    ctx.shadowColor="#ff3333";
+    ctx.shadowColor=p.fireProjectile?"#ff5a28":"#ff3333";
     ctx.beginPath();
     ctx.arc(p.x,p.y,7,0,Math.PI*2);
     ctx.fill();
@@ -17190,7 +17956,6 @@ function drawMobileControls(){
 
 function drawAchievementNotice(){
   if(achievementNoticeTimer<=0 || !achievementNotice) return;
-  achievementNoticeTimer -= frameScale;
   ctx.save();
   ctx.globalAlpha = Math.min(1, achievementNoticeTimer/30);
   ctx.fillStyle="rgba(0,0,0,.52)";
@@ -17275,13 +18040,18 @@ function drawBattlePauseButton(){
 
 function drawBattlePauseMenu(){
   if(!battlePaused)return;
-  ctx.save();ctx.fillStyle="rgba(0,0,0,.76)";ctx.fillRect(0,0,W,H);
-  ctx.fillStyle="rgba(12,16,30,.98)";ctx.fillRect(W/2-230,H/2-160,460,330);
-  ctx.strokeStyle="rgba(255,224,102,.65)";ctx.lineWidth=2;ctx.strokeRect(W/2-230,H/2-160,460,330);
-  ctx.fillStyle="#fff";ctx.font="bold 30px "+FONT_UI;ctx.textAlign="center";ctx.fillText(language==="en"?"MISSION PAUSED":"任务暂停",W/2,H/2-112);
   const labels=battleModeSource==="showcase"
     ? (language==="en"?["Continue","Reset Template","Exit Showcase"]:["继续展示","重置模板","退出展示"])
     : (language==="en"?["Continue","Restart Mission","Abandon Mission"]:["继续任务","重新开始","放弃任务"]);
+  drawCommonMissionPause(labels,language==="en"?"MISSION PAUSED":"任务暂停");
+}
+
+function drawCommonMissionPause(labels,title,subtitle=""){
+  ctx.save();ctx.fillStyle="rgba(0,0,0,.76)";ctx.fillRect(0,0,W,H);
+  ctx.fillStyle="rgba(12,16,30,.98)";ctx.fillRect(W/2-230,H/2-160,460,330);
+  ctx.strokeStyle="rgba(255,224,102,.65)";ctx.lineWidth=2;ctx.strokeRect(W/2-230,H/2-160,460,330);
+  ctx.fillStyle="#fff";ctx.font="bold 30px "+FONT_UI;ctx.textAlign="center";ctx.fillText(title,W/2,H/2-112);
+  if(subtitle){ctx.fillStyle="rgba(255,255,255,.54)";ctx.font="12px "+FONT_UI;ctx.fillText(subtitle,W/2,H/2-89);}
   const x=W/2-170,y=H/2-78;
   for(let i=0;i<3;i++){const yy=y+i*68,hover=inRect(x,yy,340,54);ctx.fillStyle=hover?(i===2?"rgba(255,85,95,.22)":"rgba(255,224,102,.18)"):"rgba(255,255,255,.07)";ctx.fillRect(x,yy,340,54);ctx.strokeStyle=hover?(i===2?"#ff6675":"#ffe066"):"rgba(255,255,255,.20)";ctx.strokeRect(x,yy,340,54);ctx.fillStyle=i===2?"#ff8b96":"#fff";ctx.font="bold 19px "+FONT_UI;ctx.fillText(labels[i],W/2,yy+34);}
   ctx.fillStyle="rgba(255,255,255,.48)";ctx.font="12px "+FONT_UI;ctx.fillText(language==="en"?"Esc: Continue":"Esc：继续任务",W/2,H/2+145);ctx.restore();
@@ -17311,7 +18081,7 @@ function drawBattleUI(){
 
   ctx.fillStyle="rgba(255,255,255,.66)";
   ctx.font="13px " + FONT_UI;
-  const battleCode=battleModeSource==="crystalWar"?"CRYSTAL WAR":battleModeSource==="showcase"?"SHOWCASE":battleModeSource==="commission"?("C"+currentCommissionStage().chapter+"-"+currentCommissionStage().localId):(battleModeSource==="daydream"?"DAYDREAM":stageCode(selectedStage));
+  const battleCode=battleModeSource==="crystalWar"?"CRYSTAL WAR":battleModeSource==="showcase"?"SHOWCASE":battleModeSource==="commission"?("C"+currentCommissionStage().chapter+"-"+currentCommissionStage().localId):(battleModeSource==="daydream"?"DAYDREAM":battleHardMode?((language==="en"?"HARD ":"困难 ")+stageCode(selectedStage)):stageCode(selectedStage));
   const meta = battleModeSource==="crystalWar"
     ? (language==="en"?"ENDLESS SECTOR ":"无限区段 ")+area+"  |  B "+(language==="en"?"DEVICE RACK":"设备栏")
     : battleModeSource==="showcase"
@@ -17350,6 +18120,10 @@ function drawBattleUI(){
   ctx.fillText(Math.floor(player.hp)+"/"+playerMaxHp(),30,75);
   drawBar(30,96,280,12,player.energy/100,"#42d7ff");
   drawBar(30,114,280,12,player.ult/ULT_MAX,"#c35cff");
+  if(playerStatuses.burn){
+    ctx.fillStyle="rgba(255,120,95,.18)";ctx.fillRect(318,78,108,30);ctx.strokeStyle="#ff785f";ctx.strokeRect(318,78,108,30);
+    ctx.fillStyle="#ff9a72";ctx.font="bold 11px "+FONT_UI;ctx.textAlign="center";ctx.fillText((language==="en"?"BURN ":"燃烧 ")+(playerStatuses.burn.life/60).toFixed(1)+"s",372,98);
+  }
   if(dodgeStatus){
     ctx.fillStyle="rgba(124,199,255,.22)";
     ctx.fillRect(30,130,280,14);
@@ -17395,10 +18169,15 @@ function drawBattleUI(){
 function drawBar(x,y,w,h,v,c){ctx.fillStyle="rgba(255,255,255,.15)";ctx.fillRect(x,y,w,h);ctx.fillStyle=c;ctx.fillRect(x,y,w*clamp(v,0,1),h);}
 
 function chapter1AreaObjectiveText(){
-  if(battleModeSource!=="main" || ![0,1,2].includes(selectedMainChapter) || battleSideArea) return "";
+  if(battleModeSource!=="main" || ![0,1,2,3].includes(selectedMainChapter) || battleSideArea) return "";
   const pending=hasPendingChapterAreaObjective();
   const done=language==="en"?"Objective complete — proceed right":"区域目标完成——向右前进";
   if(!pending && areaCleared) return done;
+  if(selectedMainChapter===3){
+    const zh3={2:"调查疏散标记、媒体终端与扩张监测器",4:"单独追踪小赖并避开坍塌攻击标记",5:"启动三台晶体稳定装置，修复裂隙道路",6:"调查回声并突破晶体怪封锁",7:"抵达小赖身边并守住三轮进攻"};
+    const en3={2:"Inspect the evacuation marker, media terminal, and expansion monitor",4:"Track Lai alone and avoid the marked collapse zones",5:"Activate three crystal stabilizers and repair the rift route",6:"Inspect the echoes and break through the blockade",7:"Reach Lai and hold through all three attacks"};
+    return (language==="en"?en3:zh3)[selectedStage]||"";
+  }
   const zh2={3:"避开警戒，靠近三个盲点按 F 调查",4:"清除威胁并按 F 校准裂隙锚点",5:"与居民交谈，记录他们自己的选择",6:"护送幸存者并确认每段撤离标记",7:"调查小赖留下的三处痕迹",8:"击退追击者并确认狐灵共鸣点",10:"清出道路并确认幸存者通过"};
   const en2={3:"Avoid security and press F at all three blind spots",4:"Clear threats and press F to calibrate each rift anchor",5:"Speak with residents and record their choices",6:"Escort survivors and confirm each evacuation marker",7:"Inspect the three traces left by Lai",8:"Repel the pursuit and confirm each fox resonance point",10:"Open the route and confirm the survivors have passed"};
   if(selectedMainChapter===2) return (language==="en"?en2:zh2)[selectedStage]||"";
@@ -17481,6 +18260,8 @@ function drawBattleExploreObjects(){
       ctx.fillStyle=chestColor; ctx.fillRect(o.x-31,o.y-6,62,8); ctx.fillRect(o.x-5,o.y-20,10,40);
       ctx.strokeStyle=chestColor; ctx.lineWidth=2; ctx.strokeRect(o.x-31,o.y-20,62,40);
     }else if(o.type==="crate"){
+      const crateShake=o.hitFlash>0?Math.sin((o.hitSeed||1)*3+o.hitFlash)*3:0;
+      ctx.translate(crateShake,0);
       ctx.fillStyle="#76502d"; ctx.fillRect(o.x-30,o.y-28,60,56);
       ctx.strokeStyle="#c59b5f"; ctx.lineWidth=4; ctx.strokeRect(o.x-30,o.y-28,60,56);
       ctx.beginPath(); ctx.moveTo(o.x-27,o.y-25); ctx.lineTo(o.x+27,o.y+25); ctx.moveTo(o.x+27,o.y-25); ctx.lineTo(o.x-27,o.y+25); ctx.stroke();
@@ -17522,15 +18303,19 @@ function drawBattleAreaExits(){
   }else if(areaCleared){
     ctx.fillStyle="#ffe066";
     if(area<battleAreaLimit()) ctx.fillRect(W-42,110,22,H-160);
-    ctx.fillRect(W/2-120,104,240,12);
-    ctx.fillRect(W/2-120,H-28,240,12);
+    if(storyAllowsSideRoutes()){
+      ctx.fillRect(W/2-120,104,240,12);
+      ctx.fillRect(W/2-120,H-28,240,12);
+    }
     ctx.fillStyle="#fff";
     if(area<battleAreaLimit()){
       const nextText=battleModeSource==="commission"?(language==="en"?"NEXT WAVE →":"下一波 →"):(language==="en"?"NEXT AREA →":"下一区域 →");
       ctx.textAlign="right"; ctx.fillText(nextText,W-58,H/2);
     }
-    ctx.textAlign="center"; ctx.fillText((language==="en"?"SIDE AREA":"支线区域")+" ↑",W/2,142);
-    ctx.fillText((language==="en"?"SIDE AREA":"支线区域")+" ↓",W/2,H-42);
+    if(storyAllowsSideRoutes()){
+      ctx.textAlign="center"; ctx.fillText((language==="en"?"SIDE AREA":"支线区域")+" ↑",W/2,142);
+      ctx.fillText((language==="en"?"SIDE AREA":"支线区域")+" ↓",W/2,H-42);
+    }
   }
   ctx.restore();
 }
@@ -17722,9 +18507,9 @@ function drawBootSequence(){
 
 function projectAreaMapList(){
   return [
-    {key:"project_area", name:"Project Area", recLv:20, unlocked:true, desc:language==="en"?"Initial abnormal exploration sector.":"初始异常探索区域。"},
-    {key:"industrial_zone", name:"Industrial Zone", recLv:30, unlocked:!!projectAreaCleared, desc:language==="en"?"Complete Project Area once to unlock.":"完成 Project Area 一次后开放。"},
-    {key:"old_laboratory", name:"Old Laboratory", recLv:40, unlocked:!!projectAreaCleared, desc:language==="en"?"Research-sector placeholder for later expansion.":"研究区域占位，后续扩展。"}
+    {key:"project_area", name:"Project Area", recLv:20, unlocked:true, accent:"#7cffb2",desc:language==="en"?"Spatial routes, supply caches and a power-crate puzzle.":"空间岔路、补给调查与动力箱机关。"},
+    {key:"industrial_zone", name:language==="en"?"Industrial Zone":"废弃工业区", recLv:30, unlocked:!!projectAreaMapClears.project_area,accent:"#ffe066", desc:language==="en"?"Restore relay power and inspect the abandoned production line.":"恢复继电供能，调查废弃生产线。"},
+    {key:"old_laboratory", name:language==="en"?"Old Laboratory":"旧研究所", recLv:40, unlocked:!!projectAreaMapClears.industrial_zone,accent:"#c89cff", desc:language==="en"?"Decode terminals and stabilize the crystal observation chamber.":"解读终端并稳定晶体观测室。"}
   ];
 }
 function currentProjectAreaMap(){
@@ -17753,7 +18538,7 @@ function drawProjectAreaDetail(){
   drawBtn("<","",108,260,42,38,true,"#fff");
   drawBtn(">","",424,260,42,38,true,"#fff");
 
-  ctx.fillStyle=m.unlocked?"#7cffb2":"rgba(255,255,255,.45)";
+  ctx.fillStyle=m.unlocked?(m.accent||"#7cffb2"):"rgba(255,255,255,.45)";
   ctx.font="bold 28px " + FONT_UI;
   ctx.textAlign="center";
   ctx.fillText(m.name,290,292);
@@ -17767,7 +18552,8 @@ function drawProjectAreaDetail(){
   ctx.fillText((language==="en"?"Recommended Lv.":"推荐等级 Lv.")+m.recLv,120,330);
   ctx.fillText(language==="en"?"Mode: Exploration":"模式：探索",120,360);
   ctx.fillText(language==="en"?"No enemies / no battle system":"无敌人 / 不使用战斗系统",120,390);
-  ctx.fillText(projectAreaCleared ? (language==="en"?"Cleared: replay has no rewards.":"已完成：重复游玩无奖励。") : (language==="en"?"First clear gives rewards.":"首次完成可获得奖励。"),120,420);
+  const mapCleared=!!projectAreaMapClears[m.key];
+  ctx.fillText(mapCleared ? (language==="en"?"Cleared: replay has no rewards.":"已完成：重复游玩无奖励。") : (language==="en"?"First clear gives rewards.":"首次完成可获得奖励。"),120,420);
   ctx.fillStyle=m.unlocked?"rgba(255,255,255,.62)":"#ff6b9b";
   ctx.font="13px " + FONT_UI;
   ctx.fillText(m.desc,120,454);
@@ -17785,7 +18571,7 @@ function drawProjectAreaDetail(){
   ctx.fillText(language==="en"?"F: interact":"F：互动",545,348);
   ctx.fillText("ESC: "+(language==="en"?"return":"返回"),545,378);
 
-  drawBtn(m.unlocked ? (language==="en"?"Start Exploration":"开始探索") : (language==="en"?"Locked":"未开放"),"",805,445,185,48,m.unlocked,"#7cffb2");
+  drawBtn(paState?(language==="en"?"Resume Mission":"继续任务"):m.unlocked ? (language==="en"?"Start Exploration":"开始探索") : (language==="en"?"Locked":"未开放"),"",805,445,185,48,!!paState||m.unlocked,"#7cffb2");
 }
 
 
@@ -17841,7 +18627,8 @@ function paNearObject(o,range=70){
 }
 
 function paBaseAreaData(areaId){
-  const already = !!projectAreaCleared;
+  const mapKey=(paState&&paState.mapKey)||currentProjectAreaMap().key;
+  const already = !!projectAreaMapClears[mapKey];
   const z = already ? {} : null;
   if(areaId===1){
     return {
@@ -17907,7 +18694,8 @@ function paBaseAreaData(areaId){
 
 function paAreaData(areaId,route="center"){
   const data=paBaseAreaData(areaId);
-  const already=!!projectAreaCleared;
+  const map=(paState&&paState.mapKey)||currentProjectAreaMap().key;
+  const already=!!projectAreaMapClears[map];
   const routeNames={
     upper:language==="en"?"Archive Route":"档案路线",
     center:language==="en"?"Main Route":"主路线",
@@ -17915,6 +18703,15 @@ function paAreaData(areaId,route="center"){
   };
   const routeY={upper:185,center:H/2+105,lower:H-115};
   data.spawn={x:115,y:routeY[route]||routeY.center};
+  if(map==="industrial_zone"){
+    data.blocks.push(paMakeBlock("pipe",560,145,330,30),paMakeBlock("machine",850,390,150,110));
+    data.objects.push(Object.assign(paMakeObject("switch",areaId===1?520:820,areaId===3?210:500,82,82,language==="en"?"Power Relay":"供能继电器",already?{}:{gold:700,expReward:160},language==="en"?"The relay starts another section of the production line.":"继电器启动了生产线的下一段。"),{required:true}));
+    if(areaId===2)data.objects.push(paMakeObject("resource",350,210,72,72,language==="en"?"Alloy Cache":"合金缓存",already?{}:{weaponOre:2}));
+  }else if(map==="old_laboratory"){
+    data.blocks.push(paMakeBlock("machine",520,175,180,82),paMakeBlock("wall",820,535,240,38));
+    data.objects.push(Object.assign(paMakeObject("terminal",areaId===1?420:areaId===2?720:860,areaId===2?500:225,96,105,language==="en"?"Cipher Terminal":"密钥终端",already?{}:{expBooks:1,expReward:180},language==="en"?"A recovered record narrows the anomaly frequency.":"恢复的记录缩小了异常频率范围。"),{required:true}));
+    if(areaId===3)data.objects.push(paMakeObject("resource",565,485,76,76,language==="en"?"Stable Crystal Sample":"稳定晶体样本",already?{}:{weaponOre:3}));
+  }
   const requiredReward=already?{}:(route==="upper"?{expReward:100,expBooks:1}:route==="lower"?{gold:650,weaponOre:1}:{expReward:130,gold:300});
   if(route==="upper"){
     data.objects.push(Object.assign(paMakeObject("npc",735,185,64,84,language==="en"?"Lost Surveyor":"迷路的调查员",requiredReward,language==="en"?"The surveyor marks a safe passage through the archive corridor.":"调查员在档案走廊中标记出一条安全通路。"),{required:true}));
@@ -17959,7 +18756,7 @@ function startProjectAreaTeam(){
   const map=currentProjectAreaMap();
   if(!map.unlocked){ showCenter(language==="en"?"Map locked":"地图未开放",70); return; }
   paState = {
-    area:1,
+    area:1, mapKey:map.key, mapName:map.name,
     maxArea:3,
     player:{x:120,y:H/2+105,vx:0,vy:0,r:20},
     blocks:[],
@@ -17967,8 +18764,9 @@ function startProjectAreaTeam(){
     exit:null,
     exits:[], route:"center", routeName:"", routeHistory:[],
     rewards:{gold:0,expBooks:0,weaponOre:0,expReward:0,crystal:0,chests:0,crates:0,terminals:0,files:0,resources:0,switches:0,npcs:0,areasCleared:0},
-    repeat:!!projectAreaCleared
+    repeat:!!projectAreaMapClears[map.key]
   };
+  projectAreaPaused=false;
   battleModeSource="main";
   projectAreaRun=null;
   projectAreaObjects=[];
@@ -18077,20 +18875,29 @@ function paFinish(){
     if(chestCrystal){crystals+=chestCrystal;totalCrystalsEarned+=chestCrystal;}
     reward.crystal=grantFreeCrystals(reward.baseCrystal||0)+chestCrystal;
     addPlayerExp(reward.expReward);
-    projectAreaCleared=true;
+    projectAreaMapClears[paState.mapKey||"project_area"]=true;
+    projectAreaCleared=!!projectAreaMapClears.project_area;
     saveGame(); autoCloudSaveNow && autoCloudSaveNow(false);
   }
   settlement={stage:0,reward:reward.crystal,expReward:reward.expReward,stars:3,mode:"projectArea",projectAreaReward:reward};
   paState=null;
+  projectAreaPaused=false;
+  saveGame();
   gameMode="settlement";
 }
 
 function updateProjectArea(){
   menuPulse++;
   if(!paState){ startProjectAreaTeam(); return; }
-  if(justPressed("escape")){
-    selectedTab="dungeon"; dungeonPanelMode="projectArea"; gameMode="operation"; clicked=false; return;
+  if(justPressed("p")||justPressed("escape")){projectAreaPaused=!projectAreaPaused;clicked=false;return;}
+  if(projectAreaPaused){
+    const x=W/2-170,y=H/2-78;
+    if(clicked&&inRect(x,y,340,54)){projectAreaPaused=false;clicked=false;return;}
+    if(clicked&&inRect(x,y+68,340,54)){clicked=false;startProjectAreaTeam();return;}
+    if(clicked&&inRect(x,y+136,340,54)){selectedTab="dungeon";dungeonPanelMode="projectArea";gameMode="operation";saveGame();clicked=false;return;}
+    clicked=false;return;
   }
+  if(clicked&&inRect(W-170,35,125,42)){projectAreaPaused=true;clicked=false;return;}
   if(justPressed("f")) paTryInteract();
 
   let dx=0,dy=0;
@@ -18256,17 +19063,25 @@ function drawProjectArea(){
   ctx.strokeStyle="rgba(124,255,178,.24)";
   ctx.strokeRect(42,36,440,48);
   ctx.fillStyle="#fff"; ctx.font="bold 22px "+FONT_UI; ctx.textAlign="left";
-  ctx.fillText("Project Area  /  "+paState.area+" / "+paState.maxArea+"  ·  "+paState.routeName+(paState.repeat ? "  /  CLEARED" : ""),60,67);
+  ctx.fillText((paState.mapName||"Project Area")+"  /  "+paState.area+" / "+paState.maxArea+"  ·  "+paState.routeName+(paState.repeat ? "  /  CLEARED" : ""),60,67);
 
   const rw=paState.rewards;
   ctx.fillStyle="rgba(255,255,255,.58)";
   ctx.font="13px "+FONT_UI;
   const requiredDone=!paState.objects.some(o=>o.required&&!o.done);
   ctx.fillText((language==="en"?"Objective ":"路线目标 ")+(requiredDone?"✓":"…")+"   Chest "+rw.chests+"  File "+(rw.files||0)+"  NPC "+(rw.npcs||0),520,67);
+  drawBtn(language==="en"?"Pause":"暂停任务","P",W-170,35,125,42,true,"#ffe066");
 
   if(centerTimer>0){ ctx.fillStyle="#fff"; ctx.font="bold 42px "+FONT_UI; ctx.textAlign="center"; ctx.fillText(centerText,W/2,H*.36); }
   if(actionPromptTimer>0){
     ctx.save(); ctx.fillStyle="#ffe066"; ctx.font="bold 24px "+FONT_UI; ctx.textAlign="center"; ctx.shadowBlur=15; ctx.shadowColor="#ffe066"; ctx.fillText(actionPrompt,W/2,H*.82); ctx.restore();
+  }
+  if(projectAreaPaused){
+    drawCommonMissionPause(
+      language==="en"?["Continue","Restart Mission","Return Temporarily"]:["继续任务","重新开始","暂时返回"],
+      language==="en"?"MISSION PAUSED":"任务暂停",
+      language==="en"?"Temporary return preserves this exploration run.":"暂时返回会保留本次探索进度。"
+    );
   }
 }
 
@@ -18350,12 +19165,10 @@ function drawCommercialScreenTransition(){
   ctx.fillStyle=g;ctx.fillRect(lineX-160,0,320,2);
   ctx.textAlign="left";ctx.fillStyle="rgba(255,255,255,"+(t*.70)+")";ctx.font="bold 11px "+FONT_UI;ctx.fillText("PROJECT ZERO  /  "+commercialModeLabel(gameMode),24,H-22);
   ctx.restore();
-  commercialTransitionTimer=Math.max(0,commercialTransitionTimer-frameScale);
 }
 
 function draw(){
   if(gameMode==="boot"){ drawBootSequence(); return; }
-  trackCommercialScreenTransition();
   ctx.clearRect(0,0,W,H);
 
   if(gameMode==="login") drawLogin();
@@ -18392,6 +19205,12 @@ function draw(){
   drawFeatureGuidePrompt();
 }
 function update(){
+  pzCursorPulse+=0.16*frameScale;
+  trackCommercialScreenTransition();
+  if(achievementNoticeTimer>0)achievementNoticeTimer=Math.max(0,achievementNoticeTimer-frameScale);
+  if(commercialTransitionTimer>0)commercialTransitionTimer=Math.max(0,commercialTransitionTimer-frameScale);
+  if(window.PZCrystalWar&&typeof window.PZCrystalWar.backgroundUpdate==="function")window.PZCrystalWar.backgroundUpdate();
+  else if(gameMode==="operation"&&window.PZCrystalWar&&typeof window.PZCrystalWar.update==="function"&&window.PZCrystalWar.isCrystalWarActive())window.PZCrystalWar.update();
   if(updateFeatureGuidePrompt()){
     if(cloudMsgTimer>0){ cloudMsgTimer-=frameScale; if(cloudMsgTimer<=0) cloudMsg=''; }
     if(cloudSyncTimer>0){ cloudSyncTimer-=frameScale; if(cloudSyncTimer<=0) cloudSyncStatus=''; }
@@ -18493,36 +19312,94 @@ function recoverFromRuntimeUiError(err,phase){
   showCenter(language==="en" ? "UI recovered. Please try again." : "界面已恢复，请重新尝试。",100);
 }
 
+const FIXED_LOGIC_MS=1000/60;
+let logicAccumulatorMs=0;
+
+function simulationPositionObjects(){
+  const list=[];
+  const add=o=>{if(o&&Number.isFinite(o.x)&&Number.isFinite(o.y))list.push(o);};
+  add(typeof player!=="undefined"?player:null);
+  for(const group of [
+    typeof enemies!=="undefined"?enemies:[],
+    typeof projectiles!=="undefined"?projectiles:[],
+    typeof particles!=="undefined"?particles:[],
+    typeof slashes!=="undefined"?slashes:[],
+    typeof texts!=="undefined"?texts:[],
+    typeof frostFields!=="undefined"?frostFields:[]
+  ])for(const o of group||[])add(o);
+  if(typeof paState!=="undefined"&&paState){add(paState.player);for(const o of paState.objects||[])add(o);}
+  return list;
+}
+
+function captureSimulationPositions(){
+  for(const o of simulationPositionObjects()){
+    o._renderPrevX=Number.isFinite(o._renderX)?o._renderX:o.x;
+    o._renderPrevY=Number.isFinite(o._renderY)?o._renderY:o.y;
+  }
+}
+
+function commitSimulationPositions(){
+  for(const o of simulationPositionObjects()){o._renderX=o.x;o._renderY=o.y;}
+}
+
+function applyRenderInterpolation(alpha){
+  const restore=[];
+  for(const o of simulationPositionObjects()){
+    if(!Number.isFinite(o._renderPrevX)||!Number.isFinite(o._renderX))continue;
+    restore.push([o,o.x,o.y]);
+    o.x=o._renderPrevX+(o._renderX-o._renderPrevX)*alpha;
+    o.y=o._renderPrevY+(o._renderY-o._renderPrevY)*alpha;
+  }
+  return ()=>{for(const [o,x,y] of restore){o.x=x;o.y=y;}};
+}
+
+function runFixedLogicStep(){
+  frameScale=1;
+  captureSimulationPositions();
+  if(saveCooldown>0){saveCooldown-=1;if(saveCooldown<=0)saveGame();}
+  trimRuntimeCollections();
+  stabilizePlayerStats();
+  updateLoginBgm();
+  updateWorldBgm();
+  update();
+  commitSimulationPositions();
+}
+
 function loop(){
   if(document.hidden){
     lastFrameTime = performance.now();
+    logicAccumulatorMs=0;
     requestAnimationFrame(loop);
     return;
   }
   const now = performance.now();
-  const frameInterval = 1000 / (targetFPS || 60);
-  if(lastLoopRenderTime && now - lastLoopRenderTime < frameInterval){
-    requestAnimationFrame(loop);
-    return;
-  }
-  lastLoopRenderTime = now;
-
-  frameScale = clamp((now - lastFrameTime) / 16.6667, 0.25, 2.2);
+  const elapsed=clamp(now-lastFrameTime,0,250);
   lastFrameTime = now;
-
-  if(saveCooldown>0){
-    saveCooldown -= frameScale;
-    if(saveCooldown<=0) saveGame();
-  }
+  logicAccumulatorMs+=elapsed;
 
   try{
-    trimRuntimeCollections();
-    stabilizePlayerStats();
-    updateLoginBgm();
-    updateWorldBgm();
-    update();
-    draw();
-    try{ drawPZCustomCursor(); }catch(e){}
+    const logicStarted=performance.now();
+    let logicSteps=0;
+    while(logicAccumulatorMs>=FIXED_LOGIC_MS&&logicSteps<8){
+      runFixedLogicStep();logicAccumulatorMs-=FIXED_LOGIC_MS;logicSteps++;
+    }
+    if(logicSteps>=8&&logicAccumulatorMs>=FIXED_LOGIC_MS){
+      runtimeDroppedFrames++;logicAccumulatorMs%=FIXED_LOGIC_MS;
+    }
+    if(logicSteps)runtimeLogicMs+=(performance.now()-logicStarted-runtimeLogicMs)*.10;
+
+    const frameInterval=targetFPS>0?1000/targetFPS:0;
+    const shouldRender=targetFPS===0||!lastLoopRenderTime||now-lastLoopRenderTime>=frameInterval-.35;
+    if(shouldRender){
+      const renderGap=lastLoopRenderTime?now-lastLoopRenderTime:FIXED_LOGIC_MS;
+      lastLoopRenderTime=now;
+      runtimeFPS+=((1000/Math.max(.1,renderGap))-runtimeFPS)*.08;
+      const restore=applyRenderInterpolation(clamp(logicAccumulatorMs/FIXED_LOGIC_MS,0,1));
+      const renderStarted=performance.now();
+      try{draw();}finally{restore();}
+      runtimeRenderMs+=(performance.now()-renderStarted-runtimeRenderMs)*.10;
+      try{drawPZCustomCursor();}catch(e){}
+    }
   }catch(err){
     recoverFromRuntimeUiError(err,"frame");
     try{draw();}catch(recoveryErr){console.error("[RuntimeUI:recovery]",recoveryErr);}

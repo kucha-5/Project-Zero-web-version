@@ -25,8 +25,12 @@
     }
     const body=await response.json().catch(()=>({}));
     if(!response.ok){
-      const detail=body&&body.error&&typeof body.error==="object"?body.error.message:body.error;
-      throw new Error(String(body.message||detail||body.code||("HTTP_"+response.status)));
+      const errorBody=body&&body.error&&typeof body.error==="object"?body.error:{};
+      const detail=errorBody.message||body.error;
+      const error=new Error(String(body.message||detail||body.code||("HTTP_"+response.status)));
+      error.code=String(body.code||errorBody.code||("HTTP_"+response.status));
+      error.status=response.status;
+      throw error;
     }
     return body;
   }
@@ -46,6 +50,27 @@
   async function restore(){
     if(!enabled()||!refreshToken) return null;
     try{ await refresh(); return user; }catch(_){ clear(); return null; }
+  }
+  function deletionTimeMs(value){
+    const n=Number(value||0);
+    if(!Number.isFinite(n)||n<=0) return 0;
+    return n<1000000000000?n*1000:n;
+  }
+  function accountMeta(body){
+    const payload=body&&typeof body==="object"?body:{};
+    const account=payload.account&&typeof payload.account==="object"?payload.account:{};
+    const scheduled=deletionTimeMs(account.deleteAt!==undefined?account.deleteAt:payload.deleteAt);
+    const pendingValue=account.pendingDeletion!==undefined?account.pendingDeletion:payload.deletionPending;
+    const pending=pendingValue===undefined?scheduled>0:Boolean(pendingValue);
+    const identity=payload.user&&typeof payload.user==="object"?payload.user:{};
+    if(Object.keys(identity).length)remember({user:Object.assign({},user||{},identity)});
+    return Object.assign({},user||{},identity,account,{
+      pendingDeletion:pending,
+      deletionPending:pending,
+      deleteAt:scheduled||null,
+      deletionScheduledAt:scheduled||null,
+      remainingSeconds:Number(account.remainingSeconds!==undefined?account.remainingSeconds:payload.remainingSeconds)||0
+    });
   }
   async function health(){
     if(!enabled()) return false;
@@ -81,13 +106,11 @@
     },
     putSave:(saveData,saveSchemaVersion)=>request("/api/saves",{method:"PUT",body:JSON.stringify({gameId:"project-zero",saveData,saveSchemaVersion})}),
     async getAccount(){
-      // Worker 1.3.0 does not expose the optional deletion-metadata route yet.
-      // Authentication and save access were already verified, so return the
-      // signed-in account with no pending deletion instead of blocking entry.
-      return user?Object.assign({},user,{deletionRequestedAt:null,deletionScheduledAt:null}):null;
+      const body=await request("/api/account/meta",{method:"GET"});
+      return accountMeta(body);
     },
-    async requestDeletion(){ const body=await request("/api/account/request-deletion",{method:"POST",body:"{}"}); return body.account||null; },
-    async cancelDeletion(){ const body=await request("/api/account/cancel-deletion",{method:"POST",body:"{}"}); return body.account||null; },
+    async requestDeletion(){ const body=await request("/api/account/request-deletion",{method:"POST",body:"{}"});return accountMeta(body); },
+    async cancelDeletion(){ const body=await request("/api/account/cancel-deletion",{method:"POST",body:"{}"});return accountMeta(body); },
     get user(){return user;}, get configured(){return enabled();}
   };
 })();

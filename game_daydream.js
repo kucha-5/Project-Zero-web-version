@@ -288,6 +288,7 @@
     restOffers:[],
     selectedLevel:1,
     levelTrackPage:0,
+    codexScroll:0,
 
     freshState(){
       return {version:RUN_VERSION,totalRuns:0,bestClue:0,unlockedEndings:{},unlockedNightmares:{},reconstructionExp:0,levelClaimed:{},activeRun:null};
@@ -306,6 +307,7 @@
       this.page="home";
       this.selectedDaydreamScenario=null;
       this.archiveInline=true;
+      this.codexScroll=0;
       if(reset){
         try{ localStorage.removeItem(key); }catch(e){}
       }
@@ -1192,18 +1194,20 @@
     drawCodex(){
       const ctx=global.ctx, FONT_UI=global.FONT_UI;
       this.drawBasePanel(); this.drawHeader();
-      ctx.fillStyle="#9b7cff"; ctx.font="bold 24px "+FONT_UI; ctx.textAlign="left";
-      ctx.fillText(T("梦魇图鉴","Nightmare Codex"),95,190);
+      const count=this.nightmareCount(),maxScroll=Math.max(0,nightmarePool.length*76-324);this.codexScroll=clamp(this.codexScroll||0,0,maxScroll);
+      ctx.fillStyle="#9b7cff";ctx.font="bold 23px "+FONT_UI;ctx.textAlign="left";ctx.fillText(T("梦魇图鉴","Nightmare Codex"),95,202);
+      ctx.fillStyle="rgba(255,255,255,.58)";ctx.font="12px "+FONT_UI;ctx.fillText(T("记录调查中接触过的梦魇词条；未记录条目会隐藏名称与效果。","Records Nightmare traits encountered during investigations. Unrecorded entries hide their names and effects."),95,226);
+      ctx.fillStyle="#d8c7ff";ctx.font="bold 12px "+FONT_UI;ctx.fillText(T("已记录 ","RECORDED ")+count+" / "+nightmarePool.length+T(" · 将鼠标放在列表上滚轮查看"," · HOVER AND SCROLL"),95,249);
+      ctx.save();ctx.beginPath();ctx.rect(92,264,936,290);ctx.clip();ctx.fillStyle="rgba(4,6,16,.72)";ctx.fillRect(92,264,936,290);
       for(let i=0;i<nightmarePool.length;i++){
-        const n=nightmarePool[i]; const unlocked=!!this.state.unlockedNightmares[n.id];
-        const col=i%2, row=Math.floor(i/2); const x=110+col*465, y=208+row*39, w=430, h=33;
-        if(global.uiCard) global.uiCard(x,y,w,h,unlocked?"#9b7cff":"#666",false);
-        ctx.fillStyle=unlocked?"#fff":"rgba(255,255,255,.35)"; ctx.font="bold 13px "+FONT_UI; ctx.textAlign="left";
-        ctx.fillText(unlocked ? T(n.zh,n.en) : "???",x+12,y+21);
-        ctx.textAlign="right";ctx.fillStyle=unlocked?"rgba(180,145,255,.82)":"rgba(255,255,255,.22)";ctx.font="10px "+FONT_UI;
-        ctx.fillText(unlocked?T("已记录","RECORDED"):T("未记录","LOCKED"),x+w-12,y+21);
-      }
-      global.drawBtn(T("返回","Back"),"",865,520,150,44,false,"#fff");
+        const n=nightmarePool[i],unlocked=!!this.state.unlockedNightmares[n.id],x=108,y=272+i*76-this.codexScroll,w=904,h=64;if(y+h<264||y>554)continue;
+        if(global.uiCard)global.uiCard(x,y,w,h,unlocked?"#9b7cff":"#4d4d59",false);
+        ctx.fillStyle=unlocked?"#fff":"rgba(255,255,255,.34)";ctx.font="bold 14px "+FONT_UI;ctx.textAlign="left";ctx.fillText(unlocked?T(n.zh,n.en):"???",x+18,y+25);
+        ctx.fillStyle=unlocked?"rgba(255,255,255,.55)":"rgba(255,255,255,.22)";ctx.font="11px "+FONT_UI;ctx.fillText(unlocked?T(n.descZh,n.descEn):T("继续调查以补全这份记录。","Continue investigating to complete this record."),x+18,y+48);
+        ctx.textAlign="right";ctx.fillStyle=unlocked?"rgba(180,145,255,.9)":"rgba(255,255,255,.24)";ctx.font="10px "+FONT_UI;ctx.fillText(unlocked?T("已记录","RECORDED"):T("未记录","LOCKED"),x+w-18,y+25);
+      }ctx.restore();
+      if(maxScroll>0){ctx.fillStyle="rgba(255,255,255,.12)";ctx.fillRect(1035,264,5,290);ctx.fillStyle="#9b7cff";const thumb=Math.max(34,290*290/(290+maxScroll)),ty=264+(290-thumb)*(this.codexScroll/maxScroll);ctx.fillRect(1035,ty,5,thumb);}
+      global.drawBtn(T("返回","Back"),"",865,585,150,42,false,"#fff");
     },
 
     drawEndings(){
@@ -1259,7 +1263,7 @@
       if(this.page==="home"){
         if(this.entryPlaying){ global.clicked=false; return true; }
         if(clickRect((global.W||1120)-280,528,240,72)){ this.beginSetup(); global.clicked=false; return true; }
-        if(clickRect(48,550,168,48)){ this.page="codex"; global.clicked=false; return true; }
+        if(clickRect(48,550,168,48)){ this.codexScroll=0;this.page="codex"; global.clicked=false; return true; }
         if(clickRect(230,550,168,48)){ this.page="endings"; global.clicked=false; return true; }
       }else if(this.page==="setupDifficulty"){
         for(let i=0;i<difficultyDefs.length;i++){
@@ -1296,7 +1300,7 @@
         if(clickRect(1025,515,70,75)){this.levelTrackPage=clamp((this.levelTrackPage||0)+1,0,14);this.selectedLevel=this.levelTrackPage*8+1;global.clicked=false;return true;}
         if(clickRect(790,332,225,66)){this.claimLevelReward(this.selectedLevel);global.clicked=false;return true;}
       }else if(this.page==="codex" || this.page==="endings"){
-        if(clickRect(865,520,150,44)){ this.page="home"; global.clicked=false; return true; }
+        if(clickRect(865,this.page==="codex"?585:520,150,this.page==="codex"?42:44)){ this.page="home"; global.clicked=false; return true; }
       }else if(this.page==="result"){
         if(clickRect(645,505,145,44)){ this.beginSetup(); global.clicked=false; return true; }
         if(clickRect(805,505,145,44)){ this.page="endings"; global.clicked=false; return true; }
@@ -1326,6 +1330,13 @@
         return true;
       }
       return false;
+    },
+
+    handleWheel(delta,x,y){
+      if(this.page!=="codex"||x<92||x>1045||y<250||y>570)return false;
+      const maxScroll=Math.max(0,nightmarePool.length*76-324);
+      this.codexScroll=clamp((this.codexScroll||0)+Math.sign(delta)*62,0,maxScroll);
+      return true;
     }
   };
 
