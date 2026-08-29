@@ -67,8 +67,8 @@
   function drawCinematicSunRays(ctx, sunX, sunY, x0, y0, w0, h0, p, breathe){
     ctx.save();
     ctx.globalCompositeOperation = "screen";
-    for(let i=0;i<18;i++){
-      const ang = -Math.PI*.88 + i*(Math.PI*1.76/17) + Math.sin(p*.01+i)*.018;
+    for(let i=0;i<12;i++){
+      const ang = -Math.PI*.88 + i*(Math.PI*1.76/11) + Math.sin(p*.01+i)*.018;
       const len = 170 + (i%5)*26 + breathe*34;
       const w = 7 + (i%4)*3;
       const x1 = sunX + Math.cos(ang)*52;
@@ -183,7 +183,7 @@
     ctx.save();
     ctx.globalAlpha = .035;
     ctx.fillStyle = "rgba(245,238,224,.85)";
-    for(let i=0;i<90;i++){
+    for(let i=0;i<36;i++){
       const x = x0 + ((i*97 + Math.floor(p*17)*13) % w0);
       const y = y0 + ((i*53 + Math.floor(p*11)*19) % h0);
       ctx.fillRect(x,y,1,1);
@@ -227,9 +227,10 @@
     const nx = inScene ? clamp((mx - (x0+w0/2)) / (w0/2), -1, 1) : 0;
     const ny = inScene ? clamp((my - (y0+h0/2)) / (h0/2), -1, 1) : 0;
 
-    const targetMouseCamX = -nx * 1.5;
-    const targetMouseCamY = -ny * 1.0;
-    const smooth = 0.050 * (global.frameScale || 1);
+    const targetMouseCamX = -nx * 4.5;
+    const targetMouseCamY = -ny * 3.0;
+    const visualDt = clamp(daydream.titleVisualDeltaMs || 16.67, 0, 50);
+    const smooth = 1-Math.exp(-visualDt/82);
     daydream.titleMouseCamX = (daydream.titleMouseCamX || 0) + (targetMouseCamX - (daydream.titleMouseCamX || 0)) * smooth;
     daydream.titleMouseCamY = (daydream.titleMouseCamY || 0) + (targetMouseCamY - (daydream.titleMouseCamY || 0)) * smooth;
 
@@ -826,7 +827,11 @@
 
     global.PZDaydream.drawHome = function(){
       if(!this.state && this.init) this.init();
-      this.pulse = (this.pulse || 0) + 0.025 * (global.frameScale || 1);
+      const visualNow=performance.now();
+      const visualDt=this.titleVisualLastAt?clamp(visualNow-this.titleVisualLastAt,0,50):16.67;
+      this.titleVisualLastAt=visualNow;
+      this.titleVisualDeltaMs=visualDt;
+      this.pulse = (this.pulse || 0) + 0.025 * visualDt/(1000/60);
       if(this.selectedDaydreamScenario === "hizan") drawHizanLakeScene(this);
       else if(this.archiveInline) drawDaydreamArchiveInline(this);
       else drawDaydreamArchiveSelector(this);

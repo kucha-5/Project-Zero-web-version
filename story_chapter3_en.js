@@ -1,13 +1,34 @@
-// Project Zero Chapter 3: Ravenhado finale - English story data
+// Project Zero Chapter 3: Ravenhado finale - complete English story data
 (function(global){
   "use strict";
-  const p1=global.PZ_CHAPTER3_PART1_STAGES_ZH||[];
-  const p2=global.PZ_CHAPTER3_PART2_STAGES_ZH||[];
-  global.PZ_CHAPTER3_PART1_STAGES_EN=p1.map((s,i)=>Object.assign({},s,{name:["Expansion Alert","Ravenhado Beyond the Window","The One Still Missing","Return Alone","After the Collapse","Deep in the Rift","Finding Lai","Eyes in the Dark"][i],desc:["The squad is questioned as Project 4 expands.","Investigate the protest, media terminals, and evacuation status.","The protagonist thinks of Lai and leaves the crowd.","Enter the expanding Project 4 alone and follow Lai's trail.","Stabilize the new rift revealed by a collapsed tower.","Follow spatial echoes through the rift.","Defend Lai and clear the encirclement.","The Crystal Dragon Kros appears."][i]}));
-  global.PZ_CHAPTER3_PART2_STAGES_EN=p2.map((s,i)=>Object.assign({},s,{name:["No Retreat","Crystal Dragon · Kros","Daydream Returns","Project 4 Collapse","Awakening","Ravenhado Responds","Two Days Later","The Last Ravenhado"][i],desc:["Kros seals the rift; prepare for an unavoidable fight.","Reuse the Boss Challenge module to defeat three-phase Kros.","The mysterious woman appears once more.","Protect Lai as Project 4 collapses.","Wake among the ruins and confirm Lai is safe.","Witness the government's response and the crowd.","Say farewell and receive Flora's bell.","Leave Ravenhado as the city begins to rebuild."][i]}));
-  const translateStory=(source)=>{const out={};Object.keys(source||{}).forEach(k=>{out[k]=(source[k]||[]).map(line=>[line[0],line[1]]);});return out;};
-  // The complete Chinese script remains available as a safe fallback so an
-  // English client never loses a chapter due to partial translation data.
-  global.PZ_CHAPTER3_PART1_STORY_EN=translateStory(global.PZ_CHAPTER3_PART1_STORY_ZH);
-  global.PZ_CHAPTER3_PART2_STORY_EN=translateStory(global.PZ_CHAPTER3_PART2_STORY_ZH);
+  global.PZ_CHAPTER3_PART1_STAGES_EN=[
+    {name:"Expansion Alert",desc:"The squad is questioned after re-entering Project 4 and learns that the anomaly is expanding.",storyOnly:true,bg:"Ravenhado Affairs Office"},
+    {name:"Ravenhado Beyond the Window",desc:"Investigate the protest, media terminals, and the North District evacuation.",storyOnly:false,bg:"Government Affairs Plaza"},
+    {name:"The One Still Missing",desc:"The protagonist thinks of Lai and quietly leaves the crowd.",storyOnly:true,bg:"North District in the Rain"},
+    {name:"Return Alone",desc:"Enter the expanding Project 4 alone, avoid the collapse, and follow Lai's trail.",storyOnly:false,bg:"Project 4 Expansion Boundary"},
+    {name:"After the Collapse",desc:"A new rift appears behind the fallen tower. Activate the crystal stabilizers.",storyOnly:false,bg:"Project 4 Collapse Zone"},
+    {name:"Deep in the Rift",desc:"Follow the traces through overlapping space and break through the crystal beasts.",storyOnly:false,bg:"Newborn Rift"},
+    {name:"Finding Lai",desc:"Defend Lai's position and clear the approaching crystal beasts.",storyOnly:false,bg:"Rift Core"},
+    {name:"Eyes in the Dark",desc:"Space is torn open and the Crystal Dragon Kros appears.",storyOnly:true,bg:"Rift Core"}
+  ];
+  global.PZ_CHAPTER3_PART1_STORY_EN={
+    1:[["Narrator","After the events of Chapter 2, the squad is brought into a sealed meeting room."],["Stern Official","Nox, as team leader, why did you not stop them? Why did you fail to report this and enter Project 4 again without authorization?"],["Ailo","That old man really has a sharp tongue..."],["Stern Official","Newcomer, come here. Even you should understand how dangerous that operation was."],["Stern Official","More importantly, Project 4 has begun to expand. The North District is being evacuated."]],
+    2:[["Narrator","Kane opens the curtains. Outside, citizens are questioning the government while reporters surround the newly rescued survivors."],["Citizen","There were twelve inspections. How did none of them discover people still living inside?"],["Narrator","Clouds cover the city. In the distance, the anomaly continues to spread as a light rain begins."],["System","Investigate the evacuation markers, media terminal, and Project 4 monitoring device."]],
+    3:[["Narrator","The squad is finally allowed to leave. Standing outside the crowd, the protagonist can think of only one name: Lai."],["Narrator","The other survivors made it out, but she is still inside Project 4. The protagonist turns away in silence."],["Flora","...He's going back."]],
+    4:[["Narrator","No teammates. No orders. The protagonist stands alone before Project 4."],["{playerName}","This time, entering is my own decision."],["System","Restricted squad: the protagonist fights alone. Investigate three traces and avoid the collapsing structures."]],
+    5:[["Narrator","A tower collapses ahead. The protagonist moves clear and discovers a new rift behind the wreckage."],["System","Activate three crystal stabilizers and restore the route into the rift."]],
+    6:[["Narrator","Paths overlap inside the rift as crystal beasts approach from several directions."],["{playerName}","The trail continues. Lai must be deeper inside."],["System","Investigate the spatial echoes and clear the enemies blocking the route."]],
+    7:[["Narrator","The protagonist finally finds Lai surrounded by monsters at the center of the rift."],["Lai","You really came back..."],["{playerName}","Stay behind me."],["System","Defend Lai's position through three incoming waves."]],
+    8:[["Narrator","The battle ends, leaving the protagonist visibly exhausted. Then the space around them is torn apart."],["Narrator","A pair of enormous eyes opens inside the dark rupture as a massive crystal dragon emerges."],["System","Crystal Dragon · Kros has appeared. Retreat is impossible."]]
+  };
+  global.PZ_CHAPTER3_PART2_STAGES_EN=[
+    {name:"No Retreat",desc:"Kros seals the rift. Review the battle zone and Extreme Dodge warning.",storyOnly:true,bg:"Kros Domain"},
+    {name:"Crystal Dragon · Kros",desc:"Defeat Kros with the three-phase combat module and independent main-story Lv.30 stats.",storyOnly:false,boss:true,bg:"Kros Domain"},
+    {name:"The Last Ravenhado",desc:"Witness the Daydream, Project 4's collapse, the rescue, farewell, and the city's first steps toward recovery.",storyOnly:true,bg:"Trackless Train"}
+  ];
+  global.PZ_CHAPTER3_PART2_STORY_EN={
+    1:[["Narrator","Kros spreads its wings and seals the rift exit with crystal."],["System","Retreat is impossible. Use Extreme Dodge to pass through attacks and counter during safe openings."],["{playerName}","I will get Lai out of here."]],
+    2:[["System","Phase 1: learn the rhythm of its basic attacks."],["System","Phase 2: aggression and spatial pressure increase."],["System","Phase 3: a full-field crystal blast is followed by repeated spatial slashes. Extreme Dodge is essential."]],
+    3:[["Narrator","Kros releases one final roar as the light within its crystals fades."],["Narrator","The protagonist is pulled into the Daydream again. The mysterious woman has barely appeared when reality forces its way back into view."],["Narrator","With Kros gone, Project 4 begins to collapse. Buildings and fractured space break apart around them."],["Narrator","The protagonist releases both white and black power, shielding Lai at the center."],["Narrator","The screen fades to black."],["Narrator","The protagonist opens his eyes to find Nox, Ailo, Flora, and Kane leaning over him."],["Ailo","He's awake! Move back a little—he can barely see the sky."],["Narrator","Project 4 has become ruins. Rescue workers carry Lai away for treatment as the clouds begin to break."],["Narrator","The group returns to the plaza. The government finally issues a formal response, and applause rises from the crowd."],["Narrator","The protagonist sees officials, media representatives, business leaders, and ordinary citizens together."],["Narrator","He frowns at first, then allows himself a small smile."],["Narrator","Two days later, the protagonist prepares to leave Ravenhado. His companions and others met during the journey come to say goodbye."],["Flora","Take this bell. I hope that someday we can hear your chime again."],["Narrator","After a quiet moment, the protagonist waves to everyone and boards the trackless train."],["Narrator","Sunlight reaches the recovering city. People clear debris and help displaced residents while Kane and the others coordinate the work."],["Narrator","Flora and Ailo comfort frightened children. The familiar figures grow smaller beyond the train window."],["Narrator","The city has not recovered overnight, but it has begun to stand again. The protagonist smiles."],["System","Ravenhado Arc complete. The protagonist's story level is synchronized to Lv.40."]]
+  };
 })(window);

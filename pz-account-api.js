@@ -81,18 +81,30 @@
     remember(body); return body;
   }
   async function logout(){
-    try{ if(refreshToken) await request("/api/auth/logout",{method:"POST",body:JSON.stringify({refreshToken})},false); }catch(_){}
+    try{ if(refreshToken||accessToken) await request("/api/auth/logout",{method:"POST",body:JSON.stringify({refreshToken})},false); }catch(_){}
     clear();
   }
   function clear(){ accessToken="";refreshToken="";user=null;localStorage.removeItem(REFRESH_KEY);localStorage.removeItem(USER_KEY); }
   const post=(path,data)=>request(path,{method:"POST",body:JSON.stringify(data)},false);
   window.PZAccount={
     enabled,health,restore,login,logout,clear,
+    async ensureSession(){
+      if(user&&accessToken)return user;
+      // A cached public profile without a refresh token is not an authenticated
+      // online identity. Returning it here made Guest appear signed in locally
+      // while every co-op request still failed with 401.
+      if(!refreshToken)return null;
+      return await restore();
+    },
+    hasStoredSession:()=>Boolean(refreshToken),
     requestCode:email=>post("/api/auth/request-code",{email}),
     verifyCode:(email,code)=>post("/api/auth/verify-code",{email,code}),
     async completeRegistration(verificationToken,password){
       const body=await post("/api/auth/complete-registration",{verificationToken,password});remember(body);return body;
     },
+    async guest(guestToken,displayName){const body=await post("/api/auth/guest",{guestToken,displayName});remember(body);return body;},
+    async bindGuest(email,password,verificationToken){const body=await post("/api/auth/bind-guest",{email,password,verificationToken});remember(body);return body;},
+    async deleteGuest(){const body=await request("/api/account/guest",{method:"DELETE"});clear();return body;},
     async getSave(){
       const body=await request("/api/saves?gameId=project-zero",{method:"GET"});
       const save=body.save||null;
@@ -111,6 +123,33 @@
     },
     async requestDeletion(){ const body=await request("/api/account/request-deletion",{method:"POST",body:"{}"});return accountMeta(body); },
     async cancelDeletion(){ const body=await request("/api/account/cancel-deletion",{method:"POST",body:"{}"});return accountMeta(body); },
+    syncPublicProfile:data=>request("/api/profile/public",{method:"PUT",body:JSON.stringify(data)}),
+    getFriends:()=>request("/api/friends",{method:"GET"}),
+    searchFriends:q=>request("/api/friends/search?q="+encodeURIComponent(String(q||"")),{method:"GET"}),
+    sendFriendRequest:target=>request("/api/friends/request",{method:"POST",body:JSON.stringify({target})}),
+    respondFriendRequest:(requestId,action)=>request("/api/friends/respond",{method:"POST",body:JSON.stringify({requestId,action})}),
+    removeFriend:accountId=>request("/api/friends/"+encodeURIComponent(accountId),{method:"DELETE"}),
+    blockPlayer:target=>request("/api/blocks",{method:"POST",body:JSON.stringify({target})}),
+    unblockPlayer:accountId=>request("/api/blocks/"+encodeURIComponent(accountId),{method:"DELETE"}),
+    getCrystalWarRoom:()=>request("/api/crystal-war/rooms/current",{method:"GET"}),
+    createCrystalWarRoom:()=>request("/api/crystal-war/rooms",{method:"POST",body:"{}"}),
+    joinCrystalWarRoom:code=>request("/api/crystal-war/rooms/join",{method:"POST",body:JSON.stringify({code})}),
+    readyCrystalWarRoom:ready=>request("/api/crystal-war/rooms/ready",{method:"POST",body:JSON.stringify({ready})}),
+    updateCrystalWarRoomProgress:data=>request("/api/crystal-war/rooms/progress",{method:"POST",body:JSON.stringify(data||{})}),
+    claimCrystalWarRoomReward:()=>request("/api/crystal-war/rooms/claim",{method:"POST",body:"{}"}),
+    leaveCrystalWarRoom:()=>request("/api/crystal-war/rooms/leave",{method:"POST",body:"{}"}),
+    listCrystalWarWorldsV2:()=>request("/api/crystal-war/v2/worlds",{method:"GET"}),
+    createCrystalWarWorldV2:(slotIndex,name)=>request("/api/crystal-war/v2/worlds",{method:"POST",body:JSON.stringify({slotIndex,name})}),
+    deleteCrystalWarWorldV2:slotIndex=>request("/api/crystal-war/v2/worlds/"+encodeURIComponent(slotIndex),{method:"DELETE"}),
+    listCrystalWarRoomsV2:()=>request("/api/crystal-war/v2/rooms",{method:"GET"}),
+    createCrystalWarRoomV2:slotIndex=>request("/api/crystal-war/v2/rooms",{method:"POST",body:JSON.stringify({slotIndex})}),
+    getCrystalWarRoomV2:includeWorld=>request("/api/crystal-war/v2/rooms/current"+(includeWorld?"?includeWorld=1":""),{method:"GET"}),
+    joinCrystalWarRoomV2:(code,roomId)=>request("/api/crystal-war/v2/rooms/join",{method:"POST",body:JSON.stringify({code,roomId})}),
+    readyCrystalWarRoomV2:(ready,profile={})=>request("/api/crystal-war/v2/rooms/ready",{method:"POST",body:JSON.stringify({ready,...profile})}),
+    updateCrystalWarPresenceV2:data=>request("/api/crystal-war/v2/rooms/state",{method:"POST",body:JSON.stringify(data||{})}),
+    saveCrystalWarWorldV2:(saveData,baseRevision)=>request("/api/crystal-war/v2/rooms/save",{method:"PUT",body:JSON.stringify({saveData,baseRevision})}),
+    leaveCrystalWarRoomV2:()=>request("/api/crystal-war/v2/rooms/leave",{method:"POST",body:"{}"}),
+    createCrystalWarRealtimeTicketV3:()=>request("/api/crystal-war/v3/realtime-ticket",{method:"POST",body:"{}"}),
     get user(){return user;}, get configured(){return enabled();}
   };
 })();
