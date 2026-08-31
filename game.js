@@ -1503,6 +1503,7 @@ canvas.addEventListener("mousedown", e => {
 canvas.addEventListener("mouseup", e => { if(e.button===0) { crystalWarRackDrag=null; if(gameMode==="operation"&&selectedTab==="dualCrystal"&&window.PZCrystalWar&&typeof window.PZCrystalWar.pointerUp==="function")window.PZCrystalWar.pointerUp(mouseX,mouseY); if(gameMode==="match3" && window.PZMatch3) window.PZMatch3.pointerUp(mouseX,mouseY); mouseDown = false; mouseAttackConsumed = false; } if(e.button===2) keys["mouse2"]=false; });
 canvas.addEventListener("contextmenu", e => e.preventDefault());
 canvas.addEventListener("wheel", e => {
+  if(gameMode==="operation"&&selectedTab==="combat"&&operationHandleWheel(e.deltaY||e.deltaX||0,mouseX,mouseY))e.preventDefault();
   if(gameMode==="operation"&&selectedTab==="dualCrystal"&&window.PZCrystalWar&&typeof window.PZCrystalWar.handleWheel==="function"&&window.PZCrystalWar.handleWheel(e.deltaY||e.deltaX||0,mouseX,mouseY))e.preventDefault();
   if(gameMode==="operation"&&window.PZDaydream&&typeof window.PZDaydream.handleWheel==="function"&&window.PZDaydream.handleWheel(e.deltaY||e.deltaX||0,mouseX,mouseY))e.preventDefault();
   if(gameMode === "operators" && operatorPageMode === "list"){
@@ -1838,6 +1839,14 @@ let bossKrosRun = null;
 let bossSelectedIndex = 0;
 let teamRosterScrollX = 0;
 let teamRosterWheelDelta = 0;
+let teamSupportOpen = false;
+let teamSupportCategory = "all";
+let teamSupportRefreshSeed = 0;
+let borrowedSupport = null;
+let teamSupportServerCandidates = [];
+let teamSupportBusy = false;
+let teamSupportMessage = "";
+let teamSupportSelectedIndex = 0;
 let bossMultiplier = 1;
 let bossDifficulty = 1;
 let bossDifficulties = {crystalHumanoid:1,kros:1};
@@ -2037,7 +2046,7 @@ try{
     localStorage.setItem(GUEST_SAVE_KEY, localStorage.getItem(LEGACY_SAVE_KEY));
   }
 }catch(e){}
-const SAVE_VERSION = 68;
+const SAVE_VERSION = 69;
 const SAVE_BACKUP_SUFFIX = "_backup_";
 const SAVE_TEMP_SUFFIX = "_writing";
 let saveCooldown = 0;
@@ -3294,6 +3303,7 @@ function resetRuntimeDefaults(){
   actionRecordTaskClaimed = {dailyKey:"",weeklyKey:"",monthlyKey:"",daily:{},weekly:{},monthly:{}};
   ownedWeapons = {flora:false};
   weaponInventory = null;
+  weaponLevelMigrationDone = false;
   crystalExchangePurchases = {};
   crystalExchangeWeekKey = "";
   crystalModuleInventory = [];
@@ -3498,8 +3508,8 @@ function saveGame(){
       updatedAt:now,
       accountUid:(!guestMode && cloudUser) ? cloudUser.uid : "",
       crystals, gold, expBooks, weaponOre, skillBooks, skillMaterials, playerLevel, playerExp, playerExpNeed, protagonistStoryLevel, playerName, playerUID, hasCreatedProfile, profileAvatarRole, profileAvatarFrame, profileShowcase, profileStyle, profileOverviewMode, profileSignature,
-      owned, cleared, hardCleared, projectAreaCleared, projectAreaMapClears, charData, lobbyExecutor, lobbyBackgroundTheme, team, teamPresets, teamPresetNames, renderQuality, targetFPS, monthlyOwned, monthlyClaimed, monthlyClaimDate, mailClaimed, mailDeleted, eventClaimed, lastLoginClaimDate, loginClaimIndex, monthlyLoginCheckin, versionLoginCheckin,
-      loginRewards, levelRewards, boughtPacks, ownedWeapons, weaponInventory, crystalExchangePurchases, crystalExchangeWeekKey, dungeonStamina, dungeonWeeklyCrystalLeft, dungeonCrystalWeekKey, dungeonLastStaminaDate, dungeonCandy, dungeonStimulant, dungeonCandyMonthKey, dungeonCandyDailyUsed, dungeonCandyDailyKey, dungeonRewardMultiplier, materialDungeonDifficulty, materialDungeonDifficulties, materialDungeonSelected, materialDungeonScroll, moduleDungeonTarget, audioMuted, bgmVolume, sfxVolume, particlesEnabled, damageTextEnabled, tutorialCompleted, tutorialInProgress, tutorialResumeMode, language, prologueDone, lobbyGuideDone, lobbyGuideStep, achievements, totalKills, totalParries, totalChains, totalBossKills, totalGoldEarned, totalCrystalsEarned, growthGuidePage, growthGuidePageClaimed, growthGuideTaskClaimed, bossMultiplier, bossDifficulty, bossDifficulties, bossKrosWeeklyKey, dragonClaw, crystalHand, elementalFragments, uiGuideSeen, uiNewSeen, actionRecordLevel, actionRecordExp, actionRecordExpNeed, actionRecordPage, actionRecordAdvanced, actionRecordUltimate, actionRecordClaimed, actionRecordWeaponChoice, actionRecordTab, actionRecordTaskTab, actionRecordTaskClaimed, battleManualDailyClaimed,
+      owned, cleared, hardCleared, projectAreaCleared, projectAreaMapClears, charData, lobbyExecutor, lobbyBackgroundTheme, team, teamPresets, teamPresetNames, borrowedSupport, renderQuality, targetFPS, monthlyOwned, monthlyClaimed, monthlyClaimDate, mailClaimed, mailDeleted, eventClaimed, lastLoginClaimDate, loginClaimIndex, monthlyLoginCheckin, versionLoginCheckin,
+      loginRewards, levelRewards, boughtPacks, ownedWeapons, weaponInventory, weaponLevelMigrationDone, crystalExchangePurchases, crystalExchangeWeekKey, dungeonStamina, dungeonWeeklyCrystalLeft, dungeonCrystalWeekKey, dungeonLastStaminaDate, dungeonCandy, dungeonStimulant, dungeonCandyMonthKey, dungeonCandyDailyUsed, dungeonCandyDailyKey, dungeonRewardMultiplier, materialDungeonDifficulty, materialDungeonDifficulties, materialDungeonSelected, materialDungeonScroll, moduleDungeonTarget, audioMuted, bgmVolume, sfxVolume, particlesEnabled, damageTextEnabled, tutorialCompleted, tutorialInProgress, tutorialResumeMode, language, prologueDone, lobbyGuideDone, lobbyGuideStep, achievements, totalKills, totalParries, totalChains, totalBossKills, totalGoldEarned, totalCrystalsEarned, growthGuidePage, growthGuidePageClaimed, growthGuideTaskClaimed, bossMultiplier, bossDifficulty, bossDifficulties, bossKrosWeeklyKey, dragonClaw, crystalHand, elementalFragments, uiGuideSeen, uiNewSeen, actionRecordLevel, actionRecordExp, actionRecordExpNeed, actionRecordPage, actionRecordAdvanced, actionRecordUltimate, actionRecordClaimed, actionRecordWeaponChoice, actionRecordTab, actionRecordTaskTab, actionRecordTaskClaimed, battleManualDailyClaimed,
       battleResume:captureBattleResumeSnapshot()
     };
     current.projectAreaState=paState;
@@ -3550,6 +3560,7 @@ function migrateSaveData(d){
   addMissing("team", [PROTAGONIST_ROLE,0,1]);
   addMissing("teamPresets", [[PROTAGONIST_ROLE,0,1],[PROTAGONIST_ROLE],[0,1],[PROTAGONIST_ROLE,0]]);
   addMissing("teamPresetNames", ["","","",""]);
+  addMissing("borrowedSupport", null);
   addMissing("lobbyBackgroundTheme", "raven");
   addMissing("crystalModuleInventory", []);
   addMissing("moduleDungeonTarget", "survey");
@@ -3661,6 +3672,7 @@ function loadGame(){
     if(Array.isArray(d.owned)) owned = d.owned;
     while(owned.length<roles.length) owned.push(false);
     ensureStarterRoster();
+    borrowedSupport=d.borrowedSupport&&typeof d.borrowedSupport==="object"?normalizeBorrowedSupport(d.borrowedSupport):null;
     team=normalizeBattleTeam(d.team,[PROTAGONIST_ROLE,1,2]);
     teamPresets=normalizeTeamPresets(d.teamPresets);
     teamPresetNames=normalizeTeamPresetNames(d.teamPresetNames);
@@ -3729,6 +3741,7 @@ function loadGame(){
           level:Math.max(1, Number(item.level) || 1),
           owned:item.owned !== false
         }));
+      weaponLevelMigrationDone = d.weaponLevelMigrationDone!==false;
     }
     if(loginClaimIndex>=3){ while(owned.length<roles.length)owned.push(false); owned[5]=true; }
     if(loginClaimIndex>=6){ ensureWeaponBag(); const lw=weaponInventory.find(x=>x.id==="lavender"); if(lw)lw.owned=true; }
@@ -4270,6 +4283,7 @@ function protagonistWeaponLevel(){
 }
 function roleDisplayLevel(i){
   if(battleModeSource==="showcase") return 60;
+  if(borrowedSupport&&borrowedSupport.roleId===i&&Array.isArray(team)&&team.includes(i))return borrowedSupport.level;
   return isProtagonist(i) ? protagonistLevel() : (charData[i] ? charData[i].level : 1);
 }
 function roleSkillAutoValue(i, key){
@@ -4414,6 +4428,7 @@ let operatorListScrollX = 0;
 let operatorListWheelDelta = 0;
 let selectedSkillKey = "normal";
 let weaponInventory = null;
+let weaponLevelMigrationDone = false;
 let crystalModuleInventory = [];
 let moduleWarehouseSlot = null;
 let moduleWarehouseScroll = 0;
@@ -4792,7 +4807,7 @@ function stageBackgroundName(i){
 }
 
 function missionLabel(){
-  const t = missionTypes[selectedStage-1] || "annihilation";
+  const t = battleModeSource==="commission" ? (currentCommissionStage()?.type||"mixed") : (missionTypes[selectedStage-1] || "annihilation");
   const map = {
     survival:["生存","Survival"],
     shield:["破盾","Shield Break"],
@@ -5935,8 +5950,9 @@ function startCommissionBattle(id){
   selectedStage = id;
   battleModeSource = "commission";
   const st=currentCommissionStage();
-  commissionTimeMax=st.time||180;
+  commissionTimeMax=600;
   commissionTimeLeft=commissionTimeMax;
+  operationRun={stageId:st.id,target:st.target||100,kills:0,breaches:0,effective:0,bossKills:0,spawned:0,wave:1,seen:new Set(),breached:new Set(),hazards:[],hazardClock:0,stun:0,still:0,lastX:W/2,lastY:H/2,config:{...operationRegionConfig(st.chapter-1)},milestones:[]};
   clearTransientBattleState();
   gameMode="team";
 }
@@ -6060,7 +6076,9 @@ function damageCurrentRoleHp(amount, label="HIT", color="#ff5555"){
   // Enemy damage used to target a 100 HP prototype. Scale it against the real
   // operator panel HP so upgraded health values do not trivialize combat.
   const panelHpScale=clamp(playerMaxHp()/100,1,18);
-  const dmg = Math.max(0, Math.floor((amount || 0)*panelHpScale*daydreamDamageScale*(1-moduleReduction)*defenseIdentityScale));
+  const operationGuard=battleModeSource==="commission"&&operationRun?.config?.player==="guard" ? .80 : 1;
+  const enemyDamageBalance=.88;
+  const dmg = Math.max(0, Math.floor((amount || 0)*panelHpScale*daydreamDamageScale*(1-moduleReduction)*defenseIdentityScale*operationGuard*enemyDamageBalance));
   player.hp = clamp(player.hp - dmg, 0, playerMaxHp());
   saveCurrentRoleHp();
   if(label) addText(player.x, player.y-35, label+" -"+dmg, color);
@@ -6203,6 +6221,7 @@ window.applyPZCrystalWarRouteChange=function(message){
  }finally{crystalWarRouteApplying=false;}
  return true;
 };
+let crystalWarHealthRevision=0;
 window.applyPZCrystalWarAuthoritativeSnapshot=function(snapshot){
  if(!snapshot||battleModeSource!=="crystalWar"||gameMode!=="battle")return false;
  const snapshotArea=Math.max(1,Math.floor(Number(snapshot.area)||area)),snapshotRoute=String(snapshot.route||battleRoute||"center");if(snapshotArea!==area||snapshotRoute!==battleRoute)window.applyPZCrystalWarRouteChange({area:snapshotArea,route:snapshotRoute,routeRevision:Number(snapshot.routeRevision||0)});
@@ -6210,7 +6229,7 @@ window.applyPZCrystalWarAuthoritativeSnapshot=function(snapshot){
  for(const remote of snapshot.enemies||[]){const enemy=enemyMap.get(String(remote.id));if(!enemy)continue;enemy.netX=Number(remote.x);enemy.netY=Number(remote.y);enemy.netUpdatedAt=performance.now();enemy.hp=Math.max(0,Math.min(enemy.maxHp,Number(remote.hp)||0));enemy.alive=remote.alive!==false&&enemy.hp>0;enemy.networkState=remote.state||"idle";}
  const nodeMap=new Map(crystalWarMines.map(node=>[String(node.id),node]));for(const remote of snapshot.resources||[]){const node=nodeMap.get(String(remote.id));if(node)node.remaining=Math.max(0,Number(remote.remaining)||0);}
  const ownId=String(window.PZAccount?.user?.id||""),own=(snapshot.players||[]).find(p=>String(p.id)===ownId);
- if(own){const networkConfig=window.PZCrystalWar?.getSharedBattleConfig?.()||{},lead=Math.max(0,Math.min(.12,Number(networkConfig.rtt||0)/2000+.025)),targetX=Number(own.x)+(Number(own.vx)||0)*lead,targetY=Number(own.y)+(Number(own.vy)||0)*lead,error=Math.hypot(targetX-player.x,targetY-player.y);if(error>3){const correction=error>360?1:error>140?.22:error>55?.10:.045;player.x=clamp(player.x+(targetX-player.x)*correction,35,W-35);player.y=clamp(player.y+(targetY-player.y)*correction,105,H-35);}const ratio=Number.isFinite(Number(own.hpRatio))?Number(own.hpRatio):Number(own.hp)/100;if(Number.isFinite(ratio))player.hp=clamp(Math.round(playerMaxHp()*ratio),0,playerMaxHp());}
+ if(own){const networkConfig=window.PZCrystalWar?.getSharedBattleConfig?.()||{},lead=Math.max(0,Math.min(.12,Number(networkConfig.rtt||0)/2000+.025)),targetX=Number(own.x)+(Number(own.vx)||0)*lead,targetY=Number(own.y)+(Number(own.vy)||0)*lead,error=Math.hypot(targetX-player.x,targetY-player.y);if(error>3){const correction=error>360?1:error>140?.22:error>55?.10:.045;player.x=clamp(player.x+(targetX-player.x)*correction,35,W-35);player.y=clamp(player.y+(targetY-player.y)*correction,105,H-35);}crystalWarHealthRevision=Math.max(crystalWarHealthRevision,Number(own.healthRevision)||0);const ratio=Number.isFinite(Number(own.hpRatio))?Number(own.hpRatio):Number(own.hp)/100;if(Number.isFinite(ratio))player.hp=clamp(Math.round(playerMaxHp()*ratio),0,playerMaxHp());}
  areaCleared=enemies.length>0&&enemies.every(enemy=>!enemy.alive);return true;
 };
 window.applyPZCrystalWarInterpolatedFrame=function(samples){
@@ -6224,7 +6243,7 @@ window.applyPZCrystalWarRealtimeEvent=function(event){
  const ownId=String(window.PZAccount?.user?.id||"");
  if(event.type==="enemy_attack"){const enemy=enemies.find(e=>String(e.syncId)===String(event.enemyId)),x=Number(event.x)||enemy?.x||560,y=Number(event.y)||enemy?.y||360,tx=Number(event.targetX)||player.x,ty=Number(event.targetY)||player.y,color=enemy?.color||"#ff8b96";addBladeTrail(x,y,tx,ty,color,event.ranged?8:15,event.ranged?4:8,"networkEnemyAttack");addParticles(x,y,color,event.ranged?6:10,4);return true;}
  if(event.type==="player_evaded"&&String(event.playerId)===ownId){addSlash(player.x,player.y,118,"#7cc7ff",18,"networkEvade");addText(player.x,player.y-48,language==="en"?"EVADE":"闪避","#7cc7ff",true);return true;}
- if(["player_damaged","player_died","player_respawned"].includes(event.type)&&String(event.playerId)===ownId){const hpRatio=Math.max(0,Math.min(1,(Number(event.hp)||0)/100));player.hp=clamp(Math.round(playerMaxHp()*hpRatio),0,playerMaxHp());if(event.type==="player_damaged")addText(player.x,player.y-48,"-"+Math.max(0,Number(event.damage)||0)+"%","#ff8b96",true);if(event.type==="player_died")showCenter(language==="en"?"RECONSTRUCTING · 4s":"重构中 · 4秒",60);if(event.type==="player_respawned"){player.x=Number(event.x)||560;player.y=Number(event.y)||400;showCenter(language==="en"?"RECONSTRUCTED":"重构完成",45);}return true;}
+ if(["player_damaged","player_died","player_respawned","player_healed"].includes(event.type)&&String(event.playerId)===ownId){crystalWarHealthRevision=Math.max(crystalWarHealthRevision,Number(event.healthRevision)||0);const hpRatio=Math.max(0,Math.min(1,(Number(event.hp)||0)/100));player.hp=clamp(Math.round(playerMaxHp()*hpRatio),0,playerMaxHp());saveCurrentRoleResources();if(event.type==="player_damaged")addText(player.x,player.y-48,"-"+Math.max(0,Number(event.damage)||0)+"%","#ff8b96",true);if(event.type==="player_healed"){addText(player.x,player.y-42,"+"+Math.max(1,Math.round(Number(event.healDisplay)||0))+" HP","#78f0c3",false);sfx("heal");}if(event.type==="player_died")showCenter(language==="en"?"RECONSTRUCTING · 4s":"重构中 · 4秒",60);if(event.type==="player_respawned"){player.x=Number(event.x)||560;player.y=Number(event.y)||400;showCenter(language==="en"?"RECONSTRUCTED":"重构完成",45);}return true;}
  if(event.type==="enemy_died"){const enemy=enemies.find(e=>String(e.syncId)===String(event.enemyId));if(enemy){enemy.hp=0;enemy.alive=false;addParticles(enemy.x,enemy.y,"#fff",9,5);}return true;}
  if(event.type==="hit_confirmed"){const enemy=enemies.find(e=>String(e.syncId)===String(event.enemyId));if(enemy){enemy.hp=Math.max(0,Number(event.hp)||0);enemy.alive=event.alive!==false&&enemy.hp>0;const roleId=clamp(Math.floor(Number(event.sourceRole??event.roleId)||0),0,roles.length-1),color=roles[roleId]?.color||"#fff",label=String(event.label||"");addText(enemy.x,enemy.y-enemy.r-10,"-"+Math.max(1,Math.floor(Number(event.damage)||1)),color,true);if(String(event.playerId)!==ownId){addParticles(enemy.x,enemy.y,color,7,3);if(label==="BURN"||label.includes("MARK"))addSlash(enemy.x,enemy.y,enemy.r+28,"#ff785f",18,"remoteBurn");else if(label==="FROST"||label==="ICE")addSlash(enemy.x,enemy.y,enemy.r+32,"#88d8ff",17,"remoteFrost");}}return true;}
  if(String(event.playerId)===ownId){for(const hit of event.results||[]){const enemy=enemies.find(e=>String(e.syncId)===String(hit.enemyId));if(enemy){enemy.hp=Math.max(0,Number(hit.hp)||0);enemy.alive=hit.alive!==false&&enemy.hp>0;}}return true;}
@@ -6244,8 +6263,8 @@ window.applyPZCrystalWarRealtimeEvent=function(event){
   if(roleId===1)addWindField(x,y,195,120,"skill",0,true);
   else if(roleId===2){addSlash(W/2,H/2+60,560,"#b47cff",42,"noxBlast");addSlash(W/2,H/2+60,390,"#fff",28,"noxBlast");addParticles(W/2,H/2+60,"#b47cff",38,10);}
   else if(roleId===3){addIceCircle(tx,ty,145,48,"frostField");addIceParticles(tx,ty,20,145);}
-  else if(roleId===5){addSlash(tx,ty,215,"#bda7ff",28,"windSkill");addParticles(tx,ty,"#78f0c3",22,7);}
-  else if(roleId===0){spawnProtagonistLineBurst(tx,ty,d,18,8);addSlash(tx,ty,94,"#fff",24,"remoteBind");}
+  else if(roleId===5){addSlash(tx,ty,215,"#bda7ff",28,"windSkill");addParticles(tx,ty,"#78f0c3",22,7);chloeHealingFields.push({x:tx,y:ty,size:300,life:Math.max(1,480-Math.round((Number(event.networkAge)||0)/1000*60)),max:480,tick:0,networkSource:remoteId});}
+  else if(roleId===0){spawnProtagonistLineBurst(tx,ty,d,18,8);addSlash(tx,ty,94,"#fff",24,"remoteBind");teamDamageAmpTimer=Math.max(teamDamageAmpTimer,Math.max(1,480-Math.round((Number(event.networkAge)||0)/1000*60)));}
   else if(roleId===4){addSlash(x,y,176,"#f1f3f8",26,"remoteHermitSkill");addParticles(x,y,"#777b89",14,5);}
   else {addSlash(x+d*72,y,158,color,22,"remoteSkill");addParticles(x+d*60,y,color,12,4);}
   sfx("skill");
@@ -6257,7 +6276,7 @@ window.applyPZCrystalWarRealtimeEvent=function(event){
   if(roleId===1){addSlash(x,y,500,"#74ffb7",52,"windUltimate");addParticles(x,y,"#74ffb7",26,8);}
   else if(roleId===2){addSlash(W/2,H/2+60,620,"#b47cff",52,"noxUltimate");addSlash(W/2,H/2+60,430,"#15111f",38,"noxUltimate");addSlash(W/2,H/2+60,270,"#fff",30,"noxUltimate");}
   else if(roleId===3){addIceCircle(x,y,360,52,"iceUltimate");addIceParticles(x,y,34,360);}
-  else if(roleId===5){addSlash(x,y,360,"#78f0c3",40,"windUltimate");addParticles(x,y,"#bda7ff",36,8);}
+  else if(roleId===5){addSlash(x,y,360,"#78f0c3",40,"windUltimate");addParticles(x,y,"#bda7ff",36,8);const remaining=Math.max(1,480-Math.round((Number(event.networkAge)||0)/1000*60));chloeElementDamageAmpTimer=Math.max(chloeElementDamageAmpTimer,remaining);chloeTrueDamageTimer=Math.max(chloeTrueDamageTimer,remaining);emitPZCrystalWarAction("heal",{sourceRole:5,healRatio:20,healDisplay:Math.max(1,Math.round(playerMaxHp()*.20)),teamUltimate:true});}
   else if(roleId===0){addSlash(x+d*75,y,175,"#ff5757",32,"ultimate");addParticles(x+d*75,y,"#ffbe5c",20,7);}
   else{addSlash(x,y,345,color,40,"remoteUltimate");addParticles(x,y,color,28,7);}sfx("ultBoom");
  }
@@ -6391,7 +6410,7 @@ function startBattle(){
     const st=currentCommissionStage(); commissionTimeMax=st.time||180; commissionTimeLeft=commissionTimeMax;
   }
   chapter2EvacTimeLeft=battleModeSource==="main"&&selectedMainChapter===2&&selectedStage===10?180:0;
-  spawnArea(); showCenter(battleHardMode?((language==="en"?"HARD · ":"困难 · ")+stageCode(selectedStage)):battleModeSource==="crystalWar"?(language==="en"?"CRYSTAL WAR · ENDLESS FRONT":"晶体战争 · 无限战区"):(battleModeSource==="showcase"?(language==="en"?"MAX BUILD · TRAINING":"满配模板 · 训练"):(battleModeSource==="daydream" ? ((language==="en"?"DAYDREAM · ":"白日梦 · ")+(daydreamBattleConfig?daydreamBattleConfig.name:"")) : (battleModeSource==="projectArea" ? "Project Area" : (battleModeSource==="materialDungeon" ? ((language==="en"?"Material Dungeon":"材料副本")+" "+roman(materialDungeonDifficulty)) : (battleModeSource==="commission" ? ("C"+currentCommissionStage().chapter+"-"+currentCommissionStage().localId) : stageCode(selectedStage)))))),70);
+  spawnArea(); showCenter(battleHardMode?((language==="en"?"HARD · ":"困难 · ")+stageCode(selectedStage)):battleModeSource==="crystalWar"?(language==="en"?"CRYSTAL WAR · ENDLESS FRONT":"晶体战争 · 无限战区"):(battleModeSource==="showcase"?(language==="en"?"MAX BUILD · TRAINING":"满配模板 · 训练"):(battleModeSource==="daydream" ? ((language==="en"?"DAYDREAM · ":"白日梦 · ")+(daydreamBattleConfig?daydreamBattleConfig.name:"")) : (battleModeSource==="projectArea" ? "Project Area" : (battleModeSource==="materialDungeon" ? ((language==="en"?"Material Dungeon":"材料副本")+" "+roman(materialDungeonDifficulty)) : (battleModeSource==="commission" ? operationStageCode() : stageCode(selectedStage)))))),70);
 }
 function enterLobby(){
   releaseMobileButtons();
@@ -6834,8 +6853,11 @@ function updateChloeCombatEffects(){
     if(field.tick<=0 && Math.abs(player.x-field.x)<=half && Math.abs(player.y-field.y)<=half){
       field.tick+=30;
       const max=playerMaxHp(),before=player.hp;
-      player.hp=Math.min(max,player.hp+50);
-      if(player.hp>before){
+      const onlineHeal=battleModeSource==="crystalWar"&&window.PZCrystalWar?.isOnlineWorld?.();
+      if(onlineHeal){
+        emitPZCrystalWarAction("heal",{sourceRole:5,healRatio:Math.min(25,50/Math.max(1,max)*100),healDisplay:50});
+      }else player.hp=Math.min(max,player.hp+50);
+      if(!onlineHeal&&player.hp>before){
         saveCurrentRoleResources();
         addText(player.x,player.y-42,"+50 HP","#78f0c3",false);
         sfx("heal");
@@ -6853,6 +6875,7 @@ function lisaUltimateResolve(){
   }
   chloeElementDamageAmpTimer=480;
   chloeTrueDamageTimer=480;
+  if(battleModeSource==="crystalWar"&&window.PZCrystalWar?.isOnlineWorld?.())emitPZCrystalWarAction("heal",{sourceRole:5,healRatio:20,healDisplay:Math.max(1,Math.round(playerMaxHp()*.20)),teamUltimate:true});
   syncPlayerResourcesFromRole();
   addSlash(player.x,player.y,360,"#78f0c3",40,"windUltimate");addParticles(player.x,player.y,"#bda7ff",36,8);
   addText(player.x,player.y-140,language==="en"?"TEAM HP +20% · ELEMENT +5% · TRUE +10%":"全队生命+20% · 元素伤害+5% · 真实伤害+10%","#78f0c3",true);sfx("ultBoom");
@@ -7009,6 +7032,7 @@ function hitEnemy(e,dmg,knock=8,stunDmg=16,color="#fff",label=null,sourceKind="b
       addSlash(e.x,e.y,170,"#ffe066",26,"break");
       addBladeTrail(e.x-90,e.y-48,e.x+90,e.y+48,"#ffe066",20,12,"breakTrail");
       triggerBreak(e);
+      if(battleModeSource==="commission"){const bonus=1+(roleModuleTotals(sourceRole).breakExposurePct||0);e.operationExposed=Math.max(e.operationExposed||0,360*bonus);for(const other of enemies)if(other.alive&&withinDist(other.x,other.y,e.x,e.y,105))other.operationExposed=Math.max(other.operationExposed||0,120*bonus);}
       if(sourceKind==="basic")gainUlt(180, "shieldBreak");
       doShake(10);
       doHitStop(3);
@@ -7156,6 +7180,15 @@ function panelDamage(roleId, multiplier, kind="normal", randomBonus=0){
   if(chloeElementDamageAmpTimer>0 && roles[roleId] && roles[roleId].element!=="physical") setScale+=.05;
   if(roleId===0 && kaneSigils.some(s=>s.life>0)) setScale+=.05;
   if(roleId===2 && noxDamageAmpTimer>0) setScale+=.10;
+  if(battleModeSource==="commission"&&operationRun?.config?.player==="focus")setScale+=.15;
+  if(battleModeSource==="commission"&&operationRun?.config?.player==="execute"&&lockTarget?.operationBoss)setScale+=.18;
+  if(battleModeSource==="commission"){
+    // Region mechanics create vulnerability windows. Outside them, the
+    // reinforced operation enemies only take suppression damage.
+    const st=currentCommissionStage();
+    setScale*=st?.intro?1:(lockTarget?.operationExposed>0?1.35:.42);
+    if(operationRoleIsWeakened(roleId,st))setScale*=.82;
+  }
   if(kind==="skill") setScale+=modules.skillDamagePct||0;
   if(roleId===player.role && playerMaxHp()>0 && player.hp/playerMaxHp()>.70) setScale+=modules.highHpDamagePct||0;
   return Math.max(1, Math.floor((atk * multiplier * growth + randomBonus)*setScale));
@@ -7165,7 +7198,10 @@ function panelShieldDamage(roleId, base=20, kind="normal"){
   const br = battleRoleBreak(roleId);
   const lv = roleDisplayLevel(roleId);
   const skillLv = kind==="ultimate" ? battleRoleUltimateLv(roleId) : kind==="skill" ? battleRoleSkillLv(roleId) : battleRoleNormalLv(roleId);
-  return Math.max(1, Math.floor(base + br*0.18 + skillLv*3 + lv*0.5));
+  let value=base + br*0.18 + skillLv*3 + lv*0.5;
+  value*=1+(roleModuleTotals(roleId).shieldDamagePct||0);
+  if(battleModeSource==="commission"){value*=1.75;if(operationRoleIsWeakened(roleId)&&roleId===0&&kind==="normal")value*=.72;}
+  return Math.max(1, Math.floor(value));
 }
 
 
@@ -7213,6 +7249,7 @@ function chainAttack(choiceIndex=0){
   addSlash(target.x, target.y, 110, "#ffffff", 22, "chain");
   addBladeTrail(player.x-110,player.y-70,target.x+95,target.y+50,role.color,32,24,"heavyTrail");
   addParticles(target.x, target.y, role.color, 18, 8);
+  if(battleModeSource==="commission")for(const e of enemies)if(e.alive&&withinDist(e.x,e.y,target.x,target.y,190))e.operationExposed=Math.max(e.operationExposed||0,240);
   if(player.role===3){
     addIceCircle(target.x,target.y,170,42,"ice");
     for(const e of enemiesInCircle(target.x,target.y,170)){
@@ -7545,6 +7582,7 @@ function triggerPerfectDodge(threat=null){
     if(threat.type==="melee"){
       threat.source.windup = 0;
       threat.source.attackCd = Math.max(threat.source.attackCd || 0, threat.source.boss ? 60 : 42);
+      if(battleModeSource==="commission"){const bonus=1+(roleModuleTotals(player.role).dodgeExposurePct||0);threat.source.operationExposed=Math.max(threat.source.operationExposed||0,210*bonus);}
     }
   }
   showActionPrompt(language==="en"?"PERFECT DODGE +15 EN":"极限闪避  能量+15",60);
@@ -7640,6 +7678,7 @@ function parryCounter(){
   t.windup=0;
   t.attackCd=Math.max(t.attackCd, t.boss?120:95);
   t.parried=32;
+  if(battleModeSource==="commission"){const bonus=1+(roleModuleTotals(player.role).parryExposurePct||0);t.operationExposed=Math.max(t.operationExposed||0,300*bonus);for(const e of enemies)if(e.alive&&withinDist(e.x,e.y,t.x,t.y,130))e.operationExposed=Math.max(e.operationExposed||0,150*bonus);}
   player.facing=t.x>=player.x?1:-1;
   applyNoxRuinAttackCost();
   sfx(t.boss ? "parryBoss" : "parry");
@@ -9752,8 +9791,118 @@ function updateDungeonInlineClicksLegacyV41(){
   return false;
 }
 
+const OP_PLAYER_MECHANISMS=[
+ {id:"rapid",z:"快速部署",e:"Rapid Deployment",descZ:"移动速度提高18%，更易处理防线",descE:"Movement speed +18% for Frontline response"},
+ {id:"focus",z:"战术聚焦",e:"Tactical Focus",descZ:"击破与控制制造的脆弱时间延长",descE:"Break/control exposure windows last longer"},
+ {id:"guard",z:"应急护层",e:"Emergency Layer",descZ:"受到伤害降低20%",descE:"Damage taken -20%"},
+ {id:"charge",z:"循环充能",e:"Cycle Charge",descZ:"击杀恢复20点技能能量",descE:"Kills restore 20 skill energy"},
+ {id:"execute",z:"破阵协议",e:"Break Protocol",descZ:"Boss破盾后持续维持脆弱",descE:"Broken Boss shields sustain exposure"},
+ {id:"reserve",z:"后备补给",e:"Reserve Supply",descZ:"每波结束恢复队伍15%生命",descE:"Heal the squad 15% after each wave"}
+];
+const OP_ENEMY_MECHANISMS=[
+ {id:"armor",z:"结晶装甲",e:"Crystal Armor",descZ:"敌人生命与护盾提高",descE:"Enemies gain HP and shields"},
+ {id:"rush",z:"强行推进",e:"Forced Advance",descZ:"突破单位推进速度提高",descE:"Breach units advance faster"},
+ {id:"rage",z:"低血狂热",e:"Bloodied Frenzy",descZ:"低生命敌人加速",descE:"Low-HP enemies accelerate"},
+ {id:"barrage",z:"远程齐射",e:"Ranged Barrage",descZ:"远程单位攻击间隔缩短",descE:"Ranged attacks recover faster"},
+ {id:"command",z:"Boss号令",e:"Boss Command",descZ:"Boss存活时普通敌人强化",descE:"Bosses empower normal enemies"},
+ {id:"erosion",z:"持续侵蚀",e:"Persistent Erosion",descZ:"战场环境干扰频率提高",descE:"Map hazards trigger more often"}
+];
+let operationView="mode",operationSelectedRegion=0,operationRun=null,operationNoticeOpen=false;
+const OPERATION_WORLD_SIZE={w:1840,h:1080};
+let operationWorldPan={x:-180,y:-120},operationWorldDrag=null,operationRewardScroll=0;
+function clampOperationWorldPan(){operationWorldPan.x=clamp(operationWorldPan.x,W-OPERATION_WORLD_SIZE.w,0);operationWorldPan.y=clamp(operationWorldPan.y,580-OPERATION_WORLD_SIZE.h,92);}
+function operationRegionRadius(i){return [62,78,68,88,76,70][i]||62;}
+function operationRegionStages(index=operationSelectedRegion){return commissionStages.filter(st=>st.chapter===index+1);}
+function operationHandleWheel(delta,x,y){
+  if(operationView==="world"){operationWorldPan.y-=delta*.55;operationWorldPan.x-=delta*.18;clampOperationWorldPan();return true;}
+  if(operationView==="region"&&operationDetailVisible&&x>=462&&x<=1070&&y>=270&&y<=500){const st=currentCommissionStage(),max=Math.max(0,(st.milestones||[]).length-4);operationRewardScroll=clamp(operationRewardScroll+Math.sign(delta),0,max);return true;}
+  return false;
+}
+function operationSeasonId(d=new Date()){return d.getFullYear()+"Q"+(Math.floor(d.getMonth()/3)+1);}
+function operationSeasonState(){const season=operationSeasonId(),revision=5;if(!cleared.__operationSeason||cleared.__operationSeason.season!==season||cleared.__operationSeason.revision!==revision)cleared.__operationSeason={season,revision,regions:{},cleared:{},noticeRead:false};const s=cleared.__operationSeason;if(typeof s.noticeRead!=="boolean")s.noticeRead=false;for(let i=0;i<commissionChapters.length;i++)if(!s.regions[i])s.regions[i]={player:null,enemy:null};return s;}
+function operationRegionConfig(index=operationSelectedRegion){return operationSeasonState().regions[index];}
+function operationClearKey(id){return operationSeasonId()+":"+id;}
+function operationIsCleared(id){return !!operationSeasonState().cleared[operationClearKey(id)];}
+function operationMechanismUsed(type,id,except){if(!id)return false;return Object.entries(operationSeasonState().regions).some(([k,v])=>Number(k)!==except&&v[type]===id);}
+function operationMechanism(type,id){return (type==="player"?OP_PLAYER_MECHANISMS:OP_ENEMY_MECHANISMS).find(v=>v.id===id);}
+function operationToggleMechanism(type,id){const cfg=operationRegionConfig();if(cfg[type]===id){cfg[type]=null;saveGame();return;}if(operationMechanismUsed(type,id,operationSelectedRegion)){showCenter(language==="en"?"MECHANISM IN USE BY ANOTHER REGION":"该机制已被其他区域占用",75);return;}cfg[type]=id;saveGame();sfx("ui");}
+function operationDrawBottomTabs(){uiPanel(30,585,1060,58,"rgba(255,255,255,.12)","rgba(0,0,0,.55)");drawBtn(ui("main"),"",90,595,135,38,false,"#fff");drawBtn(ui("operation"),"",240,595,135,38,true,"#ffe066");drawBtn(language==="en"?"Dungeon":"副本",canUseDungeon()?"":"LOCK",390,595,135,38,false,!canUseDungeon()?"#777":"#7cc7ff");drawBtn("Side Story",canUseSideStory()?"":"LOCK",540,595,135,38,false,!canUseSideStory()?"#777":"#fff");drawBtn(language==="en"?"Dual Crystal":"双重晶体","",690,595,135,38,false,"#9b7cff");drawBtn(ui("backLobby"),"CLICK",890,595,170,38,false,"#fff");}
+function operationMapBackground(){const g=ctx.createLinearGradient(0,0,W,H);g.addColorStop(0,"#d8d9d5");g.addColorStop(.48,"#858b8d");g.addColorStop(1,"#20262c");ctx.fillStyle=g;ctx.fillRect(0,0,W,H);ctx.save();ctx.globalAlpha=.16;ctx.strokeStyle="#172027";ctx.lineWidth=1;for(let y=100;y<570;y+=36)for(let x=(y/36%2)*24;x<W;x+=48){ctx.beginPath();for(let i=0;i<6;i++){const a=Math.PI/3*i,px=x+Math.cos(a)*28,py=y+Math.sin(a)*28;i?ctx.lineTo(px,py):ctx.moveTo(px,py);}ctx.closePath();ctx.stroke();}ctx.restore();ctx.fillStyle="rgba(5,10,15,.38)";ctx.fillRect(0,0,W,104);}
+const OP_REGION_WEAKNESSES=[
+  {roles:[0],zh:"凯恩：普攻破盾效率降低",en:"Kane: reduced basic shield break"},
+  {roles:[1],zh:"艾洛：技能充能速度降低",en:"Ailo: reduced skill charge"},
+  {roles:[2],zh:"诺克斯：连击伤害收益降低",en:"Nox: reduced combo damage"},
+  {roles:[3],zh:"芙洛拉：冻结持续时间缩短",en:"Flora: shorter Freeze duration"},
+  {roles:[5],zh:"克洛伊：治疗与元素增益降低",en:"Chloe: reduced healing and elemental support"},
+  {roles:[0,2],zh:"凯恩/诺克斯：直接伤害受通讯压制",en:"Kane/Nox: direct damage suppressed by blackout"}
+];
+function operationWeaknessForStage(st=currentCommissionStage()){return st&&st.chapter>0?OP_REGION_WEAKNESSES[st.chapter-1]:null;}
+function operationRoleIsWeakened(roleId,st=currentCommissionStage()){const w=operationWeaknessForStage(st);return !!(w&&w.roles.includes(roleId));}
+function drawOperationMode(){operationMapBackground();ctx.textAlign="left";ctx.fillStyle="#fff";ctx.font="bold 31px "+FONT_UI;ctx.fillText(language==="en"?"OPERATION DIRECTIVE":"作战指令",54,62);ctx.font="12px "+FONT_UI;ctx.fillStyle="rgba(255,255,255,.65)";ctx.fillText(language==="en"?"Select an operation category":"选择作战类型",56,88);const cards=[{x:90,color:"#ffe066",title:language==="en"?"STANDARD OPERATIONS":"普通作战",sub:language==="en"?"Seasonal regions · 19 commissions":"季度区域 · 19个独立委托",open:true},{x:585,color:"#df7886",title:language==="en"?"NIGHTMARE CYCLE":"噩梦轮回",sub:language==="en"?"Multiple mechanisms · extreme cycle":"复合机制 · 极限轮回",open:false}];for(const c of cards){ctx.fillStyle=c.open?"rgba(5,10,16,.9)":"rgba(25,25,29,.82)";ctx.fillRect(c.x,150,440,310);ctx.strokeStyle=c.open?c.color:"#777";ctx.lineWidth=3;ctx.strokeRect(c.x,150,440,310);ctx.fillStyle=c.color;ctx.fillRect(c.x,150,440,12);ctx.fillStyle=c.open?"#fff":"#999";ctx.font="bold 25px "+FONT_UI;ctx.fillText(c.title,c.x+30,215);ctx.font="12px "+FONT_UI;ctx.fillStyle=c.open?"rgba(255,255,255,.68)":"#777";ctx.fillText(c.sub,c.x+30,248);ctx.font="bold 64px "+FONT_UI;ctx.fillStyle=c.open?"rgba(255,224,102,.2)":"rgba(255,255,255,.06)";ctx.fillText(c.open?"01":"02",c.x+300,355);drawBtn(c.open?(language==="en"?"ENTER":"进入"):(language==="en"?"NOT AVAILABLE":"尚未开放"),"",c.x+42,385,356,50,c.open,c.open?c.color:"#666");}operationDrawBottomTabs();}
+function drawOperationNotice(){const state=operationSeasonState();ctx.fillStyle="rgba(0,0,0,.72)";ctx.fillRect(0,0,W,H);ctx.fillStyle="rgba(8,13,19,.98)";ctx.fillRect(150,72,820,500);ctx.strokeStyle="#ffe066";ctx.lineWidth=2;ctx.strokeRect(150,72,820,500);ctx.textAlign="left";ctx.fillStyle="#ffe066";ctx.font="bold 24px "+FONT_UI;ctx.fillText(language==="en"?"OPERATION NOTICE":"作战公告",182,116);ctx.fillStyle="#fff";ctx.font="bold 12px "+FONT_UI;ctx.fillText((language==="en"?"CURRENT SEASON · ":"当前季度 · ")+state.season,184,143);const lines=language==="en"?["6 regions / 19 independent commissions; rewards refresh quarterly.","Ashen Border now includes C1-0, a low-level rules mission (enemy level ≤10).","Formal C1-1 remains a high-pressure operation.","Each region announces an executor or mechanic weakness before battle.","One regional mechanism cannot be assigned to two regions.","Each wave has a 10-minute limit; the next wave restores it.","Break, parry, perfect dodge, chain and control create exposure windows.","Breaches reduce effective results and milestone rewards.","Nightmare Cycle will open in a future season."]:["本季度开放6个区域、19个独立委托，季度刷新一次性奖励。","灰烬边境新增C1-0低等级规则关，敌人等级不高于10。","正式C1-1仍保持高攻击与高压定位。","各区域会在战前明确显示特定角色或机制虚弱。","同一项区域机制仍不可同时分配给两个区域。","每波限时10分钟，完成后下一波重新回满。","击破、弹刀、极限闪避、连携与控制会制造脆弱窗口。","漏怪会降低有效战果，并影响逐档奖励。","“噩梦轮回”将在后续季度开放。"];ctx.font="12px "+FONT_UI;for(let i=0;i<lines.length;i++){ctx.fillStyle=i===1?"#7cffb2":"rgba(255,255,255,.78)";ctx.fillText("• "+lines[i],188,180+i*34);}drawBtn(language==="en"?"CLOSE":"关闭","",410,505,300,45,true,"#fff");}
+function drawOperationWorld(){
+  operationMapBackground();const state=operationSeasonState();clampOperationWorldPan();
+  ctx.save();ctx.beginPath();ctx.rect(0,92,W,488);ctx.clip();ctx.translate(operationWorldPan.x,operationWorldPan.y);
+  ctx.globalAlpha=.2;ctx.strokeStyle="#dce7eb";ctx.lineWidth=2;for(let y=120;y<OPERATION_WORLD_SIZE.h;y+=72)for(let x=(Math.floor(y/72)%2)*52;x<OPERATION_WORLD_SIZE.w;x+=104){ctx.beginPath();for(let k=0;k<6;k++){const a=Math.PI/3*k,px=x+Math.cos(a)*48,py=y+Math.sin(a)*48;k?ctx.lineTo(px,py):ctx.moveTo(px,py);}ctx.closePath();ctx.stroke();}
+  const ruins=[[360,690,120,42],[720,370,86,70],[1080,690,150,38],[1360,240,105,65],[1560,820,130,44],[470,930,95,55]];ctx.globalAlpha=.28;for(const [x,y,w,h] of ruins){ctx.fillStyle="#182127";ctx.fillRect(x,y,w,h);ctx.strokeStyle="#c4c9c7";ctx.strokeRect(x,y,w,h);ctx.beginPath();ctx.moveTo(x,y+h);ctx.lineTo(x+w*.35,y+h*.25);ctx.lineTo(x+w*.58,y+h);ctx.lineTo(x+w,y+h*.18);ctx.stroke();}
+  const cracks=[[390,270],[760,760],[1270,520],[1610,430],[1240,910]];ctx.globalAlpha=.35;ctx.strokeStyle="#ff9c84";ctx.lineWidth=3;for(const [x,y] of cracks){ctx.beginPath();ctx.moveTo(x-55,y-25);ctx.lineTo(x-18,y);ctx.lineTo(x-42,y+38);ctx.lineTo(x+5,y+8);ctx.lineTo(x+58,y+32);ctx.stroke();}
+  const fogs=[[170,190,220],[520,520,250],[930,210,190],[1280,760,280],[1680,610,240]];for(const [x,y,r] of fogs){const fg=ctx.createRadialGradient(x,y,20,x,y,r);fg.addColorStop(0,"rgba(236,241,239,.42)");fg.addColorStop(.55,"rgba(220,227,225,.20)");fg.addColorStop(1,"rgba(220,227,225,0)");ctx.fillStyle=fg;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();}ctx.globalAlpha=1;
+  ctx.globalAlpha=.38;ctx.strokeStyle="#fff";ctx.lineWidth=4;ctx.beginPath();for(let i=0;i<commissionChapters.length;i++){const r=commissionChapters[i];i?ctx.lineTo(r.x,r.y):ctx.moveTo(r.x,r.y);}ctx.stroke();ctx.globalAlpha=1;
+  for(let i=0;i<commissionChapters.length;i++){const r=commissionChapters[i],regionStages=operationRegionStages(i),radius=operationRegionRadius(i),sx=r.x+operationWorldPan.x,sy=r.y+operationWorldPan.y,hover=dist(mouseX,mouseY,sx,sy)<radius+18,done=regionStages.filter(s=>operationIsCleared(s.id)).length;ctx.save();ctx.translate(r.x,r.y);for(let k=3;k>0;k--){ctx.globalAlpha=.13+k*.05;ctx.strokeStyle=r.color;ctx.lineWidth=2;ctx.beginPath();ctx.arc(0,0,radius-10+k*15+Math.sin(menuPulse*.025+k)*5,0,Math.PI*2);ctx.stroke();}ctx.globalAlpha=1;ctx.fillStyle=hover?"rgba(255,255,255,.9)":"rgba(8,14,20,.9)";ctx.beginPath();ctx.arc(0,0,hover?radius+5:radius,0,Math.PI*2);ctx.fill();ctx.strokeStyle=r.color;ctx.lineWidth=hover?5:3;ctx.stroke();ctx.fillStyle=hover?"#111":"#fff";ctx.textAlign="center";ctx.font="bold 14px "+FONT_UI;ctx.fillText(language==="en"?r.en:r.zh,0,-5);ctx.font="bold 11px "+FONT_UI;ctx.fillStyle=hover?"#333":r.color;ctx.fillText(done+" / "+regionStages.length,0,18);ctx.restore();}
+  ctx.restore();ctx.fillStyle="rgba(5,10,15,.84)";ctx.fillRect(0,0,W,92);ctx.textAlign="left";ctx.fillStyle="#fff";ctx.font="bold 28px "+FONT_UI;ctx.fillText(language==="en"?"WORLD OPERATIONS":"世界作战地图",42,42);ctx.font="11px "+FONT_UI;ctx.fillStyle="rgba(255,255,255,.7)";ctx.fillText((language==="en"?"SEASON ":"当前季度 ")+state.season+"  ·  "+commissionChapters.length+(language==="en"?" REGIONS / ":"个区域 / ")+19+(language==="en"?" COMMISSIONS · HOLD LMB TO PAN":"个独立关卡 · 按住鼠标左键拖动地图"),44,70);drawBtn("‹",language==="en"?"MODE":"类型",940,22,145,46,true,"#fff");ctx.fillStyle="rgba(4,8,13,.88)";ctx.fillRect(30,500,190,62);ctx.strokeStyle="#7cffb2";ctx.strokeRect(30,500,190,62);ctx.fillStyle="#7cffb2";ctx.font="bold 13px "+FONT_UI;ctx.fillText(language==="en"?"SEASON NOTICE":"作战公告",48,527);ctx.fillStyle="rgba(255,255,255,.65)";ctx.font="10px "+FONT_UI;ctx.fillText(language==="en"?"Quarterly Intelligence":"季度情报",48,548);if(!state.noticeRead){ctx.fillStyle="#ff596b";ctx.fillRect(165,508,42,20);ctx.fillStyle="#fff";ctx.font="bold 10px "+FONT_UI;ctx.textAlign="center";ctx.fillText("NEW",186,522);ctx.textAlign="left";}operationDrawBottomTabs();
+}
+function operationStageCardRect(i){return {x:42,y:170+i*90,w:390,h:78};}
+function drawOperationRegion(){
+  operationMapBackground();const r=commissionChapters[operationSelectedRegion],stagesForRegion=operationRegionStages(),cfg=operationRegionConfig();
+  drawBtn("‹",language==="en"?"WORLD":"世界地图",28,24,145,46,true,"#fff");
+  ctx.textAlign="left";ctx.fillStyle="#fff";ctx.font="bold 27px "+FONT_UI;ctx.fillText(language==="en"?r.en:r.zh,195,54);
+  ctx.fillStyle=r.color;ctx.font="11px "+FONT_UI;ctx.fillText((language==="en"?"REGION ":"作战区域 ")+String(r.no).padStart(2,"0"),198,77);
+  drawBtn(language==="en"?"REGION MECHANISMS":"区域机制配置","",820,25,250,48,true,"#ffe066");
+  ctx.fillStyle="rgba(4,8,13,.88)";ctx.fillRect(42,102,1028,54);ctx.strokeStyle=r.color;ctx.strokeRect(42,102,1028,54);
+  ctx.fillStyle="#ffb28e";ctx.font="bold 11px "+FONT_UI;drawUIText(language==="en"?r.ruleEn:r.ruleZh,58,124,715,{size:11,maxLines:2,lineH:15});
+  const pm=operationMechanism("player",cfg.player),em=operationMechanism("enemy",cfg.enemy);ctx.fillStyle="#7cffb2";ctx.font="bold 9px "+FONT_UI;ctx.fillText((language==="en"?"BOOST ":"强化 ")+(pm?(language==="en"?pm.e:pm.z):"—"),790,123);ctx.fillStyle="#ff8b72";ctx.fillText((language==="en"?"PRESSURE ":"压力 ")+(em?(language==="en"?em.e:em.z):"—"),790,143);
+  for(let i=0;i<stagesForRegion.length;i++){
+    const st=stagesForRegion[i],q=operationStageCardRect(i),done=operationIsCleared(st.id),sel=selectedStage===st.id&&operationDetailVisible;
+    ctx.fillStyle=sel?"rgba(255,224,102,.28)":done?"rgba(124,255,178,.17)":"rgba(5,9,14,.88)";ctx.fillRect(q.x,q.y,q.w,q.h);ctx.strokeStyle=sel?"#ffe066":done?"#7cffb2":r.color;ctx.lineWidth=2;ctx.strokeRect(q.x,q.y,q.w,q.h);
+    ctx.fillStyle=done?"#7cffb2":r.color;ctx.fillRect(q.x,q.y,84,q.h);ctx.fillStyle="#071016";ctx.font="bold 18px "+FONT_UI;ctx.textAlign="center";ctx.fillText("C"+st.chapter+"-"+st.localId,q.x+42,q.y+47);
+    ctx.textAlign="left";ctx.fillStyle="#fff";ctx.font="bold 14px "+FONT_UI;ctx.fillText(language==="en"?st.name:st.zh,q.x+103,q.y+27);ctx.font="10px "+FONT_UI;ctx.fillStyle="rgba(255,255,255,.62)";ctx.fillText(st.target+(language==="en"?" enemies":"名敌人")+" · "+st.bossWaves.length+" Boss · "+st.waves+(language==="en"?" waves":"波"),q.x+103,q.y+50);ctx.fillStyle=done?"#7cffb2":"#ffe066";ctx.fillText(done?(language==="en"?"INDEPENDENT STAGE · COMPLETE":"独立关卡 · 已完成"):(language==="en"?"INDEPENDENT STAGE · OWN REWARDS":"独立关卡 · 单独奖励"),q.x+103,q.y+75);
+  }
+  if(operationDetailVisible){
+    const st=currentCommissionStage(),x=462,y=174;ctx.fillStyle="rgba(3,7,12,.95)";ctx.fillRect(x,y,608,328);ctx.strokeStyle=r.color;ctx.strokeRect(x,y,608,328);ctx.fillStyle="#fff";ctx.font="bold 20px "+FONT_UI;ctx.fillText(language==="en"?st.name:st.zh,x+24,y+34);ctx.fillStyle="rgba(255,255,255,.68)";ctx.font="10px "+FONT_UI;drawUIText(language==="en"?st.mechanicEn:st.mechanicZh,x+24,y+57,555,{size:10,maxLines:2,lineH:15});
+    const weak=operationWeaknessForStage(st);if(weak){ctx.fillStyle="#ff9a72";ctx.font="bold 10px "+FONT_UI;drawUIText((language==="en"?"MAP WEAKNESS · ":"地图角色虚弱 · ")+(language==="en"?weak.en:weak.zh),x+402,y+115,180,{size:9,maxLines:3,lineH:13});}
+    ctx.fillStyle="#ffe066";ctx.font="bold 11px "+FONT_UI;ctx.fillText(language==="en"?"MILESTONE REWARDS · WHEEL TO VIEW":"阶段奖励 · 鼠标滚轮查看更多",x+24,y+105);
+    const rewardMax=Math.max(0,st.milestones.length-4);operationRewardScroll=clamp(operationRewardScroll,0,rewardMax);const rewardSlice=st.milestones.slice(operationRewardScroll,operationRewardScroll+4);
+    for(let i=0;i<rewardSlice.length;i++){const m=rewardSlice[i],my=y+122+i*48,done=operationIsCleared(st.id);ctx.fillStyle=done?"rgba(124,255,178,.13)":"rgba(255,255,255,.07)";ctx.fillRect(x+24,my,360,38);ctx.strokeStyle=done?"#7cffb2":"rgba(255,255,255,.2)";ctx.strokeRect(x+24,my,360,38);ctx.fillStyle="#fff";ctx.font="bold 11px "+FONT_UI;ctx.fillText("⚔ "+m.at+"  "+(m.crystal?"◆"+m.crystal:"")+(m.gold?"  G "+m.gold:"")+(m.ore?"  ORE "+m.ore:""),x+40,my+24);ctx.fillStyle=done?"#7cffb2":"rgba(255,255,255,.45)";ctx.fillText(done?"COMPLETE":"○",x+312,my+24);}
+    ctx.fillStyle="rgba(255,255,255,.52)";ctx.font="9px "+FONT_UI;ctx.fillText((operationRewardScroll+1)+"–"+Math.min(st.milestones.length,operationRewardScroll+4)+" / "+st.milestones.length,x+292,y+318);
+    drawBtn(operationIsCleared(st.id)?(language==="en"?"REPLAY · NO REWARD":"再次挑战 · 无奖励"):(language==="en"?"SQUAD / PREPARE":"编队 / 准备"),"",x+402,y+237,182,62,true,operationIsCleared(st.id)?"#7cc7ff":"#ffe066");
+  }
+  operationDrawBottomTabs();
+}
+function drawOperationConfig(){operationMapBackground();const r=commissionChapters[operationSelectedRegion],cfg=operationRegionConfig();drawBtn("‹",language==="en"?"REGION":"返回区域",28,24,160,46,true,"#fff");ctx.fillStyle="#fff";ctx.textAlign="left";ctx.font="bold 26px "+FONT_UI;ctx.fillText(language==="en"?"REGION MECHANISMS":"区域机制配置",215,54);ctx.font="11px "+FONT_UI;ctx.fillStyle="rgba(255,255,255,.62)";ctx.fillText((language==="en"?r.en:r.zh)+" · "+(language==="en"?"The same mechanism cannot be assigned to another region.":"同一机制不可同时分配给其他区域，可随时解除并重新调配。"),218,78);const groups=[["player",OP_PLAYER_MECHANISMS,42,"#7cffb2",language==="en"?"EXECUTOR ENHANCEMENT":"角色加强机制"],["enemy",OP_ENEMY_MECHANISMS,570,"#ff8b72",language==="en"?"ENEMY PRESSURE":"怪物负面机制"]];for(const [type,list,sx,color,title] of groups){ctx.fillStyle=color;ctx.font="bold 15px "+FONT_UI;ctx.fillText(title,sx,128);for(let i=0;i<list.length;i++){const m=list[i],x=sx+(i%2)*250,y=150+Math.floor(i/2)*120,used=operationMechanismUsed(type,m.id,operationSelectedRegion),on=cfg[type]===m.id;ctx.fillStyle=on?"rgba(255,224,102,.22)":used?"rgba(70,70,70,.72)":"rgba(4,10,16,.88)";ctx.fillRect(x,y,232,98);ctx.strokeStyle=on?"#ffe066":used?"#666":color;ctx.strokeRect(x,y,232,98);ctx.fillStyle=used?"#888":"#fff";ctx.font="bold 12px "+FONT_UI;ctx.fillText(language==="en"?m.e:m.z,x+14,y+27);ctx.font="9px "+FONT_UI;ctx.fillStyle=used?"#777":"rgba(255,255,255,.58)";drawUIText(language==="en"?m.descE:m.descZ,x+14,y+47,200,{size:9,maxLines:2,lineH:13});ctx.fillStyle=on?"#ffe066":used?"#777":color;ctx.fillText(on?(language==="en"?"EQUIPPED":"已配置"):used?(language==="en"?"IN USE":"其他区域占用"):(language==="en"?"AVAILABLE":"可配置"),x+14,y+84);}}operationDrawBottomTabs();}
+function drawNewOperation(){if(operationView==="mode")drawOperationMode();else if(operationView==="config")drawOperationConfig();else if(operationView==="region")drawOperationRegion();else drawOperationWorld();if(operationNoticeOpen)drawOperationNotice();}
+function operationBottomClick(){if(inRect(90,595,135,38)){selectedTab="main";mainChapterView="chapters";operationDetailVisible=false;return true;}if(inRect(390,595,135,38)){if(canUseDungeon()){selectedTab="dungeon";dungeonPanelMode="home";}return true;}if(inRect(540,595,135,38)){if(canUseSideStory())selectedTab="sideStory";return true;}if(inRect(690,595,135,38)){selectedTab="dualCrystal";if(window.PZCrystalWar)window.PZCrystalWar.openHub();return true;}if(inRect(890,595,170,38)){enterLobby();return true;}return false;}
+function updateNewOperation(){
+  if(operationNoticeOpen){if(justPressed("escape")){operationNoticeOpen=false;clicked=false;return;}if(clicked){if(inRect(410,505,300,45))operationNoticeOpen=false;clicked=false;}return;}
+  if(justPressed("escape")){operationWorldDrag=null;if(operationView==="config")operationView="region";else if(operationView==="region"){operationView="world";operationDetailVisible=false;}else if(operationView==="world")operationView="mode";else enterLobby();clicked=false;return;}
+  if(operationView==="mode"){if(!clicked)return;if(operationBottomClick()){clicked=false;return;}if(inRect(132,385,356,50))operationView="world";else if(inRect(627,385,356,50))showCenter(language==="en"?"NIGHTMARE CYCLE · NOT AVAILABLE":"噩梦轮回 · 尚未开放",70);clicked=false;return;}
+  if(operationView==="world"){
+    if(clicked&&operationBottomClick()){operationWorldDrag=null;clicked=false;return;}
+    if(clicked&&inRect(940,22,145,46)){operationView="mode";operationWorldDrag=null;clicked=false;return;}
+    if(clicked&&inRect(30,500,190,62)){const state=operationSeasonState();state.noticeRead=true;saveGame();operationNoticeOpen=true;operationWorldDrag=null;clicked=false;return;}
+    if(clicked&&mouseDown&&mouseY>=92&&mouseY<580){operationWorldDrag={startX:mouseX,startY:mouseY,lastX:mouseX,lastY:mouseY,moved:false};clicked=false;}
+    if(operationWorldDrag&&mouseDown){const dx=mouseX-operationWorldDrag.lastX,dy=mouseY-operationWorldDrag.lastY;operationWorldPan.x+=dx;operationWorldPan.y+=dy;operationWorldDrag.lastX=mouseX;operationWorldDrag.lastY=mouseY;if(Math.hypot(mouseX-operationWorldDrag.startX,mouseY-operationWorldDrag.startY)>8)operationWorldDrag.moved=true;clampOperationWorldPan();}
+    if(operationWorldDrag&&!mouseDown){const drag=operationWorldDrag;operationWorldDrag=null;if(!drag.moved){for(let i=0;i<commissionChapters.length;i++){const r=commissionChapters[i];if(dist(mouseX,mouseY,r.x+operationWorldPan.x,r.y+operationWorldPan.y)<operationRegionRadius(i)+18){const regionStages=operationRegionStages(i);operationSelectedRegion=i;selectedCommissionChapter=i;selectedStage=regionStages[0].id;operationRewardScroll=0;operationView="region";operationDetailVisible=false;break;}}}}
+    clicked=false;return;
+  }
+  if(!clicked)return;if(operationBottomClick()){clicked=false;return;}
+  if(operationView==="region"){const regionStages=operationRegionStages();if(inRect(28,24,145,46)){operationView="world";operationDetailVisible=false;}else if(inRect(820,25,250,48))operationView="config";else if(operationDetailVisible&&inRect(864,411,182,62))startCommissionBattle(selectedStage);else for(let i=0;i<regionStages.length;i++){const q=operationStageCardRect(i);if(inRect(q.x,q.y,q.w,q.h)){selectedStage=regionStages[i].id;operationRewardScroll=0;operationDetailVisible=true;break;}}}
+  else{if(inRect(28,24,160,46))operationView="region";else{const groups=[["player",OP_PLAYER_MECHANISMS,42],["enemy",OP_ENEMY_MECHANISMS,570]];for(const [type,list,sx] of groups)for(let i=0;i<list.length;i++){const x=sx+(i%2)*250,y=150+Math.floor(i/2)*120;if(inRect(x,y,232,98)){operationToggleMechanism(type,list[i].id);break;}}}}
+  clicked=false;
+}
+
 function updateOperation(){
   menuPulse++;
+  if(selectedTab==="combat"){updateNewOperation();return;}
   if(selectedTab==="daydream"&&!canUseDaydream()){
     selectedTab="main";mainChapterView="chapters";operationDetailVisible=false;
   }
@@ -9841,7 +9990,7 @@ function updateOperation(){
     if(inRect(90,595,135,38)){
       handled = setOperationTabWithGuide("main", "mainStage", function(){ mainChapterView="chapters"; });
     }else if(inRect(240,595,135,38)){
-      handled = setOperationTabWithGuide("combat", "commission", function(){ selectedCommissionChapter=0; selectedStage=1; operationDetailVisible=false; });
+      handled = setOperationTabWithGuide("combat", "commission", function(){ selectedCommissionChapter=0; selectedStage=1; operationView="mode"; operationDetailVisible=false; });
     }else if(inRect(390,595,135,38)){
       if(!canUseDungeon()){ showFeatureLocked("chapter0"); handled=true; }
       else handled = setOperationTabWithGuide("dungeon", "dungeon", function(){ dungeonSelected=0; });
@@ -10011,7 +10160,11 @@ function updateSettlement(){
       materialDungeonRun=null;
     }else if(settlement && settlement.mode==="commission"){
       selectedTab="combat";
-      operationDetailVisible=true;
+      const settledOperationStage=currentCommissionStage();
+      operationDetailVisible=!settledOperationStage?.intro;
+      operationView=settledOperationStage?.intro?"world":"region";
+      operationSelectedRegion=Math.max(0,(settledOperationStage?.chapter||1)-1);
+      operationRun=null;
       battleModeSource="main";
     }
     gameMode="operation";
@@ -10437,9 +10590,9 @@ function updateBattle(){
   }
   if(!emoteKeyHandled){if(justPressed("1"))switchRoleByTeamSlot(0);if(justPressed("2"))switchRoleByTeamSlot(1);if(justPressed("3"))switchRoleByTeamSlot(2);}
   if(justPressed("tab")){const used=battleModeSource==="crystalWar"&&window.PZCrystalWar&&typeof window.PZCrystalWar.toggleBattleEmotes==="function"&&window.PZCrystalWar.toggleBattleEmotes();if(!used)toggleLock();} if(justPressed("f")){ if(!battleExploreInteract() && !projectAreaInteract()) chainAttack(); }
-  let dx=0,dy=0; if(keys.w)dy-=1; if(keys.s)dy+=1; if(keys.a)dx-=1; if(keys.d)dx+=1;
+  let dx=0,dy=0; if(keys.w)dy-=1; if(keys.s)dy+=1; if(keys.a)dx-=1; if(keys.d)dx+=1;if(battleModeSource==="commission"&&operationRun?.stun>0){dx=0;dy=0;}
   const role=roles[player.role];
-  if(dx||dy){ const l=Math.hypot(dx,dy); dx/=l; dy/=l; player.vx+=dx*role.speed*MOVE_SPEED_MULT*.35*frameScale; player.vy+=dy*role.speed*MOVE_SPEED_MULT*.35*frameScale; if(Math.abs(dx)>.1)player.facing=dx>0?1:-1; }
+  if(dx||dy){ const l=Math.hypot(dx,dy),operationSpeed=battleModeSource==="commission"&&operationRun?.config?.player==="rapid"?1.18:1; dx/=l; dy/=l; player.vx+=dx*role.speed*MOVE_SPEED_MULT*.35*operationSpeed*frameScale; player.vy+=dy*role.speed*MOVE_SPEED_MULT*.35*operationSpeed*frameScale; if(Math.abs(dx)>.1)player.facing=dx>0?1:-1; }
   if(lockTarget&&lockTarget.alive) player.facing=lockTarget.x>player.x?1:-1; else if(lockTarget&&!lockTarget.alive) lockTarget=null;
   const slow=slowMo>0?.45:1; player.x+=player.vx*slow*frameScale; player.y+=player.vy*slow*frameScale; player.vx*=Math.pow(.82,frameScale); player.vy*=Math.pow(.82,frameScale); player.x=clamp(player.x,35,W-35); player.y=clamp(player.y,105,H-35);
   player.attackCd=Math.max(0,player.attackCd-frameScale); attackInputLock=Math.max(0,attackInputLock-frameScale); attackBuffer=Math.max(0,attackBuffer-frameScale); skillBuffer=Math.max(0,skillBuffer-frameScale); ultBuffer=Math.max(0,ultBuffer-frameScale); dashBuffer=Math.max(0,dashBuffer-frameScale); player.skillCd=Math.max(0,player.skillCd-frameScale); player.ultCd=Math.max(0,player.ultCd-frameScale); player.dashCd=Math.max(0,player.dashCd-frameScale); player.switchCd=Math.max(0,player.switchCd-frameScale); player.inv=Math.max(0,player.inv-frameScale); player.chainTimer=Math.max(0,player.chainTimer-frameScale); player.guardTimer=Math.max(0,player.guardTimer-frameScale); player.parryReady=Math.max(0,player.parryReady-frameScale); player.perfectBuff=Math.max(0,player.perfectBuff-frameScale); teamDamageAmpTimer=Math.max(0,teamDamageAmpTimer-frameScale); chloeElementDamageAmpTimer=Math.max(0,chloeElementDamageAmpTimer-frameScale); chloeTrueDamageTimer=Math.max(0,chloeTrueDamageTimer-frameScale); noxDamageAmpTimer=Math.max(0,noxDamageAmpTimer-frameScale); if(player.parryReady<=0)player.parryTarget=null;
@@ -10569,6 +10722,7 @@ function updateBattle(){
     updateEffects();
     return;
   }
+  updateOperationBattleSystems();
   const combatFinished=enemies.every(e=>!e.alive);
   const objectivePending=hasPendingChapterAreaObjective();
   if(combatFinished && objectivePending && !chapterObjectivePrompted){
@@ -10619,23 +10773,23 @@ function updateBattle(){
         settlement={stage:0,reward:matReward.crystal||0,expReward:matReward.expReward||0,stars:3,mode:"material",matReward};
       }else if(battleModeSource==="commission"){
         const st=commissionStages[selectedStage-1] || commissionStages[0];
-        const key="c"+selectedStage;
-        reward=st.reward || 50;
-        expReward=st.exp || 500;
-        if(!cleared[key]){
+        const key=operationClearKey(selectedStage),effective=Math.max(0,(operationRun?.kills||0)-(operationRun?.breaches||0)),ratio=clamp(effective/Math.max(1,st.target||100),0,1),grade=ratio>=.95?3:ratio>=.8?2:1;
+        const achieved=(st.milestones||[]).filter(m=>effective>=m.at);
+        reward=Math.floor((st.reward||50)*(.55+ratio*.45))+achieved.reduce((n,m)=>n+(m.crystal||0),0);
+        expReward=Math.floor((st.exp||500)*(.65+ratio*.35));
+        if(!operationIsCleared(selectedStage)){
           reward=grantFreeCrystals(reward);
-          gold += 300 + selectedStage*50;
-          totalGoldEarned += 300 + selectedStage*50;
-          expBooks += 1;
-          weaponOre += selectedStage%3===0 ? 1 : 0;
+          const goldReward=Math.floor((500+selectedStage*75)*(.65+ratio*.35))+achieved.reduce((n,m)=>n+(m.gold||0),0);gold+=goldReward;totalGoldEarned+=goldReward;
+          expBooks += grade;
+          weaponOre += (grade>=3 ? 2 : 1)+achieved.reduce((n,m)=>n+(m.ore||0),0);
           addPlayerExp(expReward);
-          cleared[key]=true;
+          operationSeasonState().cleared[key]=true;
           saveGame(); autoCloudSaveNow(true);
         }else{
           reward=0;
           expReward=0;
         }
-        settlement={stage:selectedStage,reward,expReward,stars:3,mode:"commission"};
+        settlement={stage:selectedStage,reward,expReward,stars:grade,mode:"commission",kills:operationRun?.kills||0,breaches:operationRun?.breaches||0,effective,ratio,bossKills:operationRun?.bossKills||0,target:st.target||100,season:operationSeasonId(),milestones:achieved.length,totalMilestones:(st.milestones||[]).length};
       }else{
         const st=stages[selectedStage-1];
         const clearKey=mainStageClearKey(selectedStage);
@@ -10748,6 +10902,7 @@ function startPZCrystalWarTeamSetup(){
   crystalWarTeamSetupPending=true;
   battleModeSource="crystalWar";
   selectedTab="dualCrystal";
+  if(window.PZCrystalWar&&typeof window.PZCrystalWar.closeBattleEmotes==="function")window.PZCrystalWar.closeBattleEmotes();
   clearTransientBattleState();
   enterTeamSetup();
   showCenter(language==="en"?"CRYSTAL WAR · SQUAD SETUP":"晶体战争 · 战区编队",55);
@@ -10765,6 +10920,20 @@ function updateTeam(){
     }
     clicked=false;
     return;
+  }
+
+  if(teamSupportOpen){
+    if(justPressed("escape")){teamSupportOpen=false;clicked=false;return;}
+    if(clicked){
+      if(inRect(1008,82,42,38)){teamSupportOpen=false;clicked=false;return;}
+      const cats=supportCategoryOptions();
+      for(let i=0;i<cats.length;i++)if(inRect(110,148+i*45,132,37)){teamSupportCategory=cats[i].id;teamSupportSelectedIndex=0;teamSupportRefreshSeed++;refreshServerSupports();clicked=false;return;}
+      if(inRect(835,82,166,38)){teamSupportRefreshSeed++;teamSupportSelectedIndex=0;refreshServerSupports();clicked=false;return;}
+      const candidates=supportCandidates();
+      for(let i=0;i<Math.min(8,candidates.length);i++){const x=266+(i%2)*240,y=148+Math.floor(i/2)*93;if(inRect(x,y,224,80)){teamSupportSelectedIndex=i;clicked=false;return;}}
+      if(inRect(776,510,226,52)&&candidates[teamSupportSelectedIndex]){borrowSupportCandidate(candidates[teamSupportSelectedIndex]);clicked=false;return;}
+    }
+    clicked=false;return;
   }
 
   if(justPressed("escape")){
@@ -10790,6 +10959,7 @@ function updateTeam(){
   if(storyTeam) team=normalizeBattleTeam(storyTeam);
 
   if(clicked){
+    if(inRect(840,116,185,34)&&!storyTeam){teamSupportOpen=true;teamSupportRefreshSeed++;refreshServerSupports();clicked=false;return;}
     if(storyTeam && mouseY>=145 && mouseY<=520){
       showCenter(language==="en"?"Story-restricted squad":"本关为剧情限定队伍",60);
       clicked=false;
@@ -10800,7 +10970,9 @@ function updateTeam(){
       if(i<team.length&&inRect(x+184,y+8,28,28)){
         if(team.length<=1) showCenter(language==="en"?"At least one executor is required":"至少保留一名执行官",55);
         else{
+          if(borrowedSupport&&borrowedSupport.slot===i)borrowedSupport=null;
           team.splice(i,1);
+          if(borrowedSupport&&borrowedSupport.slot>i)borrowedSupport.slot--;
           teamSelectSlot=Math.min(i,team.length);
           sfx("ui");
         }
@@ -10827,6 +10999,7 @@ function updateTeam(){
         if(existingSlot >= 0){
           teamSelectSlot = existingSlot;
         }else{
+          if(borrowedSupport&&borrowedSupport.slot===teamSelectSlot)borrowedSupport=null;
           if(teamSelectSlot<team.length) team[teamSelectSlot]=i;
           else if(team.length<3) team.push(i);
           team=normalizeBattleTeam(team);
@@ -10879,6 +11052,7 @@ function drawTeam(){
   ctx.fillStyle="rgba(255,255,255,.70)";
   ctx.font="bold 18px " + FONT_UI;
   ctx.fillText(ui("currentTeam"),95,135);
+  drawBtn(language==="en"?"Support":"支援",borrowedSupport?(language==="en"?"BORROWED":"已借用"):(language==="en"?"FRIENDS":"好友"),840,116,185,34,!!borrowedSupport,"#7cc7ff");
 
   for(let i=0;i<3;i++){
     const roleIndex=team[i];
@@ -10907,7 +11081,9 @@ function drawTeam(){
     ctx.fillText(r?roleName(roleIndex):(language==="en"?"Empty":"空位"),x+105,y+58);
     ctx.fillStyle="rgba(255,255,255,.65)";
     ctx.font="14px " + FONT_UI;
-    ctx.fillText(r?(i===0?mt("teamLeader"):mt("teamSwitchable")):(language==="en"?"Select an executor":"选择一名执行官"),x+105,y+92);
+    const supportHere=borrowedSupport&&borrowedSupport.slot===i&&borrowedSupport.roleId===roleIndex;
+    ctx.fillText(r?(supportHere?((language==="en"?"Support · ":"支援 · ")+borrowedSupport.owner):(i===0?mt("teamLeader"):mt("teamSwitchable"))):(language==="en"?"Select an executor":"选择一名执行官"),x+105,y+92);
+    if(supportHere){ctx.fillStyle="#7cc7ff";ctx.font="bold 11px "+FONT_UI;ctx.fillText("Lv."+borrowedSupport.level,x+105,y+113);}
     if(r){
       ctx.fillStyle="rgba(12,14,22,.86)";ctx.beginPath();ctx.arc(x+198,y+22,13,0,Math.PI*2);ctx.fill();
       ctx.strokeStyle=team.length>1?"rgba(255,255,255,.38)":"rgba(255,255,255,.15)";ctx.stroke();
@@ -10987,6 +11163,7 @@ function drawTeam(){
 
   drawBtn(tr("返回地图","Back to Map"),"CLICK",60,560,220,52);
   drawBtn(ui("startAction"),"CLICK",W-330,560,250,56,true,"#ffe066");
+  if(teamSupportOpen)drawTeamSupportPanel();
   if(teamRenamePreset>=0){
     ctx.fillStyle="rgba(0,0,0,.72)";ctx.fillRect(0,0,W,H);
     ctx.fillStyle="rgba(17,23,45,.98)";ctx.fillRect(W/2-280,H/2-105,560,210);
@@ -11034,7 +11211,9 @@ async function syncFriendPublicProfile(){
       playerUid:String(playerUID),displayName:String(playerName),
       level:Math.max(1,Math.floor(Number(playerLevel)||1)),
       avatarRole:Math.max(0,Math.floor(Number(profileAvatarRole)||0)),
-      avatarFrame:String(profileAvatarFrame||"")
+      avatarFrame:String(profileAvatarFrame||""),
+      showcaseRoles:profileShowcase.slice(0,3).map(v=>clamp(Math.floor(Number(v)||0),0,roles.length-1)),
+      showcaseLevels:profileShowcase.slice(0,3).map(v=>isProtagonist(v)?protagonistLevel():clamp(Math.floor(Number(charData[v]?.level)||1),1,60))
     });
     return true;
   }catch(err){console.warn("[FriendProfileSync]",err);return false;}
@@ -12837,6 +13016,91 @@ function drawAchievementMiniButton(){
 }
 
 
+function normalizeBorrowedSupport(value){
+  if(!value||typeof value!=="object")return null;
+  const roleId=clamp(Math.floor(Number(value.roleId)||0),0,roles.length-1);
+  const slot=clamp(Math.floor(Number(value.slot)||0),0,2);
+  const level=clamp(Math.floor(Number(value.level)||1),1,60);
+  return{roleId,slot,level,owner:String(value.owner||"PLAYER").slice(0,18),accountId:String(value.accountId||"")};
+}
+
+function supportProfession(roleId){
+  return["swordguard","assist","breaker","arcane","leader","medic"][roleId]||"leader";
+}
+
+function supportCategoryOptions(){
+  return[
+    {id:"all",zh:"全部",en:"ALL",icon:"◇"},{id:"swordguard",zh:"剑卫",en:"SWORDGUARD",icon:"⚔"},
+    {id:"shieldguard",zh:"盾卫",en:"SHIELDGUARD",icon:"⬡"},{id:"breaker",zh:"击破",en:"BREAKER",icon:"◆"},
+    {id:"marksman",zh:"远射",en:"MARKSMAN",icon:"◎"},{id:"arcane",zh:"法武",en:"ARCANE",icon:"✦"},
+    {id:"assist",zh:"协辅",en:"ASSIST",icon:"⌁"},{id:"medic",zh:"医治",en:"MEDIC",icon:"✚"},
+    {id:"leader",zh:"引领",en:"LEADER",icon:"▲"}
+  ];
+}
+
+function supportCandidates(){
+  const list=(Array.isArray(teamSupportServerCandidates)?teamSupportServerCandidates:[]).map(raw=>({
+    roleId:clamp(Math.floor(Number(raw.roleId)||0),0,roles.length-1),profession:supportProfession(clamp(Math.floor(Number(raw.roleId)||0),0,roles.length-1)),
+    owner:String(raw.owner||raw.displayName||"PLAYER").slice(0,18),accountId:String(raw.accountId||""),
+    roleLevel:clamp(Math.floor(Number(raw.roleLevel)||1),1,60)
+  })).filter(v=>teamSupportCategory==="all"||v.profession===teamSupportCategory);
+  const unique=[];const seen=new Set();
+  for(const item of list){const key=item.accountId+":"+item.roleId;if(!seen.has(key)){seen.add(key);unique.push(item);}}
+  unique.sort((a,b)=>{
+    const av=(supportHash(a.accountId+":"+a.roleId)+teamSupportRefreshSeed*7919)%104729;
+    const bv=(supportHash(b.accountId+":"+b.roleId)+teamSupportRefreshSeed*7919)%104729;
+    return av-bv;
+  });
+  return unique;
+}
+
+async function refreshServerSupports(){
+  if(teamSupportBusy)return;
+  teamSupportBusy=true;teamSupportMessage="";teamSupportServerCandidates=[];
+  try{
+    if(!cloudUser)throw new Error("ONLINE_IDENTITY_REQUIRED");
+    if(!window.PZAccount||typeof window.PZAccount.getSupportOperators!=="function")throw new Error("SUPPORT_API_UNAVAILABLE");
+    const body=await window.PZAccount.getSupportOperators(teamSupportCategory,teamSupportRefreshSeed);
+    teamSupportServerCandidates=Array.isArray(body.operators)?body.operators:[];
+    if(!teamSupportServerCandidates.length)teamSupportMessage=language==="en"?"No public support is available in this profession.":"该职业暂时没有全服公开支援。";
+  }catch(err){
+    const code=String(err?.code||err?.message||"");
+    teamSupportMessage=!cloudUser?(language==="en"?"Sign in to an online identity to use server support.":"请先登录在线身份后使用全服支援。"):(language==="en"?"Support server is unavailable. Check the Friends service address.":"支援服务器不可用，请检查好友服务地址或部署状态。");
+    console.warn("[SupportPool]",code,err);
+  }finally{teamSupportBusy=false;}
+}
+
+function supportHash(value){let h=2166136261;for(const ch of String(value)){h^=ch.charCodeAt(0);h=Math.imul(h,16777619);}return h>>>0;}
+
+function borrowSupportCandidate(candidate){
+  if(!candidate)return;
+  const existing=team.indexOf(candidate.roleId);
+  if(existing>=0&&existing!==teamSelectSlot){showCenter(language==="en"?"This executor is already in the squad":"该执行官已在队伍中",55);return;}
+  const slot=clamp(teamSelectSlot,0,2);
+  if(slot<team.length)team[slot]=candidate.roleId;else if(team.length<3)team.push(candidate.roleId);else team[2]=candidate.roleId;
+  borrowedSupport={roleId:candidate.roleId,slot:Math.min(slot,team.length-1),level:candidate.roleLevel,owner:candidate.owner,accountId:candidate.accountId};
+  teamSupportOpen=false;sfx("ui");saveGame();
+  showCenter((language==="en"?"SUPPORT JOINED · Lv.":"支援已加入 · Lv.")+borrowedSupport.level,65);
+}
+
+function drawTeamSupportPanel(){
+  ctx.fillStyle="rgba(1,3,9,.92)";ctx.fillRect(0,0,W,H);
+  ctx.fillStyle="rgba(8,14,27,.99)";ctx.fillRect(70,42,980,566);ctx.strokeStyle="rgba(124,199,255,.65)";ctx.lineWidth=2;ctx.strokeRect(70,42,980,566);
+  ctx.fillStyle="#7cc7ff";ctx.fillRect(70,42,7,566);ctx.fillStyle="#fff";ctx.font="bold 28px "+FONT_UI;ctx.textAlign="left";ctx.fillText(language==="en"?"SERVER SUPPORT":"全服支援",104,82);
+  ctx.fillStyle="rgba(255,255,255,.45)";ctx.font="11px "+FONT_UI;ctx.fillText(language==="en"?"PUBLIC OPERATOR ASSISTANCE / ONE SQUAD SLOT":"公开执行官助战 / 占用一个队伍位置",105,105);
+  drawBtn(language==="en"?"Refresh List":"刷新列表","↻",835,82,166,38,true,"#ffe066");drawBtn("×",language==="en"?"CLOSE":"关闭",1008,82,42,38,false,"#fff");
+  ctx.fillStyle="rgba(255,255,255,.035)";ctx.fillRect(92,132,162,448);ctx.strokeStyle="rgba(255,255,255,.10)";ctx.strokeRect(92,132,162,448);
+  const cats=supportCategoryOptions();for(let i=0;i<cats.length;i++){const c=cats[i],sel=teamSupportCategory===c.id,hover=inRect(110,148+i*45,132,37);ctx.fillStyle=sel?"rgba(124,199,255,.22)":hover?"rgba(255,255,255,.10)":"rgba(255,255,255,.035)";ctx.fillRect(110,148+i*45,132,37);ctx.strokeStyle=sel?"#7cc7ff":"rgba(255,255,255,.10)";ctx.strokeRect(110,148+i*45,132,37);ctx.fillStyle=sel?"#7cc7ff":"rgba(255,255,255,.70)";ctx.font="bold 12px "+FONT_UI;ctx.fillText(c.icon+"  "+(language==="en"?c.en:c.zh),120,172+i*45);}
+  ctx.fillStyle="rgba(255,255,255,.025)";ctx.fillRect(260,132,486,448);ctx.strokeStyle="rgba(255,255,255,.10)";ctx.strokeRect(260,132,486,448);
+  const candidates=supportCandidates();teamSupportSelectedIndex=clamp(teamSupportSelectedIndex,0,Math.max(0,candidates.length-1));
+  if(teamSupportBusy){ctx.fillStyle="#7cc7ff";ctx.font="bold 17px "+FONT_UI;ctx.textAlign="center";ctx.fillText(language==="en"?"Loading server support...":"正在读取全服支援……",503,350);ctx.textAlign="left";}
+  else if(!candidates.length){ctx.fillStyle="rgba(255,255,255,.45)";ctx.font="bold 14px "+FONT_UI;ctx.textAlign="center";ctx.fillText(teamSupportMessage||(language==="en"?"No support in this class":"该职业暂无公开支援"),503,350);ctx.textAlign="left";}
+  else for(let i=0;i<Math.min(8,candidates.length);i++){const c=candidates[i],x=266+(i%2)*240,y=148+Math.floor(i/2)*93,sel=i===teamSupportSelectedIndex,hover=inRect(x,y,224,80);ctx.fillStyle=sel?"rgba(255,224,102,.16)":hover?"rgba(124,199,255,.13)":"rgba(255,255,255,.045)";ctx.fillRect(x,y,224,80);ctx.strokeStyle=sel?"#ffe066":hover?"#7cc7ff":"rgba(255,255,255,.12)";ctx.lineWidth=sel?2:1;ctx.strokeRect(x,y,224,80);drawPortrait(x+7,y+7,50,66,roles[c.roleId],false);ctx.fillStyle="#fff";ctx.font="bold 14px "+FONT_UI;ctx.fillText(roleName(c.roleId),x+66,y+24);ctx.fillStyle="#ffe066";ctx.font="bold 12px Arial";ctx.fillText("Lv."+c.roleLevel,x+66,y+43);ctx.fillStyle="rgba(255,255,255,.46)";ctx.font="9px "+FONT_UI;ctx.fillText(c.owner,x+66,y+61);ctx.fillStyle="#7cc7ff";ctx.font="bold 9px "+FONT_UI;ctx.fillText((supportCategoryOptions().find(v=>v.id===c.profession)||{} )[language==="en"?"en":"zh"]||c.profession,x+166,y+24);}
+  ctx.fillStyle="rgba(255,255,255,.035)";ctx.fillRect(758,132,264,448);ctx.strokeStyle="rgba(255,255,255,.10)";ctx.strokeRect(758,132,264,448);
+  const selected=candidates[teamSupportSelectedIndex];if(selected){drawPortrait(790,158,200,250,roles[selected.roleId],false);ctx.fillStyle="#fff";ctx.font="bold 25px "+FONT_UI;ctx.fillText(roleName(selected.roleId),780,438);ctx.fillStyle="#ffe066";ctx.font="bold 19px Arial";ctx.fillText("Lv."+selected.roleLevel,780,466);ctx.fillStyle="#7cc7ff";ctx.font="bold 11px "+FONT_UI;ctx.fillText(language==="en"?"PROVIDED BY":"提供玩家",780,489);ctx.fillStyle="rgba(255,255,255,.68)";ctx.font="13px "+FONT_UI;ctx.fillText(selected.owner,780,509);}
+  drawBtn(selected?(language==="en"?"Borrow Operator":"确认借用"):(language==="en"?"Unavailable":"暂无角色"),selected?("Lv."+selected.roleLevel):"",776,510,226,52,!!selected,"#ffe066");
+}
+
 function roleTeamSlot(roleIndex){
   for(let i=0;i<team.length;i++){
     if(team[i]===roleIndex) return i;
@@ -12850,7 +13114,7 @@ function normalizeBattleTeam(value,fallback=[PROTAGONIST_ROLE]){
   for(const raw of source){
     const role=Math.floor(Number(raw));
     if(!Number.isFinite(role)||role<0||role>=roles.length||out.includes(role)) continue;
-    if(Array.isArray(owned)&&!owned[role]) continue;
+    if(Array.isArray(owned)&&!owned[role]&&!(borrowedSupport&&borrowedSupport.roleId===role)) continue;
     out.push(role);
     if(out.length>=3) break;
   }
@@ -13458,6 +13722,10 @@ function drawBattleManualDailyTasks(){
 }
 
 function countClearedCommissions(){
+  const seasonal=cleared.__operationSeason;
+  if(seasonal&&seasonal.season===operationSeasonId()&&seasonal.cleared){
+    return Object.values(seasonal.cleared).filter(Boolean).length;
+  }
   let n=0;
   for(let i=1;i<=20;i++) if(cleared["c"+i]) n++;
   return n;
@@ -14459,41 +14727,50 @@ function drawLobby(){
 }
 
 const commissionChapters = [
-  {no:1,zh:"外围清扫",en:"Outer Sweep",color:"#7cc7ff",stages:[
-    {name:"Street Sweep",zh:"街区清理",type:"annihilation",mechanicZh:"连续击破：每波敌人数量增加",mechanicEn:"Escalation: each wave adds an enemy",lv:4,time:210},
-    {name:"Shield Line",zh:"护盾防线",type:"shield",mechanicZh:"护盾增幅：带盾敌人防御更高",mechanicEn:"Fortified: shield units gain defense",lv:7,time:200},
-    {name:"Crossfire",zh:"交叉火力",type:"ranged",mechanicZh:"远程压制：优先处理射手",mechanicEn:"Crossfire: ranged units pressure the field",lv:10,time:190},
-    {name:"Street Captain",zh:"街区队长",type:"elite",mechanicZh:"精英指挥：末波出现强化精英",mechanicEn:"Elite Command: empowered elite in wave 4",lv:13,time:180,boss:true}
+  {no:1,zh:"灰烬边境",en:"Ashen Border",color:"#8fb8c8",x:250,y:420,rule:"frontline",ruleZh:"边境疲劳：角色伤害受压制；将敌人引入防线扫描区可使其脆弱。",ruleEn:"Border Fatigue: lure enemies into the Frontline scanner to expose them.",stages:[
+    {name:"First Commission",zh:"初次委托",stageNo:0,type:"mixed",mechanicZh:"1-0低等级教学：防线、波次、香蕉皮、震荡雷与10分钟限制",mechanicEn:"1-0 tutorial: Frontline, waves, peels, mines and the 10-minute limit",lv:6,target:30,waves:5,bossWaves:[5],mapMechanic:"scanner",traps:["banana","mine"],initial:true,intro:true},
+    {name:"Border Lock",zh:"边境封锁",type:"mixed",mechanicZh:"正式1-1：防线扫描 + 震荡雷，维持高攻击与高压推进",mechanicEn:"Formal 1-1: Frontline Scanner + Shock Mines; high-pressure advance",lv:28,target:100,waves:10,bossWaves:[2,5,8,10],mapMechanic:"scanner",traps:["mine","mud"]},
+    {name:"Dustline Watch",zh:"尘线警戒",type:"mixed",mechanicZh:"流沙带 + 震荡雷：诱导敌人踩雷解除强化装甲",mechanicEn:"Drift Sand + Shock Mines: traps strip reinforced armor",lv:28,target:100,waves:10,bossWaves:[2,5,8,10],mapMechanic:"mud",traps:["mine","mud"]},
+    {name:"Abandoned Crossing",zh:"废弃渡口",type:"ranged",mechanicZh:"强风走廊 + 路障夹击：风向会同时改变双方站位",mechanicEn:"Crosswind + Barricades: wind changes both formations",lv:34,target:110,waves:10,bossWaves:[2,4,7,10],mapMechanic:"wind",traps:["banana","gust"]}
   ]},
-  {no:2,zh:"工业封锁",en:"Industrial Lockdown",color:"#ffe066",stages:[
-    {name:"Power Relay",zh:"能源中继",type:"berserker",mechanicZh:"狂热：敌人低血量时加速",mechanicEn:"Frenzy: low-HP enemies accelerate",lv:18,time:175},
-    {name:"Armored Depot",zh:"装甲仓库",type:"shield",mechanicZh:"装甲编队：护盾与远程单位混编",mechanicEn:"Armored formation: shields protect ranged units",lv:22,time:170},
-    {name:"Conveyor Rush",zh:"传送带突袭",type:"mixed",mechanicZh:"增援：每波追加不同类型敌人",mechanicEn:"Reinforcements: mixed enemy types each wave",lv:26,time:165},
-    {name:"Factory Core",zh:"工厂核心",type:"chapterBoss",mechanicZh:"核心过载：末波出现大型守卫",mechanicEn:"Core overload: guardian appears in wave 4",lv:30,time:160,boss:true}
+  {no:2,zh:"雷文工业环",en:"Raven Industrial Ring",color:"#d6b36a",x:570,y:230,rule:"overheat",ruleZh:"工业过热：角色技能充能变慢；蒸汽喷口会灼开敌人装甲。",ruleEn:"Industrial Overheat: steam vents expose enemy armor.",stages:[
+    {name:"Silent Assembly",zh:"静默装配线",type:"shield",mechanicZh:"传送带 + 冲压机：压制区周期闭合并暴露敌人",mechanicEn:"Conveyors + Presses: timed crush zones expose enemies",lv:42,target:115,waves:10,bossWaves:[2,5,7,10],mapMechanic:"conveyor",traps:["press","steam"]},
+    {name:"Furnace Blackout",zh:"熔炉断电",type:"berserker",mechanicZh:"热浪脉冲 + 蒸汽口：安全区与破甲窗口交替",mechanicEn:"Heat Pulse + Steam: safe zones alternate with exposure windows",lv:50,target:120,waves:10,bossWaves:[3,5,8,10],mapMechanic:"pulse",traps:["steam","mine"]},
+    {name:"Core Seizure",zh:"核心夺还",type:"chapterBoss",mechanicZh:"不稳定地面 + 电弧轨：停留会被击退，电弧可破甲",mechanicEn:"Unstable Floor + Arc Rails: arcs break armor",lv:58,target:130,waves:10,bossWaves:[2,4,6,10],mapMechanic:"unstable",traps:["arc","press"]}
   ]},
-  {no:3,zh:"裂隙警戒",en:"Rift Alert",color:"#c35cff",stages:[
-    {name:"Rift Echo",zh:"裂隙回响",type:"mixed",mechanicZh:"镜像增援：敌人组合快速轮换",mechanicEn:"Echo waves: enemy formations rotate quickly",lv:35,time:155},
-    {name:"Hunter Pack",zh:"追猎群",type:"berserker",mechanicZh:"追猎：狂战敌人移动速度提升",mechanicEn:"Hunt: berserkers move faster",lv:40,time:150},
-    {name:"Crystal Battery",zh:"晶体炮列",type:"ranged",mechanicZh:"弹幕：远程单位射击间隔缩短",mechanicEn:"Barrage: ranged attacks fire faster",lv:45,time:145},
-    {name:"Rift Warden",zh:"裂隙监守",type:"chapterBoss",mechanicZh:"裂隙首领：最终波拥有护盾与狂暴阶段",mechanicEn:"Rift warden: shield and rage phases",lv:50,time:140,boss:true}
+  {no:3,zh:"镜湖裂隙群",en:"Mirrorlake Rifts",color:"#b391d4",x:850,y:570,rule:"resonance",ruleZh:"镜像失真：角色移动与输出周期衰减；裂隙共振时敌人会显形。",ruleEn:"Mirror Distortion: rift resonance reveals enemy weaknesses.",stages:[
+    {name:"Echo Patrol",zh:"回声巡猎",type:"mixed",mechanicZh:"裂隙换位 + 镜像井：换位瞬间使全场敌人短暂脆弱",mechanicEn:"Rift Shift + Mirror Wells: shifts briefly expose all enemies",lv:64,target:125,waves:10,bossWaves:[2,5,8,10],mapMechanic:"rift",traps:["riftwell","ice"]},
+    {name:"Crystal Rain",zh:"晶雨封锁",type:"ranged",mechanicZh:"晶雨落点 + 冰面：命中敌人的晶雨会制造破防窗口",mechanicEn:"Crystal Rain + Ice: impacts create armor-break windows",lv:70,target:135,waves:10,bossWaves:[3,5,7,10],mapMechanic:"crystalRain",traps:["crystal","ice","riftwell"]},
+    {name:"Reflected Abyss",zh:"倒映深渊",type:"chapterBoss",mechanicZh:"双重裂隙 + 晶雨：安全区域会反转，只有共振期间能击破Boss",mechanicEn:"Twin Rifts + Crystal Rain: safe lanes invert during resonance",lv:78,target:150,waves:10,bossWaves:[2,4,6,8,10],mapMechanic:"mirrorChaos",traps:["riftwell","crystal","gravity"]}
   ]},
-  {no:4,zh:"零界试炼",en:"Zero Boundary",color:"#ff6b9b",stages:[
-    {name:"Pressure Test",zh:"极限压力",type:"elite",mechanicZh:"高压：精英敌人从第二波开始出现",mechanicEn:"High pressure: elites appear from wave 2",lv:55,time:135},
-    {name:"No Safe Range",zh:"无安全距离",type:"mixed",mechanicZh:"夹击：近战与远程敌人同步进攻",mechanicEn:"Pincer: melee and ranged attack together",lv:60,time:130},
-    {name:"Red Threshold",zh:"红色临界",type:"bossPrep",mechanicZh:"临界：所有敌人低血量时进入狂热",mechanicEn:"Threshold: all enemies frenzy at low HP",lv:65,time:125},
-    {name:"Final Commission",zh:"最终委托",type:"chapterBoss",mechanicZh:"最终考验：四波均为强化混合编队",mechanicEn:"Final trial: four empowered mixed waves",lv:70,time:120,boss:true}
+  {no:4,zh:"零界断层",en:"Zero Boundary Fault",color:"#df7886",x:1160,y:300,rule:"suppression",ruleZh:"零界压制：角色全面弱化；只能利用零界脉冲和重力井破除敌人稳定态。",ruleEn:"Zero Suppression: use pulses and gravity wells to break stability.",stages:[
+    {name:"Red Threshold",zh:"红色临界线",type:"elite",mechanicZh:"侵蚀带 + 重力井：被吸入井中的敌人解除稳定态",mechanicEn:"Erosion + Gravity Wells: trapped enemies lose stability",lv:76,target:135,waves:10,bossWaves:[2,4,7,10],mapMechanic:"erosion",traps:["gravity","arc"]},
+    {name:"No Safe Range",zh:"无安全距离",type:"bossPrep",mechanicZh:"交叉风压 + 零界雷：引爆装置可制造群体脆弱",mechanicEn:"Cross Pressure + Zero Mines: detonations expose groups",lv:84,target:145,waves:10,bossWaves:[2,5,8,10],mapMechanic:"crosswind",traps:["gravity","mine","gust"]},
+    {name:"Boundary Collapse",zh:"边界坍缩",type:"chapterBoss",mechanicZh:"复合异常：重力、晶雨、电弧和位移陷阱轮换",mechanicEn:"Compound Anomaly: gravity, crystal, arc and shift traps rotate",lv:92,target:160,waves:10,bossWaves:[2,4,6,8,10],mapMechanic:"chaos",traps:["gravity","crystal","arc","banana"]}
+  ]},
+  {no:5,zh:"霜脉禁区",en:"Frostvein Exclusion",color:"#78d9e8",x:1450,y:540,rule:"frostlock",ruleZh:"霜脉锁定：角色冲刺与能量恢复受限；热源信标可融化敌人永久冻甲。",ruleEn:"Frostlock: heat beacons melt the enemies' frozen armor.",stages:[
+    {name:"Whiteout Relay",zh:"白障中继站",type:"ranged",mechanicZh:"暴风雪 + 冰面 + 热源信标：视野周期收缩，靠近信标破甲",mechanicEn:"Blizzard + Ice + Beacons: beacon fields melt armor",lv:96,target:150,waves:10,bossWaves:[2,5,8,10],mapMechanic:"blizzard",traps:["ice","beacon","gust"]},
+    {name:"Frozen Artery",zh:"冻结动脉",type:"shield",mechanicZh:"冻结管线 + 蒸汽阀：开启短暂热区并改变敌人路线",mechanicEn:"Frozen Pipes + Steam Valves: heat zones reroute and expose enemies",lv:104,target:160,waves:10,bossWaves:[2,4,7,10],mapMechanic:"frozenPipes",traps:["ice","steam","press"]},
+    {name:"Glacier Heart",zh:"冰川之心",type:"chapterBoss",mechanicZh:"极寒核心 + 重力雪崩：热源、重力井与晶雨必须按顺序利用",mechanicEn:"Glacier Core: chain beacon, gravity and crystal windows",lv:112,target:175,waves:10,bossWaves:[2,4,6,8,10],mapMechanic:"frostChaos",traps:["beacon","gravity","crystal","ice"]}
+  ]},
+  {no:6,zh:"天穹失联带",en:"Skybreak Deadzone",color:"#f2a56f",x:1020,y:860,rule:"blackout",ruleZh:"通讯黑障：技能锁定与战场标记间歇失效；校准塔在线时敌人弱点才会显现。",ruleEn:"Signal Blackout: calibration towers reveal weaknesses intermittently.",stages:[
+    {name:"Fallen Uplink",zh:"坠落上行站",type:"elite",mechanicZh:"黑障周期 + 激光栅栏：校准塔与激光交替开放破甲窗口",mechanicEn:"Blackout + Laser Grids: towers and lasers alternate exposure windows",lv:116,target:160,waves:10,bossWaves:[2,5,8,10],mapMechanic:"blackout",traps:["beacon","laser","arc"]},
+    {name:"Orbital Shadow",zh:"轨道阴影",type:"bossPrep",mechanicZh:"轨道扫射 + 虚空井：预警区移动，敌人被井吸附后才可有效攻击",mechanicEn:"Orbital Sweep + Void Wells: trapped enemies become vulnerable",lv:124,target:175,waves:10,bossWaves:[2,4,7,10],mapMechanic:"orbital",traps:["laser","void","gravity"]},
+    {name:"Last Transmission",zh:"最后传输",type:"chapterBoss",mechanicZh:"全域失联：校准、激光、虚空与电弧按阶段组合，Boss拥有五次增援",mechanicEn:"Total Blackout: calibration, laser, void and arc phases combine",lv:132,target:190,waves:10,bossWaves:[2,4,6,8,10],mapMechanic:"signalChaos",traps:["beacon","laser","void","arc"]}
   ]}
 ];
 const commissionStages = commissionChapters.flatMap((chapter,ci)=>chapter.stages.map((s,si)=>({
-  ...s,id:ci*4+si+1,chapter:ci+1,localId:si+1,reward:200,exp:700+ci*300+si*80,
+  ...s,id:commissionChapters.slice(0,ci).reduce((n,c)=>n+c.stages.length,0)+si+1,chapter:ci+1,localId:Number.isFinite(s.stageNo)?s.stageNo:(ci===0?si:si+1),reward:s.initial?120:320+ci*90+si*35,exp:s.initial?500:1100+ci*450+si*180,
+  milestones:Array.from({length:Math.ceil(s.target/5)},(_,mi)=>{const at=Math.min(s.target,(mi+1)*5),major=at%25===0||at===s.target;return {at,gold:major?0:180+ci*40,crystal:major?20+ci*5:0,ore:at===s.target?2+ci:0};}),
   name:"C"+(ci+1)+"-"+(si+1)+" "+s.name,zh:"委托 "+(ci+1)+"-"+(si+1)+" "+s.zh,
   desc:s.mechanicEn,zhDesc:s.mechanicZh
 })));
 
-function currentCommissionStages(){ return commissionStages.slice(selectedCommissionChapter*4,selectedCommissionChapter*4+4); }
+function currentCommissionStages(){ return commissionStages.filter(s=>s.chapter===selectedCommissionChapter+1); }
 function currentCommissionStage(){ return commissionStages[selectedStage-1] || commissionStages[0]; }
+function operationStageCode(st=currentCommissionStage()){return st&&Number.isFinite(st.chapter)&&Number.isFinite(st.localId)?"C"+st.chapter+"-"+st.localId:"C-00";}
 function battleAreaLimit(){
-  if(battleModeSource==="commission") return 4;
+  if(battleModeSource==="commission") return currentCommissionStage().waves||10;
   if(battleModeSource==="daydream") return clamp((daydreamBattleConfig&&daydreamBattleConfig.areas)||2,1,3);
   if(battleModeSource==="crystalWar") return Number.MAX_SAFE_INTEGER;
   const storyCfg=mainStoryBehavior();
@@ -16149,6 +16426,84 @@ function returnToMainBattleArea(){
   showCenter(language==="en"?"RETURNED TO MAIN AREA":"已返回主区域",55);
 }
 
+function spawnOperationWave(){
+  enemies=[];projectiles=[];lockTarget=null;areaCleared=false;commissionComplete=false;
+  const st=currentCommissionStage(),left=Math.max(0,(st.target||100)-(operationRun?.spawned||0)),wavesLeft=Math.max(1,(st.waves||10)-area+1),count=Math.max(1,Math.ceil(left/wavesLeft)),types=["normal","skirmisher","ranged","shield","support","berserker","fireCrystal","elite","sniper"];
+  if(!operationRun)operationRun={stageId:st.id,target:st.target||100,kills:0,breaches:0,effective:0,bossKills:0,spawned:0,wave:area,seen:new Set(),breached:new Set(),hazards:[],hazardClock:0,stun:0,still:0,lastX:player.x,lastY:player.y,config:{...operationRegionConfig(st.chapter-1)},milestones:[]};
+  operationRun.wave=area;operationRun.hazards=[];operationRun.hazardClock=0;
+  commissionTimeMax=600;commissionTimeLeft=600;
+  if(area>1&&operationRun.config.player==="reserve"){ensureBattleRoleHp();for(const roleId of team){const max=roleMaxHpForBattle(roleId);if(battleRoleHp[roleId]>0)battleRoleHp[roleId]=Math.min(max,battleRoleHp[roleId]+Math.ceil(max*.15));}syncPlayerHpFromRole();}
+  const bossWave=(st.bossWaves||[]).includes(area),enemyPressure=operationRun.config.enemy;
+  for(let i=0;i<count;i++){
+    const boss=bossWave&&i===count-1,type=boss?"boss":types[(st.id*7+area*3+i)%types.length],x=600+(i%5)*92,y=150+(Math.floor(i/5)%3)*132+((i*31)%28),e=createEnemy(x,y,boss,type);
+    e.operationId="op-"+st.id+"-"+area+"-"+i;e.operationBoss=boss;e.frontRunner=!boss&&i%3===0;e.operationBreached=false;
+    if(st.intro)e.lv=Math.min(10,e.lv||10);
+    const baseScale=st.intro?(boss ? .82 : .62):(1.12+(st.lv||1)/180)*(boss ? 1.30 : 1);e.maxHp=Math.max(1,Math.floor(e.maxHp*baseScale*(enemyPressure==="armor"?1.18:1)));e.hp=e.maxHp;e.operationExposed=0;if(boss){e.maxShield=Math.floor((e.maxShield||0)*(st.intro ? .55 : 1.05)+(st.intro?120:240+st.lv*7));e.shield=e.maxShield;}
+    if(enemyPressure==="armor"&&!boss){e.maxShield=Math.floor((e.maxShield||0)+e.maxHp*.22);e.shield=e.maxShield;}
+    if(enemyPressure==="barrage"&&["ranged","sniper","fireCrystal"].includes(type))e.shotCd=Math.max(10,(e.shotCd||60)*.68);
+    enemies.push(e);operationRun.seen.add(e.operationId);
+  }
+  operationRun.spawned+=count;
+  const seed=st.id*97+area*41;
+  for(const [ti,type] of (st.traps||[]).entries())for(let i=0;i<2;i++)operationRun.hazards.push({type,x:245+(seed+ti*163+i*307)%720,y:170+(seed*3+ti*97+i*149)%320,used:false,cd:0,phase:(ti*83+i*131)%300});
+  showCenter((language==="en"?"WAVE TIMER RESTORED · 10:00 · WAVE ":"波次计时回满 · 10:00 · 第 ")+area+" / "+(st.waves||10)+(bossWave?(language==="en"?" · BOSS SIGNAL":" · Boss信号"):""),90);
+}
+
+function updateOperationBattleSystems(){
+  if(battleModeSource!=="commission"||!operationRun)return;
+  const st=currentCommissionStage(),enemyPressure=operationRun.config.enemy,playerBoost=operationRun.config.player,bossAlive=enemies.some(e=>e.alive&&e.operationBoss);
+  operationRun.stun=Math.max(0,operationRun.stun-frameScale);operationRun.hazardClock+=frameScale;
+  for(const e of enemies){
+    if(!e.operationId)continue;
+    e.operationExposed=Math.max(0,(e.operationExposed||0)-frameScale*(playerBoost==="focus" ? .65 : 1));
+    if(e.alive&&((e.freeze||0)>0||(e.parried||0)>0))e.operationExposed=Math.max(e.operationExposed||0,90);
+    if(e.alive&&playerBoost==="execute"&&e.operationBoss&&(e.shield||0)<=0)e.operationExposed=Math.max(e.operationExposed||0,45);
+    if(!e.alive&&!e.operationCounted&&!e.operationBreached){e.operationCounted=true;operationRun.kills++;operationRun.effective++;if(e.operationBoss)operationRun.bossKills++;if(playerBoost==="charge")player.energy=clamp(player.energy+20,0,100);addText(e.x,e.y-55,language==="en"?"ELIMINATED":"已歼灭","#ffe066",true);}
+    if(!e.alive||!e.frontRunner)continue;
+    let speed=.62+(st.lv||1)*.004;if(enemyPressure==="rush")speed*=1.45;if(enemyPressure==="rage"&&e.hp/e.maxHp<.45)speed*=1.4;if(enemyPressure==="command"&&bossAlive)speed*=1.3;if(st.mapMechanic==="conveyor"||st.mapMechanic==="chaos")speed*=1.22;
+    e.x-=speed*frameScale;
+    if(e.x<112){e.operationBreached=true;e.alive=false;e.hp=0;operationRun.breaches++;addText(118,e.y,language==="en"?"BREACH":"突破防线","#ff596b",true);doShake(8);}
+  }
+  const controlBonus=1+(roleModuleTotals(player.role).controlExposurePct||0);for(const e of enemies)if(e.alive){let nearby=0;for(const other of enemies)if(other.alive&&withinDist(e.x,e.y,other.x,other.y,92))nearby++;if(nearby>=3)e.operationExposed=Math.max(e.operationExposed||0,55*controlBonus);}
+  const mech=st.mapMechanic;
+  const region=commissionChapters[st.chapter-1];
+  if(region.rule==="frontline")for(const e of enemies)if(e.alive&&e.x<350)e.operationExposed=Math.max(e.operationExposed||0,45);
+  if(region.rule==="overheat")player.energy=Math.max(0,player.energy-.018*frameScale);
+  if(region.rule==="resonance"&&Math.floor(operationRun.hazardClock/180)%2) {player.vx*=Math.pow(.985,frameScale);player.vy*=Math.pow(.985,frameScale);}
+  if(region.rule==="frostlock"){player.energy=Math.max(0,player.energy-.01*frameScale);player.vx*=Math.pow(.994,frameScale);player.vy*=Math.pow(.994,frameScale);}
+  if(region.rule==="blackout"&&Math.floor(operationRun.hazardClock/240)%2===1)lockTarget=null;
+  for(const h of operationRun.hazards||[]){
+    h.cd=Math.max(0,(h.cd||0)-frameScale);const active=((operationRun.hazardClock+h.phase)%300)<105;
+    if(h.type==="banana"&&!h.used&&withinDist(player.x,player.y,h.x,h.y,28)){h.used=true;operationRun.stun=Math.max(operationRun.stun,90);player.vx*=.1;player.vy*=.1;addText(player.x,player.y-42,language==="en"?"SLIPPED!":"滑倒！","#ffe066",true);doShake(10);}
+    if(h.type==="ice"&&withinDist(player.x,player.y,h.x,h.y,58)){player.vx*=1.035;player.vy*=1.035;}
+    if(h.type==="mud"&&withinDist(player.x,player.y,h.x,h.y,70)){player.vx*=Math.pow(.82,frameScale);player.vy*=Math.pow(.82,frameScale);}
+    if(h.type==="gust"&&active&&withinDist(player.x,player.y,h.x,h.y,92))player.vx+=(player.x<h.x?-0.34:.34)*frameScale;
+    if(h.type==="gravity"&&active){for(const e of enemies)if(e.alive&&withinDist(e.x,e.y,h.x,h.y,125)){e.x+=(h.x-e.x)*.018*frameScale;e.y+=(h.y-e.y)*.018*frameScale;e.operationExposed=Math.max(e.operationExposed||0,65);}}
+    if(["steam","press","arc","riftwell","beacon","laser","void"].includes(h.type)&&active)for(const e of enemies)if(e.alive&&withinDist(e.x,e.y,h.x,h.y,["laser","void"].includes(h.type)?130:h.type==="arc"?105:82)){if(h.type==="void"){e.x+=(h.x-e.x)*.014*frameScale;e.y+=(h.y-e.y)*.014*frameScale;}e.operationExposed=Math.max(e.operationExposed||0,["beacon","laser","void"].includes(h.type)?125:85);}
+    if(h.type==="mine"&&h.cd<=0){const victim=enemies.find(e=>e.alive&&withinDist(e.x,e.y,h.x,h.y,54));if(victim){for(const e of enemies)if(e.alive&&withinDist(e.x,e.y,h.x,h.y,145))e.operationExposed=Math.max(e.operationExposed||0,250);h.cd=420;doShake(7);addText(h.x,h.y-25,language==="en"?"ARMOR BROKEN":"装甲破除","#7cffb2",true);}}
+    if(h.type==="crystal"&&active)for(const e of enemies)if(e.alive&&withinDist(e.x,e.y,h.x,h.y,105))e.operationExposed=Math.max(e.operationExposed||0,100);
+  }
+  if(mech==="mud"||mech==="chaos"){const inMud=player.x>420&&player.x<690&&player.y>220&&player.y<500;if(inMud){player.vx*=Math.pow(.84,frameScale);player.vy*=Math.pow(.84,frameScale);}}
+  if((mech==="wind"||mech==="chaos")&&Math.floor(operationRun.hazardClock/180)%2===1)player.vx+=(Math.sin(operationRun.hazardClock/70)>0?1:-1)*.23*frameScale;
+  if(mech==="rift"&&operationRun.hazardClock>420){operationRun.hazardClock=0;player.y=H-player.y+105;player.y=clamp(player.y,125,H-45);for(const e of enemies)if(e.alive)e.operationExposed=Math.max(e.operationExposed||0,210);addText(player.x,player.y-45,language==="en"?"RIFT RESONANCE":"裂隙共振","#c89cff",true);}
+  if((["pulse","crystalRain","chaos","mirrorChaos","frostChaos","signalChaos"].includes(mech))&&operationRun.hazardClock>360){operationRun.hazardClock=0;const safe=player.x<360||player.x>820;if(!safe)damageCurrentRoleHp(3,language==="en"?"MAP PULSE":"地图脉冲","#ff8b72");for(const e of enemies)if(e.alive&&e.x>360&&e.x<820)e.operationExposed=Math.max(e.operationExposed||0,180);}
+  if(["blizzard","frozenPipes","frostChaos"].includes(mech)&&Math.floor(operationRun.hazardClock/210)%2===1){player.vx*=Math.pow(.97,frameScale);player.vy*=Math.pow(.97,frameScale);}
+  if(["blackout","orbital","signalChaos"].includes(mech)&&operationRun.hazardClock>300){operationRun.hazardClock=0;const lane=240+((area*137+operationRun.kills*31)%620);if(Math.abs(player.x-lane)<95)damageCurrentRoleHp(4,language==="en"?"ORBITAL SWEEP":"轨道扫射","#ff8b72");for(const e of enemies)if(e.alive&&Math.abs(e.x-lane)<130)e.operationExposed=Math.max(e.operationExposed||0,190);}
+  const moved=Math.hypot(player.x-operationRun.lastX,player.y-operationRun.lastY);operationRun.still=moved<.35?operationRun.still+frameScale:0;operationRun.lastX=player.x;operationRun.lastY=player.y;if((mech==="unstable"||mech==="chaos")&&operationRun.still>180){operationRun.still=0;player.vx+=(player.x<W/2?-8:8);player.vy+=(Math.random()-.5)*10;addText(player.x,player.y-45,language==="en"?"GROUND SHIFT":"地面错位","#ff8b96",true);}
+}
+
+function drawOperationBattleMechanics(){
+  if(battleModeSource!=="commission"||!operationRun)return;const st=currentCommissionStage();ctx.save();
+  ctx.fillStyle="rgba(255,70,90,.13)";ctx.fillRect(72,105,52,H-140);ctx.strokeStyle="#ff596b";ctx.lineWidth=3;ctx.strokeRect(72,105,52,H-140);ctx.fillStyle="#ff8b96";ctx.font="bold 10px "+FONT_UI;ctx.textAlign="center";ctx.fillText(language==="en"?"FRONT":"防线",98,132);
+  if(st.mapMechanic==="mud"||st.mapMechanic==="chaos"){ctx.fillStyle="rgba(112,84,50,.24)";ctx.fillRect(420,220,270,280);ctx.strokeStyle="rgba(210,178,105,.5)";ctx.strokeRect(420,220,270,280);}
+  for(const h of operationRun.hazards||[])if(!h.used){
+    const active=((operationRun.hazardClock+h.phase)%300)<105,colors={banana:"#ffe066",mine:"#ff765f",mud:"#9c7649",gust:"#8edfff",steam:"#ffb26f",press:"#ff756d",arc:"#8ac6ff",riftwell:"#c49cff",ice:"#a9edff",gravity:"#df7cff",crystal:"#ff8db3",beacon:"#ffcf70",laser:"#ff575f",void:"#8e63d8"};
+    ctx.globalAlpha=active?0.8:0.34;ctx.fillStyle=colors[h.type]||"#fff";ctx.beginPath();ctx.arc(h.x,h.y,["gravity","gust","void","laser"].includes(h.type)?58:38,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;ctx.strokeStyle="#fff";ctx.lineWidth=2;ctx.stroke();ctx.fillStyle="#071016";ctx.textAlign="center";ctx.font="bold 11px "+FONT_UI;const labels={banana:"!",mine:"MINE",mud:"SLOW",gust:"WIND",steam:"STEAM",press:"PRESS",arc:"ARC",riftwell:"RIFT",ice:"ICE",gravity:"GRAV",crystal:"DROP",beacon:"SYNC",laser:"LASER",void:"VOID"};ctx.fillText(labels[h.type]||"!",h.x,h.y+4);
+  }
+  for(const e of enemies)if(e.alive&&e.operationExposed>0){ctx.strokeStyle="#7cffb2";ctx.lineWidth=2;ctx.beginPath();ctx.arc(e.x,e.y-4,25+Math.sin(operationRun.hazardClock*.12)*3,0,Math.PI*2);ctx.stroke();ctx.fillStyle="#7cffb2";ctx.font="bold 8px "+FONT_UI;ctx.textAlign="center";ctx.fillText(language==="en"?"EXPOSED":"脆弱",e.x,e.y-37);}
+  ctx.restore();
+}
+
 function spawnArea(){
   if(battleModeSource==="showcase"){
     enemies=[];projectiles=[];lockTarget=null;areaCleared=false;commissionComplete=false;
@@ -16162,6 +16517,7 @@ function spawnArea(){
   if(battleModeSource==="materialDungeon"){ spawnMaterialDungeonArea(); return; }
   if(battleModeSource==="daydream"){ spawnDaydreamBattleArea(); return; }
   if(battleModeSource==="crystalWar"){ spawnCrystalWarArea(); return; }
+  if(battleModeSource==="commission"){spawnOperationWave();return;}
   enemies=[]; projectiles=[]; lockTarget=null; areaCleared=false; commissionComplete=false;
   if(battleModeSource==="daydream"&&daydreamBattleConfig&&daydreamBattleConfig.boss){
     enemies.push(createEnemy(700,H/2+90,true,"boss"));
@@ -16993,6 +17349,7 @@ function drawOperation(){
   if(selectedTab==="daydream"&&!canUseDaydream()){
     selectedTab="main";mainChapterView="chapters";operationDetailVisible=false;
   }
+  if(selectedTab==="combat"){drawNewOperation();drawStaminaRecoverOverlay();return;}
   const bg=ctx.createLinearGradient(0,0,0,H);
   bg.addColorStop(0,"#11172d");
   bg.addColorStop(.55,"#080a12");
@@ -17295,24 +17652,26 @@ function drawSettlement(){
 
   ctx.fillStyle="#fff";
   ctx.font="bold 24px " + FONT_UI;
-  const code = isCommission ? ("C-"+String(settlement.stage).padStart(2,"0")) : (tx("stageCodePrefix")+String(settlement.stage).padStart(2,"0"));
+  const code = isCommission ? operationStageCode(st) : (tx("stageCodePrefix")+String(settlement.stage).padStart(2,"0"));
   ctx.fillText(code+" "+stageDisplayName(st),W/2,205);
 
   ctx.font="bold 54px " + FONT_UI;
   ctx.fillStyle="#ffe066";
-  ctx.fillText("★★★",W/2,280);
+  ctx.fillText("★".repeat(settlement.stars||1)+"☆".repeat(3-(settlement.stars||1)),W/2,270);
+
+  if(isCommission){ctx.fillStyle="rgba(255,255,255,.06)";ctx.fillRect(W/2-245,292,490,82);ctx.strokeStyle="rgba(255,255,255,.18)";ctx.strokeRect(W/2-245,292,490,82);ctx.font="bold 13px "+FONT_UI;ctx.fillStyle="#fff";ctx.fillText((language==="en"?"ELIMINATED ":"实际歼灭 ")+settlement.kills+" / "+settlement.target+"     "+(language==="en"?"BREACHES ":"防线突破 ")+settlement.breaches,W/2,322);ctx.fillStyle=settlement.stars>=3?"#7cffb2":settlement.stars>=2?"#ffe066":"#ff8b96";ctx.font="bold 17px "+FONT_UI;ctx.fillText((language==="en"?"EFFECTIVE RESULT ":"最终有效战果 ")+settlement.effective+"  ·  "+Math.round(settlement.ratio*100)+"%",W/2,352);}
 
   ctx.fillStyle="#7cc7ff";
   ctx.font="bold 24px " + FONT_UI;
-  ctx.fillText(tx("crystalGainPrefix")+settlement.reward,W/2,382);
+  ctx.fillText(tx("crystalGainPrefix")+settlement.reward,W/2,isCommission?410:382);
 
   ctx.fillStyle="#ffe066";
   ctx.font="bold 20px " + FONT_UI;
-  ctx.fillText("EXP +"+(settlement.expReward||0),W/2,415);
+  ctx.fillText("EXP +"+(settlement.expReward||0),W/2,isCommission?440:415);
 
   ctx.font="16px " + FONT_UI;
   ctx.fillStyle="rgba(255,255,255,.75)";
-  ctx.fillText(isCommission ? (language==="en" ? "Commission reward has been added." : "委托奖励已加入背包。") : tx("settlementRewardLine"),W/2,445);
+  ctx.fillText(isCommission ? (settlement.reward>0?(language==="en" ? "Season first-clear reward added. Replays grant no main reward." : "季度一次性奖励已发放；重复完成不再获得主要奖励。"):(language==="en"?"Replay complete · no duplicate main reward":"再次挑战完成 · 不重复发放主要奖励")) : tx("settlementRewardLine"),W/2,isCommission?468:445);
 
   drawBtn(ui("backLobby"),"CLICK",W/2-120,495,240,52,true,"#fff");
 }
@@ -17910,10 +18269,10 @@ function drawOperatorSkillTab(i,x=780,y=112,w=302,h=506){
 
 function weaponNextAttackBonus(i){ return (roleWeaponLevelDisplay(i)+1)*5; }
 function weaponCurrentAttackBonus(i){ return roleWeaponLevelDisplay(i)*5; }
-function weaponUpgradeCost(i){const cd=charData[i]||{},lv=Math.max(1,cd.weaponLevel||1);if(isProtagonist(i))return {ore:0,gold:0};const tier=Math.floor((lv-1)/10);return {ore:Math.min(10,1+Math.floor((lv-1)/6)),gold:Math.floor(180+lv*62+lv*lv*2.35+tier*360)};}
+function weaponUpgradeCost(i){const lv=Math.max(1,roleEquippedWeaponLevel(i)||1);if(isProtagonist(i))return {ore:0,gold:0};const tier=Math.floor((lv-1)/10);return {ore:Math.min(10,1+Math.floor((lv-1)/6)),gold:Math.floor(180+lv*62+lv*lv*2.35+tier*360)};}
 function weaponCostGold(i){ return weaponUpgradeCost(i).gold; }
 function weaponMaxLevel(i){ return 60; }
-function weaponCanUpgrade(i){ if(isProtagonist(i)) return false; const cd=charData[i]||{}; return owned[i] && (cd.weaponLevel||1)<weaponMaxLevel(i); }
+function weaponCanUpgrade(i){ if(isProtagonist(i)) return false; return owned[i] && roleEquippedWeaponLevel(i)<weaponMaxLevel(i); }
 function weaponTraitText(i){
   if(isProtagonist(i)) return language==="en" ? "Exclusive weapon / Story sync / Cannot be changed" : "专属武器 / 主线同步 / 不可更换";
   if(i===3) return language==="en" ? "Ice damage bonus / AoE control support" : "冰属性伤害加成 / 群体控场辅助";
@@ -17934,7 +18293,7 @@ function upgradeWeaponSelected(i){
   const cd=charData[i]; if(!cd || !owned[i]) return;
   const cost=weaponUpgradeCost(i),costGold=cost.gold;
   if((weaponOre||0)<cost.ore || gold<costGold){ showCenter(language==="en"?"Not enough weapon materials":"精炼材料不足",70); return; }
-  if((cd.weaponLevel||1)>=60){ showCenter(language==="en"?"Weapon already MAX":"已达上限",70); return; }
+  if(roleEquippedWeaponLevel(i)>=60){ showCenter(language==="en"?"Weapon already MAX":"已达上限",70); return; }
   const equippedId=roleEquippedWeaponId(i);
   const item=weaponInventory.find(w=>w.id===equippedId);
   if(!item) return;
@@ -17993,8 +18352,10 @@ function defaultWeaponIdForRole(i){
 }
 function ensureWeaponBag(){
   if(!window.weaponInventory) window.weaponInventory=null;
+  let created=false;
   if(!Array.isArray(weaponInventory)){
     weaponInventory=WEAPON_MASTER.map(w=>({id:w.id,level:1,owned:!w.price}));
+    created=true;
   }
   if(!Array.isArray(ownedWeapons)) ownedWeapons=[];
   for(const w of WEAPON_MASTER){
@@ -18003,15 +18364,20 @@ function ensureWeaponBag(){
   const everwinter=weaponInventory.find(x=>x.id==="everwinter_codex");
   if(everwinter&&ownedWeapons&&ownedWeapons.flora) everwinter.owned=true;
   if(everwinter&&everwinter.owned&&ownedWeapons) ownedWeapons.flora=true;
+  if(created)weaponLevelMigrationDone=false;
   for(let i=0;i<charData.length;i++){
     if(!charData[i]) continue;
     if(!charData[i].equippedWeaponId) charData[i].equippedWeaponId=defaultWeaponIdForRole(i);
     const equippedItem=weaponInventory.find(w=>w.id===charData[i].equippedWeaponId);
     if(equippedItem){
-      equippedItem.level=clamp(Math.max(equippedItem.level||1,charData[i].weaponLevel||1),1,60);
+      // Only legacy saves without an inventory migrate the role-level field.
+      // Repeating this merge after equipment changes made a high-level weapon
+      // overwrite every newly equipped weapon's independent level.
+      if(!weaponLevelMigrationDone)equippedItem.level=clamp(Math.max(equippedItem.level||1,charData[i].weaponLevel||1),1,60);
       charData[i].weaponLevel=equippedItem.level;
     }
   }
+  weaponLevelMigrationDone=true;
 }
 function roleEquippedWeaponId(i){
   ensureWeaponBag();
@@ -18038,6 +18404,8 @@ function equipWeaponToRole(i,id){
   const w=weaponData(id);
   if(!w || w.type!==roleWeaponType(i)) return false;
   charData[i].equippedWeaponId=id;
+  const item=weaponInventory.find(v=>v.id===id);
+  charData[i].weaponLevel=item?item.level:1;
   selectedWeaponId=id;
   showCenter(language==="en"?"Weapon equipped":"装配完成",70);
   saveGame();
@@ -19005,7 +19373,7 @@ function drawBattleUI(){
 
   ctx.fillStyle="rgba(255,255,255,.66)";
   ctx.font="13px " + FONT_UI;
-  const battleCode=battleModeSource==="crystalWar"?"CRYSTAL WAR":battleModeSource==="showcase"?"SHOWCASE":battleModeSource==="commission"?("C"+currentCommissionStage().chapter+"-"+currentCommissionStage().localId):(battleModeSource==="daydream"?"DAYDREAM":battleHardMode?((language==="en"?"HARD ":"困难 ")+stageCode(selectedStage)):stageCode(selectedStage));
+  const battleCode=battleModeSource==="crystalWar"?"CRYSTAL WAR":battleModeSource==="showcase"?"SHOWCASE":battleModeSource==="commission"?operationStageCode():(battleModeSource==="daydream"?"DAYDREAM":battleHardMode?((language==="en"?"HARD ":"困难 ")+stageCode(selectedStage)):stageCode(selectedStage));
   const meta = battleModeSource==="crystalWar"
     ? (language==="en"?"ENDLESS SECTOR ":"无限区段 ")+area+"  |  B "+(language==="en"?"DEVICE RACK":"设备栏")
     : battleModeSource==="showcase"
@@ -19065,15 +19433,17 @@ function drawBattleUI(){
   if(objectiveText) drawChapter1AreaObjective(30,objectiveY,310);
 
   if(battleModeSource==="commission"){
-    for(let i=0;i<4;i++){
+    const waveTotal=currentCommissionStage().waves||10;
+    for(let i=0;i<waveTotal;i++){
       const done=i<area-1, active=i===area-1;
-      ctx.beginPath(); ctx.arc(42+i*34,151,10,0,Math.PI*2);
+      ctx.beginPath(); ctx.arc(36+i*22,151,7,0,Math.PI*2);
       ctx.fillStyle=done?"#6d1824":active?"#ff334f":"rgba(255,51,79,.18)"; ctx.fill();
-      ctx.strokeStyle=active?"#fff":"rgba(255,100,120,.55)"; ctx.lineWidth=active?3:1.5; ctx.stroke();
+      ctx.strokeStyle=active?"#fff":"rgba(255,100,120,.55)"; ctx.lineWidth=active?2:1; ctx.stroke();
     }
     const sec=Math.max(0,Math.ceil(commissionTimeLeft));
     ctx.fillStyle=sec<=20?"#ff4d5f":"#ffe066"; ctx.font="bold 20px "+FONT_UI; ctx.textAlign="right";
     ctx.fillText(String(Math.floor(sec/60)).padStart(2,"0")+":"+String(sec%60).padStart(2,"0"),340,158);
+    ctx.fillStyle="#fff";ctx.font="bold 10px "+FONT_UI;ctx.textAlign="left";ctx.fillText((language==="en"?"ELIM ":"歼灭 ")+(operationRun?.kills||0)+" / "+(operationRun?.target||0)+"   "+(language==="en"?"BREACH ":"突破 ")+(operationRun?.breaches||0),30,178);
   }
   if(chapter2Timed){
     const sec=Math.max(0,Math.ceil(chapter2EvacTimeLeft));
@@ -19296,7 +19666,7 @@ function drawCrystalWarBattleOverlaySafely(){
 }
 
 function drawBattle(){ const sx=chainSelect?0:(Math.random()-.5)*shake,sy=chainSelect?0:(Math.random()-.5)*shake*.7; ctx.save();ctx.translate(sx,sy); const bg=ctx.createLinearGradient(0,0,0,H);bg.addColorStop(0,"#15172a");bg.addColorStop(1,"#090a10");ctx.fillStyle=bg;ctx.fillRect(-50,-50,W+100,H+100); drawBattleBackground();
-  drawGrid(); drawCrystalWarIndustryV8(); drawProjectAreaObjects(); drawBattleExploreObjects(); drawEffects(); const objs=enemies.filter(e=>e.alive).map(e=>({t:"e",y:e.y,e}));if(battleModeSource==="crystalWar"&&window.PZCrystalWar&&typeof window.PZCrystalWar.getRemotePlayers==="function")for(const member of window.PZCrystalWar.getRemotePlayers())objs.push({t:"remote",y:Number(member.y||0),member}); objs.push({t:"p",y:player.y}); objs.sort((a,b)=>a.y-b.y); for(const o of objs){if(o.t==="e")drawEnemy(o.e);else if(o.t==="remote")drawCrystalWarRemotePlayer(o.member);else drawPlayer();} drawBattleAreaExits(); if(areaCleared&&area<battleAreaLimit()&&!supportsStageExploration()){ctx.fillStyle="#ffe066";ctx.fillRect(W-42,110,22,H-160);ctx.fillStyle="#fff";ctx.font="bold 22px " + FONT_UI;ctx.textAlign="right";ctx.fillText(battleModeSource==="commission"?(language==="en"?"NEXT WAVE →":"下一波 →"):(language==="en"?"NEXT AREA →":"下一区域 →"),W-58,H/2);} if(flash>0){ctx.globalAlpha=flash/35;ctx.fillStyle="#fff";ctx.fillRect(-50,-50,W+100,H+100);ctx.globalAlpha=1;} ctx.restore(); drawUltimateOverlay(); drawKrosPhaseTransitionOverlay(); drawKrosIntroOverlay(); drawBossKrosTopBar(); drawCrystalColossusTopBar(); drawBattleUI(); drawBattleRewardNotices();drawCrystalWarBattleOverlaySafely(); if(centerTimer>0){ctx.fillStyle="#fff";ctx.textAlign="center";fitText(centerText,W-150,46,"bold",20);ctx.fillText(centerText,W/2,H*.43);}
+  drawGrid(); drawOperationBattleMechanics(); drawCrystalWarIndustryV8(); drawProjectAreaObjects(); drawBattleExploreObjects(); drawEffects(); const objs=enemies.filter(e=>e.alive).map(e=>({t:"e",y:e.y,e}));if(battleModeSource==="crystalWar"&&window.PZCrystalWar&&typeof window.PZCrystalWar.getRemotePlayers==="function")for(const member of window.PZCrystalWar.getRemotePlayers())objs.push({t:"remote",y:Number(member.y||0),member}); objs.push({t:"p",y:player.y}); objs.sort((a,b)=>a.y-b.y); for(const o of objs){if(o.t==="e")drawEnemy(o.e);else if(o.t==="remote")drawCrystalWarRemotePlayer(o.member);else drawPlayer();} drawBattleAreaExits(); if(areaCleared&&area<battleAreaLimit()&&!supportsStageExploration()){ctx.fillStyle="#ffe066";ctx.fillRect(W-42,110,22,H-160);ctx.fillStyle="#fff";ctx.font="bold 22px " + FONT_UI;ctx.textAlign="right";ctx.fillText(battleModeSource==="commission"?(language==="en"?"NEXT WAVE →":"下一波 →"):(language==="en"?"NEXT AREA →":"下一区域 →"),W-58,H/2);} if(flash>0){ctx.globalAlpha=flash/35;ctx.fillStyle="#fff";ctx.fillRect(-50,-50,W+100,H+100);ctx.globalAlpha=1;} ctx.restore(); drawUltimateOverlay(); drawKrosPhaseTransitionOverlay(); drawKrosIntroOverlay(); drawBossKrosTopBar(); drawCrystalColossusTopBar(); drawBattleUI(); drawBattleRewardNotices();drawCrystalWarBattleOverlaySafely(); if(centerTimer>0){ctx.fillStyle="#fff";ctx.textAlign="center";fitText(centerText,W-150,46,"bold",20);ctx.fillText(centerText,W/2,H*.43);}
   if(actionPromptTimer>0){
     ctx.save();
     ctx.fillStyle="#ffe066";

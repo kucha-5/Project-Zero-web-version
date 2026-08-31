@@ -1,7 +1,7 @@
-Project Zero 49.29.3 - Shared Lobby, Ball Physics and Social Emoji
+Project Zero 49.30.6 - Remade Operation with Always-Visible Enemy Bars
 
 Game/
-  Browser game build 2026082904-shared-lobby-ball-social-emotes.
+  Browser game build 2026083001-coop-hub-ui-room-level.
 
 Co-op repair
   - Keeps Guest and SF Account identity behavior from 49.25.1.
@@ -11,7 +11,7 @@ Co-op repair
     the v3 WebSocket room.
 
 Cloudflare/
-  sf-account-worker-v3.2.3.js contains the existing SF Account APIs plus the
+  sf-account-worker-v3.2.5.js contains the existing SF Account APIs plus the
   new Crystal War WebSocket gateway and PZCrystalWarRoom Durable Object.
 
 Multiplayer architecture
@@ -31,8 +31,11 @@ Multiplayer architecture
   - Full state is reserved for join, reconnect and low-frequency persistence.
 
 Required Cloudflare deployment
-  Version 49.29.3 gives all three clients one room-seeded lobby map, server-time
-  ball interpolation and separate daily Emoji. Deploy Worker 3.2.3 with it;
+  Version 49.29.5 keeps all three clients on one room-seeded lobby/hub map, fixes
+  merchant ESC routing, removes the duplicate post-start ready control, uses one
+  stable daily Emoji input path, upgrades loading and merchant presentation, and
+  adds an 80-level co-op reward page whose rewards are divided among 3 players.
+  It preserves server-time ball interpolation. Deploy Worker 3.2.5 with it;
   updating only one side will leave the old synchronization behavior active.
   The service must
   retain its existing D1 binding named DB and add a Durable Object binding:
@@ -46,10 +49,10 @@ Required Cloudflare deployment
 Deployment order
   1. Back up the deployed Worker and D1 database.
   2. Add the Durable Object binding/migration, then deploy
-     Cloudflare/sf-account-worker-v3.2.3.js.
-  3. Confirm /api/status reports version 3.2.3.
+     Cloudflare/sf-account-worker-v3.2.5.js.
+  3. Confirm /api/status reports version 3.2.5.
   4. Upload the contents of Game/ to the current game host.
-  5. Hard-refresh all test clients once so build 2026082904 loads.
+  5. Hard-refresh all test clients once so build 2026083001 loads.
   6. Verify 1-player, 2-player and 3-player rooms before public release.
 
 Validation
@@ -66,3 +69,6 @@ Validation
   - Enemy first attacks are staggered after spawn and route restore so a group
     cannot stack every hit into the same server tick.
   - Single-player monster damage and AI values are unchanged.
+Project Zero 49.30.6 - Original Enemy HP Style Restored
+Project Zero 49.30.6 - Friend Support & Damage Balance
+Project Zero 49.30.6 - Global Support & Friends Routing Fix

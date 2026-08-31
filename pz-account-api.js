@@ -131,6 +131,7 @@
     removeFriend:accountId=>request("/api/friends/"+encodeURIComponent(accountId),{method:"DELETE"}),
     blockPlayer:target=>request("/api/blocks",{method:"POST",body:JSON.stringify({target})}),
     unblockPlayer:accountId=>request("/api/blocks/"+encodeURIComponent(accountId),{method:"DELETE"}),
+    getSupportOperators:(profession="all",seed=0)=>request("/api/support/operators?profession="+encodeURIComponent(profession)+"&seed="+encodeURIComponent(seed),{method:"GET"}),
     getCrystalWarRoom:()=>request("/api/crystal-war/rooms/current",{method:"GET"}),
     createCrystalWarRoom:()=>request("/api/crystal-war/rooms",{method:"POST",body:"{}"}),
     joinCrystalWarRoom:code=>request("/api/crystal-war/rooms/join",{method:"POST",body:JSON.stringify({code})}),

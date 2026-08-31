@@ -37,6 +37,22 @@
     bladeEcho:{zh:"刀痕回响",en:"Blade-Scar Echo",color:"#d8dbe2",tiers:{
       2:{stats:{atk:5},zh:"2件：攻击 +5",en:"2pc: ATK +5"},
       4:{stats:{atk:8,highHpDamagePct:.06,hpPct:-.015},zh:"4件：攻击 +8；生命高于70%时伤害 +6%；生命 -1.5%",en:"4pc: ATK +8; +6% damage above 70% HP; HP -1.5%"}
+    }},
+    breaker:{zh:"破界工程",en:"Boundary Breaker",color:"#ffb15d",tiers:{
+      2:{stats:{def:3,shieldDamagePct:.10},zh:"2件：防御 +3；破盾效率 +10%",en:"2pc: DEF +3; Shield break +10%"},
+      4:{stats:{atk:6,shieldDamagePct:.18,breakExposurePct:.25},zh:"4件：攻击 +6；破盾效率 +18%；击破脆弱时间 +25%",en:"4pc: ATK +6; Shield break +18%; Break exposure +25%"}
+    }},
+    counterflow:{zh:"逆刃协议",en:"Counterflow Protocol",color:"#f4e6b0",tiers:{
+      2:{stats:{atk:4,parryExposurePct:.15},zh:"2件：攻击 +4；弹刀脆弱时间 +15%",en:"2pc: ATK +4; Parry exposure +15%"},
+      4:{stats:{def:4,parryExposurePct:.30,damageReductionPct:.03},zh:"4件：防御 +4；弹刀脆弱时间 +30%；受到伤害 -3%",en:"4pc: DEF +4; Parry exposure +30%; Damage taken -3%"}
+    }},
+    afterimage:{zh:"瞬影回路",en:"Afterimage Circuit",color:"#70dcff",tiers:{
+      2:{stats:{speedPct:.01,dodgeExposurePct:.15},zh:"2件：速度 +1%；极限闪避脆弱时间 +15%",en:"2pc: Speed +1%; Perfect Dodge exposure +15%"},
+      4:{stats:{speedPct:.02,dashRecoveryPct:.10,dodgeExposurePct:.30},zh:"4件：速度 +2%；闪避恢复 +10%；极限闪避脆弱时间 +30%",en:"4pc: Speed +2%; Dodge recovery +10%; Perfect Dodge exposure +30%"}
+    }},
+    convergence:{zh:"引力编队",en:"Gravity Formation",color:"#d592ff",tiers:{
+      2:{stats:{hp:35,controlExposurePct:.15},zh:"2件：生命 +35；控制脆弱时间 +15%",en:"2pc: HP +35; Control exposure +15%"},
+      4:{stats:{atk:5,controlExposurePct:.30,skillDamagePct:.04},zh:"4件：攻击 +5；控制脆弱时间 +30%；技能伤害 +4%",en:"4pc: ATK +5; Control exposure +30%; Skill damage +4%"}
     }}
   };
   Object.keys(SETS).forEach(id=>{
@@ -102,6 +118,30 @@
     {stats:{hp:70,atk:9},drawback:{speedPct:-.01},drawbackZh:"速度 -1%",drawbackEn:"Speed -1%"},
     {stats:{atk:8,def:3},drawback:{hpPct:-.015},drawbackZh:"生命 -1.5%",drawbackEn:"HP -1.5%"},
     {stats:{atk:7,speedPct:.015},drawback:{defPct:-.01},drawbackZh:"防御 -1%",drawbackEn:"DEF -1%"}
+  ]);
+  addSet("breaker",35,"advanced",[
+    {stats:{atk:7,def:3},drawback:{speedPct:-.005},drawbackZh:"速度 -0.5%",drawbackEn:"Speed -0.5%"},
+    {stats:{hp:95,def:6},drawback:{atkPct:-.005},drawbackZh:"攻击 -0.5%",drawbackEn:"ATK -0.5%"},
+    {stats:{atk:6,def:5},drawback:{hpPct:-.005},drawbackZh:"生命 -0.5%",drawbackEn:"HP -0.5%"},
+    {stats:{atk:6,speedPct:.01},drawback:{defPct:-.005},drawbackZh:"防御 -0.5%",drawbackEn:"DEF -0.5%"}
+  ]);
+  addSet("counterflow",45,"elite",[
+    {stats:{atk:8,def:3},drawback:{hpPct:-.01},drawbackZh:"生命 -1%",drawbackEn:"HP -1%"},
+    {stats:{hp:80,def:6},drawback:{speedPct:-.005},drawbackZh:"速度 -0.5%",drawbackEn:"Speed -0.5%"},
+    {stats:{atk:7,def:4},drawback:{hpPct:-.01},drawbackZh:"生命 -1%",drawbackEn:"HP -1%"},
+    {stats:{atk:6,speedPct:.015},drawback:{defPct:-.01},drawbackZh:"防御 -1%",drawbackEn:"DEF -1%"}
+  ]);
+  addSet("afterimage",50,"elite",[
+    {stats:{atk:6,speedPct:.015},drawback:{defPct:-.01},drawbackZh:"防御 -1%",drawbackEn:"DEF -1%"},
+    {stats:{hp:70,speedPct:.01},drawback:{atkPct:-.005},drawbackZh:"攻击 -0.5%",drawbackEn:"ATK -0.5%"},
+    {stats:{def:4,speedPct:.015},drawback:{hpPct:-.01},drawbackZh:"生命 -1%",drawbackEn:"HP -1%"},
+    {stats:{atk:5,speedPct:.025},drawback:{defPct:-.01},drawbackZh:"防御 -1%",drawbackEn:"DEF -1%"}
+  ]);
+  addSet("convergence",55,"elite",[
+    {stats:{atk:7,def:3},drawback:{speedPct:-.01},drawbackZh:"速度 -1%",drawbackEn:"Speed -1%"},
+    {stats:{hp:105,def:5},drawback:{atkPct:-.01},drawbackZh:"攻击 -1%",drawbackEn:"ATK -1%"},
+    {stats:{hp:55,atk:6},drawback:{defPct:-.01},drawbackZh:"防御 -1%",drawbackEn:"DEF -1%"},
+    {stats:{atk:6,speedPct:.015},drawback:{hpPct:-.01},drawbackZh:"生命 -1%",drawbackEn:"HP -1%"}
   ]);
   // Every module is a finished drop. Grades 2-6 are separate fixed items;
   // they cannot be upgraded. Higher grades amplify both benefits and costs.
