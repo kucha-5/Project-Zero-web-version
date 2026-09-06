@@ -1,0 +1,15 @@
+Project Zero / SF Account Worker 3.2.9
+
+唯一后端文件：sf-account-worker.js
+继续沿用当前Worker的DB、APPS_SCRIPT_URL、SF_MAIL_SECRET与Durable Object绑定。
+
+支援职业：
+- 凯恩：剑卫
+- 诺克斯：盾卫
+- 艾洛、芙洛拉：法武
+- 克洛伊：协辅
+- 隐者：引领
+
+支援等级按角色ID从提供玩家最新存档读取。
+全服候选同时排除相同账号ID和相同玩家UID，避免Guest与SF Account重复身份出现自己。
+部署后访问 /api/health，应显示version 3.2.9。

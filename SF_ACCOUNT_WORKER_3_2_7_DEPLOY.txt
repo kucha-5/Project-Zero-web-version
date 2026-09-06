@@ -1,4 +1,4 @@
-Project Zero / SF Account Worker 3.2.7
+Project Zero / SF Account Worker 3.2.8
 
 唯一后端文件：sf-account-worker.js
 
@@ -9,7 +9,8 @@ Project Zero / SF Account Worker 3.2.7
 1. GET /api/support/operators 全服务器公开支援池。
 2. pz_public_profiles_v1自动兼容增加showcase_roles和showcase_levels。
 3. PUT /api/profile/public同步三个展示执行官及各自真实角色等级。
+3.1 支援返回等级会按角色ID从对方最新存档读取，避免展示位换序造成等级错位。
 4. 支援职业为剑卫、盾卫、击破、远射、法武、协辅、医治、引领。
 5. 账号、好友、黑名单、存档、晶体战争和支援仍使用同一个Worker。
 
-部署后访问 /api/health，应显示version 3.2.7。
+部署后访问 /api/health，应显示version 3.2.8。

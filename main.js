@@ -93,7 +93,11 @@ const OPTIONAL_GAME_FILES = [
   path.join('assets', 'audio', 'bgm', 'chapter1_battle.mp3'),
   path.join('assets', 'audio', 'bgm', 'chapter1_boss.mp3'),
   path.join('assets', 'audio', 'bgm', 'chapter2_operation.mp3'),
-  path.join('assets', 'audio', 'bgm', 'chapter2_battle.mp3')
+  path.join('assets', 'audio', 'bgm', 'chapter2_battle.mp3'),
+  path.join('assets', 'audio', 'bgm', 'chapter3_operation.mp3'),
+  path.join('assets', 'audio', 'bgm', 'chapter3_battle.mp3'),
+  path.join('assets', 'audio', 'bgm', 'chapter3_part2_operation.mp3'),
+  path.join('assets', 'audio', 'bgm', 'operation_world.mp3')
 ];
 
 const defaultSettings = {

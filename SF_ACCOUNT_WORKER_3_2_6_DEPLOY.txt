@@ -1,0 +1,16 @@
+Project Zero / SF Account Worker 3.2.7
+
+唯一后端文件：sf-account-worker.js
+
+本文件由当前SF Account Worker 3.2.5原样升级，不使用独立好友Worker。
+继续沿用当前Worker的DB、APPS_SCRIPT_URL、SF_MAIL_SECRET与Durable Object绑定。
+
+更新内容：
+1. 新增 GET /api/support/operators 全服务器公开支援池。
+2. pz_public_profiles_v1 增加 showcase_roles；旧数据库会自动迁移，不删除现有资料。
+3. PUT /api/profile/public 会同步玩家的三个展示执行官。
+4. 好友、黑名单、账号、存档和晶体战争接口保持在同一个Worker。
+
+5. showcase_levels保存三个展示执行官各自的真实角色等级，支援不会使用借用者的平均等级。
+
+部署后 /api/health 应显示 version 3.2.7。

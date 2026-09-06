@@ -1,0 +1,22 @@
+Project Zero / SF Account Worker 3.3.0
+
+部署文件：sf-account-worker.js
+继续沿用当前 Worker 的 DB、APPS_SCRIPT_URL、SF_MAIL_SECRET 与 Durable Object 绑定，不需要新建数据库。
+
+本次更新：
+- SF Account 与在线 Guest 身份均可读取全服务器支援角色。
+- Guest 客户端会先恢复或创建临时在线身份，再请求支援列表。
+- 候选继续同时排除相同账号 ID 与相同玩家 UID，不能借用自己的角色。
+- 支援职业补全阿贝其·富兰克琳：盾卫。
+- 展示角色与联机角色 ID 上限由 5 扩展至 6。
+
+支援职业：
+- 凯恩：剑卫
+- 诺克斯：盾卫
+- 艾洛、芙洛拉：法武
+- 克洛伊：协辅
+- 隐者：引领
+- 阿贝其·富兰克琳：盾卫
+
+支援等级仍按提供玩家对应角色 ID 的最新存档等级读取，最高 60 级。
+部署完成后访问 /api/health，应显示 version 3.3.0。

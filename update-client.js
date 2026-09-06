@@ -2,8 +2,8 @@
   "use strict";
 
   const VERSION_URL="version.json";
-  const LOCAL_VERSION="49.30.6";
-  const LOCAL_BUILD="2026083017-server-role-level-support-ui";
+  const LOCAL_VERSION="49.30.7";
+  const LOCAL_BUILD="2026090501-guest-support-shield-balance";
   const FILE_RUNTIME=location.protocol==="file:";
   const BUILD_KEY="pz_runtime_build";
   const VERSION_KEY="pz_runtime_version";

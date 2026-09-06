@@ -10,6 +10,7 @@ export default {async fetch(request,env){
     const url=new URL(request.url),path=url.pathname.replace(/\/+$/,"")||"/";
     if(path==="/api/friends/health"&&request.method==="GET")return json({success:true,service:"PZ Friends",version:VERSION});
     const session=await authenticate(request,env.DB);if(session.error)return session.error;
+    if(path==="/api/support/operators"&&request.method==="GET")return supportOperators(env.DB,session.user.id,url.searchParams.get("profession")||"all",url.searchParams.get("seed")||"0");
     if(path==="/api/friends"&&request.method==="GET")return json(await friendCenter(env.DB,session.user.id));
     if(path==="/api/friends/search"&&request.method==="GET")return searchPlayers(env.DB,session.user.id,url.searchParams.get("q")||"");
     if(path==="/api/friends/request"&&request.method==="POST")return sendRequest(request,env.DB,session.user.id);
@@ -62,9 +63,10 @@ function publicSelect(alias="u",save="s"){
     COALESCE(json_extract(${save}.save_data,'$.playerUID'),'--------') AS player_uid,
     COALESCE(json_extract(${save}.save_data,'$.playerLevel'),1) AS level,
     COALESCE(json_extract(${save}.save_data,'$.profileAvatarRole'),4) AS avatar_role,
-    COALESCE(json_extract(${save}.save_data,'$.profileAvatarFrame'),'zero') AS avatar_frame`;
+    COALESCE(json_extract(${save}.save_data,'$.profileAvatarFrame'),'zero') AS avatar_frame,
+    COALESCE(json_extract(${save}.save_data,'$.profileShowcase'),'[4,0,1]') AS showcase_roles`;
 }
-function profile(row){return{accountId:String(row.account_id),username:String(row.username||""),displayName:String(row.display_name||row.username||"PLAYER"),playerUid:String(row.player_uid||"--------"),level:Math.max(1,Number(row.level)||1),avatarRole:Math.max(0,Number(row.avatar_role)||0),avatarFrame:String(row.avatar_frame||"zero")};}
+function profile(row){let showcaseRoles=[4,0,1];try{const parsed=typeof row.showcase_roles==="string"?JSON.parse(row.showcase_roles):row.showcase_roles;if(Array.isArray(parsed))showcaseRoles=parsed.slice(0,3).map(v=>Math.max(0,Math.min(5,Math.floor(Number(v)||0))));}catch(_){}return{accountId:String(row.account_id),username:String(row.username||""),displayName:String(row.display_name||row.username||"PLAYER"),playerUid:String(row.player_uid||"--------"),level:Math.max(1,Number(row.level)||1),avatarRole:Math.max(0,Number(row.avatar_role)||0),avatarFrame:String(row.avatar_frame||"zero"),showcaseRoles};}
 
 async function profilesByIds(db,ids){
   const unique=[...new Set(ids.filter(Boolean))];if(!unique.length)return[];
@@ -93,6 +95,23 @@ async function searchPlayers(db,userId,raw){
     WHERE u.id<>? AND COALESCE(u.pending_delete,0)=0 AND (u.id=? OR LOWER(u.username) LIKE LOWER(?) ESCAPE '\\' OR CAST(json_extract(s.save_data,'$.playerUID') AS TEXT)=? OR LOWER(CAST(json_extract(s.save_data,'$.playerName') AS TEXT)) LIKE LOWER(?) ESCAPE '\\')
     ORDER BY CASE WHEN u.id=? OR u.username=? OR CAST(json_extract(s.save_data,'$.playerUID') AS TEXT)=? THEN 0 ELSE 1 END,u.username LIMIT 12`).bind(userId,q,like,q,like,q,q,q).all();
   return json({success:true,results:(result.results||[]).map(profile)});
+}
+
+async function supportOperators(db,userId,professionRaw,seedRaw){
+  const profession=["all","guard","damage","breaker","support"].includes(String(professionRaw))?String(professionRaw):"all";
+  const seed=Math.max(0,Math.floor(Number(seedRaw)||0));
+  const result=await db.prepare(`SELECT ${publicSelect()} FROM sf_users_v2 u
+    JOIN sf_saves_v2 s ON s.user_id=u.id AND s.game_id='project-zero'
+    WHERE u.id<>? AND COALESCE(u.pending_delete,0)=0
+      AND json_array_length(COALESCE(json_extract(s.save_data,'$.profileShowcase'),'[]'))>0
+    ORDER BY ((length(u.id)*1103515245 + ? + length(COALESCE(u.username,''))*12345) & 2147483647),u.id LIMIT 40`).bind(userId,seed*7919).all();
+  const providers=(result.results||[]).map(profile),operators=[];
+  const professionOf=roleId=>roleId===0?"guard":roleId===1||roleId===5?"support":roleId===2?"breaker":"damage";
+  for(const provider of providers)for(const roleId of provider.showcaseRoles){
+    const roleProfession=professionOf(roleId);if(profession!=="all"&&profession!==roleProfession)continue;
+    operators.push({roleId,profession:roleProfession,accountId:provider.accountId,owner:provider.displayName,playerUid:provider.playerUid});
+  }
+  return json({success:true,profession,seed,operators:operators.slice(0,24)});
 }
 
 async function resolveTarget(db,target){

@@ -12,7 +12,9 @@ const CORE_FILES=[
   "./assets/ui/project_zero_logo.png","./assets/audio/bgm/login_theme.mp3",
   "./assets/audio/bgm/chapter0_operation.mp3","./assets/audio/bgm/chapter0_battle.mp3","./assets/audio/bgm/chapter0_boss.mp3",
   "./assets/audio/bgm/chapter1_operation.mp3","./assets/audio/bgm/chapter1_battle.mp3","./assets/audio/bgm/chapter1_boss.mp3",
-  "./assets/audio/bgm/chapter2_operation.mp3","./assets/audio/bgm/chapter2_battle.mp3"
+  "./assets/audio/bgm/chapter2_operation.mp3","./assets/audio/bgm/chapter2_battle.mp3",
+  "./assets/audio/bgm/chapter3_operation.mp3","./assets/audio/bgm/chapter3_battle.mp3",
+  "./assets/audio/bgm/chapter3_part2_operation.mp3","./assets/audio/bgm/operation_world.mp3"
 ];
 
 self.addEventListener("install",event=>{

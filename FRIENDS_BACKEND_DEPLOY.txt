@@ -6,5 +6,6 @@ Project Zero 好友服务部署说明
 4. 将 account-config.js 中的好友服务地址，或启动参数 friendsApiUrl，设置为该地址；不要尝试把另一个Worker路由到现有workers.dev域名的/api/friends*。
 5. 原 SF Account Worker 继续处理 /api/auth/*、/api/account/* 与 /api/saves；好友 Worker 只处理 /api/friends*。
 6. 部署后访问新地址/api/friends/health，应返回 PZ Friends 1.0.0。
+7. 同一Worker同时提供 /api/support/operators 全服公开支援池；客户端支援不要求好友关系，但要求有效在线身份。
 
 好友数据表会在首次请求时自动建立。好友上限为15人，所有搜索、申请、接受、拒绝和删除操作都需要有效的SF Account访问令牌。

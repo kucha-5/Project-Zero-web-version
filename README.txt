@@ -1,4 +1,4 @@
-Project Zero 49.30.6 - Remade Operation with Always-Visible Enemy Bars
+Project Zero 49.30.7 - Guest Support & Franklin Shield Balance
 
 Game/
   Browser game build 2026083001-coop-hub-ui-room-level.

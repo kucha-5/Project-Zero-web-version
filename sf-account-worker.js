@@ -1,4 +1,4 @@
-const VERSION = "3.2.7";
+const VERSION = "3.3.0";
 const CRYSTAL_WAR_MAX_PLAYERS = 3;
 const CRYSTAL_WAR_TICKET_SECONDS = 45;
 const PBKDF2_ITERATIONS = 100000;
@@ -1801,6 +1801,25 @@ async function authenticateFriendRequest(request, env) {
   return session;
 }
 
+async function authenticateSupportRequest(request, env) {
+  const session = await authenticate(request, env.DB, "access");
+  if (session.error) return session;
+  if (Number(session.user.pending_delete) === 1) {
+    return {
+      error: errorResponse(
+        403,
+        "ACCOUNT_PENDING_DELETION",
+        "账号处于注销期，无法使用支援功能"
+      )
+    };
+  }
+  const accountType = String(session.user.account_type || "sf");
+  if (accountType !== "sf" && accountType !== "guest") {
+    return { error: errorResponse(403, "SUPPORT_IDENTITY_REQUIRED", "当前身份无法使用支援功能") };
+  }
+  return session;
+}
+
 async function updatePublicProfile(request, env) {
   const session = await authenticateFriendRequest(request, env);
   if (session.error) return session.error;
@@ -1946,7 +1965,7 @@ function normalizeShowcaseRoles(value) {
   if (!Array.isArray(source)) source = [];
   const result = [];
   for (const raw of source) {
-    const roleId = Math.max(0, Math.min(5, Math.floor(Number(raw) || 0)));
+    const roleId = Math.max(0, Math.min(6, Math.floor(Number(raw) || 0)));
     if (!result.includes(roleId)) result.push(roleId);
     if (result.length >= 3) break;
   }
@@ -2208,7 +2227,7 @@ async function searchFriendProfiles(request, env, url) {
 }
 
 async function getGlobalSupportOperators(request, env, url) {
-  const session = await authenticateFriendRequest(request, env);
+  const session = await authenticateSupportRequest(request, env);
   if (session.error) return session.error;
 
   const requested = String(url.searchParams.get("profession") || "all");
@@ -2217,12 +2236,22 @@ async function getGlobalSupportOperators(request, env, url) {
   const seed = Math.max(0, Math.floor(Number(url.searchParams.get("seed")) || 0));
 
   const result = await env.DB.prepare(
-    `SELECT ${friendProfileSelect()}
+    `SELECT ${friendProfileSelect()}, s.save_data AS support_save_data
      FROM sf_users_v2 u
      LEFT JOIN sf_saves_v2 s
        ON s.user_id = u.id AND s.game_id = 'project-zero'
      WHERE u.id <> ?
        AND COALESCE(u.pending_delete, 0) = 0
+       AND NOT EXISTS (
+         SELECT 1 FROM pz_public_profiles_v1 mine
+         WHERE mine.user_id = ?
+           AND mine.player_uid = COALESCE(
+             (SELECT theirs.player_uid FROM pz_public_profiles_v1 theirs WHERE theirs.user_id = u.id),
+             CAST(json_extract(s.save_data, '$.playerUID') AS TEXT),
+             ''
+           )
+           AND mine.player_uid <> ''
+       )
        AND (s.user_id IS NOT NULL OR EXISTS (
          SELECT 1 FROM pz_public_profiles_v1 p WHERE p.user_id = u.id
        ))
@@ -2234,12 +2263,31 @@ async function getGlobalSupportOperators(request, env, url) {
      ORDER BY (((length(u.id) * 1103515245 +
        length(COALESCE(u.username, '')) * 12345) * (? + 1)) & 2147483647), u.id
      LIMIT 40`
-  ).bind(session.user.id, session.user.id, session.user.id, seed * 7919).all();
+  ).bind(session.user.id, session.user.id, session.user.id, session.user.id, seed * 7919).all();
 
-  const professionOf = roleId => ["swordguard", "assist", "breaker", "arcane", "leader", "medic"][roleId] || "leader";
+  const professionOf = roleId => ["swordguard", "arcane", "shieldguard", "arcane", "leader", "assist", "shieldguard"][roleId] || "leader";
   const operators = [];
   for (const row of result.results || []) {
     const provider = formatFriendProfile(row);
+    let supportSave = {};
+    try {
+      supportSave = typeof row.support_save_data === "string"
+        ? JSON.parse(row.support_save_data)
+        : (row.support_save_data || {});
+    } catch { supportSave = {}; }
+    const savedCharacters = Array.isArray(supportSave.charData)
+      ? supportSave.charData : [];
+    const savedRoleLevel = (roleId, fallback) => {
+      if (roleId === 4) {
+        return Math.max(1, Math.min(60, Math.floor(
+          Number(supportSave.protagonistStoryLevel) ||
+          Number(savedCharacters[roleId]?.level) || fallback || 1
+        )));
+      }
+      return Math.max(1, Math.min(60, Math.floor(
+        Number(savedCharacters[roleId]?.level) || fallback || 1
+      )));
+    };
     for (let index = 0; index < provider.showcaseRoles.length; index++) {
       const roleId = provider.showcaseRoles[index];
       const roleProfession = professionOf(roleId);
@@ -2250,7 +2298,7 @@ async function getGlobalSupportOperators(request, env, url) {
         accountId: provider.accountId,
         owner: provider.displayName,
         playerUid: provider.playerUid,
-        roleLevel: Math.max(1, Math.min(60, Math.floor(Number(provider.showcaseLevels[index]) || 1)))
+        roleLevel: savedRoleLevel(roleId, provider.showcaseLevels[index])
       });
       if (operators.length >= 24) break;
     }
@@ -3878,12 +3926,12 @@ export class PZCrystalWarRoom {
     }
     if(m.type==="lobby_input"){
       const seq=Math.floor(Number(m.sequence||0));if(p.activity!=="lobby"||seq<=p.lastProcessedSequence)return;
-      const roleId=Number(m.roleId),roleLevel=Number(m.roleLevel);p.lastProcessedSequence=seq;p.lastInputAt=Date.now();p.moveX=Math.max(-1,Math.min(1,Number(m.moveX)||0));p.moveY=Math.max(-1,Math.min(1,Number(m.moveY)||0));p.direction=Number(m.direction)<0?-1:1;if(Number.isFinite(roleId))p.roleId=Math.max(0,Math.min(5,Math.floor(roleId)));if(Number.isFinite(roleLevel))p.roleLevel=Math.max(1,Math.min(100,Math.floor(roleLevel)));return;
+      const roleId=Number(m.roleId),roleLevel=Number(m.roleLevel);p.lastProcessedSequence=seq;p.lastInputAt=Date.now();p.moveX=Math.max(-1,Math.min(1,Number(m.moveX)||0));p.moveY=Math.max(-1,Math.min(1,Number(m.moveY)||0));p.direction=Number(m.direction)<0?-1:1;if(Number.isFinite(roleId))p.roleId=Math.max(0,Math.min(6,Math.floor(roleId)));if(Number.isFinite(roleLevel))p.roleLevel=Math.max(1,Math.min(100,Math.floor(roleLevel)));return;
     }
     if(m.type==="input"){
       const seq=Math.floor(Number(m.sequence||0));if(seq<=p.lastProcessedSequence)return;
       const roleId=Number(m.roleId),roleLevel=Number(m.roleLevel),maxHp=Number(m.maxHp),defense=Number(m.defense),damageReduction=Number(m.damageReduction);
-      p.lastProcessedSequence=seq;p.lastInputAt=Date.now();p.moveX=p.activity==="battle"?Math.max(-1,Math.min(1,Number(m.moveX)||0)):0;p.moveY=p.activity==="battle"?Math.max(-1,Math.min(1,Number(m.moveY)||0)):0;p.direction=Number(m.direction)<0?-1:1;if(Number.isFinite(roleId))p.roleId=Math.max(0,Math.min(5,Math.floor(roleId)));if(Number.isFinite(roleLevel))p.roleLevel=Math.max(1,Math.min(100,Math.floor(roleLevel)));if(Number.isFinite(maxHp))p.maxHp=Math.max(100,Math.min(25000,maxHp));if(Number.isFinite(defense))p.defense=Math.max(0,Math.min(5000,defense));if(Number.isFinite(damageReduction))p.damageReduction=Math.max(0,Math.min(.5,damageReduction));p.area=this.world.area;p.route=String(this.world.route||"center");return;
+      p.lastProcessedSequence=seq;p.lastInputAt=Date.now();p.moveX=p.activity==="battle"?Math.max(-1,Math.min(1,Number(m.moveX)||0)):0;p.moveY=p.activity==="battle"?Math.max(-1,Math.min(1,Number(m.moveY)||0)):0;p.direction=Number(m.direction)<0?-1:1;if(Number.isFinite(roleId))p.roleId=Math.max(0,Math.min(6,Math.floor(roleId)));if(Number.isFinite(roleLevel))p.roleLevel=Math.max(1,Math.min(100,Math.floor(roleLevel)));if(Number.isFinite(maxHp))p.maxHp=Math.max(100,Math.min(25000,maxHp));if(Number.isFinite(defense))p.defense=Math.max(0,Math.min(5000,defense));if(Number.isFinite(damageReduction))p.damageReduction=Math.max(0,Math.min(.5,damageReduction));p.area=this.world.area;p.route=String(this.world.route||"center");return;
     }
     if(m.type==="route_request"){this.handleRouteRequest(userId,m);return;}
     const currentAreaCleared=Object.values(this.world.enemies).length>0&&Object.values(this.world.enemies).every(enemy=>!enemy.alive);
@@ -3925,7 +3973,7 @@ export class PZCrystalWarRoom {
     const kind=String(m.action||"");if(!["attack","charge","skill","ultimate","ultimate_resolve","dash","switch","parry","heal"].includes(kind))return;
     const cooldown={attack:180,charge:120,skill:420,ultimate:900,ultimate_resolve:50,dash:280,switch:250,parry:250,heal:450}[kind],at=Date.now();
     p.cooldowns=p.cooldowns||{};if(Number(p.cooldowns[kind]||0)>at)return;p.cooldowns[kind]=at+cooldown;
-    if(Number.isFinite(Number(m.roleId)))p.roleId=Math.max(0,Math.min(5,Math.floor(Number(m.roleId))));
+    if(Number.isFinite(Number(m.roleId)))p.roleId=Math.max(0,Math.min(6,Math.floor(Number(m.roleId))));
     if(kind==="heal"){
       if(Math.floor(Number(m.sourceRole))!==5||p.hp<=0)return;
       const healRatio=Math.max(.1,Math.min(25,Number(m.healRatio)||0)),before=p.hp;
@@ -3945,7 +3993,7 @@ export class PZCrystalWarRoom {
     const distance=Math.hypot(enemy.x-p.x,enemy.y-p.y),range=sourceKind==="basic"?165:sourceKind==="skill"?360:sourceKind==="ultimate"?620:520;if(distance>range)return;
     const requested=Math.max(1,Number(m.damage)||1),ratioCap=sourceKind==="basic"?.35:sourceKind==="skill"?.55:sourceKind==="ultimate"?1:.22,damage=Math.max(1,Math.min(requested,Math.max(1,enemy.maxHp*ratioCap),250000));
     enemy.hp=Math.max(0,enemy.hp-damage);if(enemy.hp===0){enemy.alive=false;const dropId="drop:"+enemy.id+":"+this.world.tick;this.world.drops[dropId]={id:dropId,x:enemy.x,y:enemy.y,kind:"crystal",amount:1+Math.floor(p.roleLevel/10)};this.broadcast({type:"enemy_died",eventId:eventId+":death",serverTime:Date.now(),enemyId:enemy.id,playerId:userId,drop:this.world.drops[dropId]});}
-    this.broadcast({type:"hit_confirmed",eventId,serverTime:Date.now(),roomTime:this.world.roomTime,playerId:userId,enemyId:enemy.id,roleId:p.roleId,sourceRole:Number.isFinite(Number(m.sourceRole))?Math.max(0,Math.min(5,Math.floor(Number(m.sourceRole)))):p.roleId,sourceKind,label:String(m.label||"").slice(0,32),damage,hp:enemy.hp,alive:enemy.alive,x:enemy.x,y:enemy.y});
+    this.broadcast({type:"hit_confirmed",eventId,serverTime:Date.now(),roomTime:this.world.roomTime,playerId:userId,enemyId:enemy.id,roleId:p.roleId,sourceRole:Number.isFinite(Number(m.sourceRole))?Math.max(0,Math.min(6,Math.floor(Number(m.sourceRole)))):p.roleId,sourceKind,label:String(m.label||"").slice(0,32),damage,hp:enemy.hp,alive:enemy.alive,x:enemy.x,y:enemy.y});
   }
 
   handleWorldEvent(userId,m){
@@ -3994,7 +4042,7 @@ export class PZCrystalWarRoom {
   tick(){
     const at=Date.now(),dt=.05;this.lastTickAt=at;this.world.tick++;this.world.roomTime+=50;
     const activePlayers=Object.values(this.world.players).filter(p=>p.connected!==false&&(p.activity==="battle"||p.activity==="lobby")),battlePlayers=activePlayers.filter(p=>p.activity==="battle"),lobbyPlayers=activePlayers.filter(p=>p.activity==="lobby");
-    for(const p of activePlayers){if(p.activity==="battle"&&p.hp<=0){if(p.respawnAt&&at>=p.respawnAt){p.hp=100;p.respawnAt=0;p.x=560;p.y=400;p.vx=0;p.vy=0;this.broadcast({type:"player_respawned",eventId:"respawn:"+p.id+":"+this.world.tick,serverTime:at,playerId:p.id,x:p.x,y:p.y,hp:p.hp});}continue;}if(at-Number(p.lastInputAt||0)>260){p.moveX=0;p.moveY=0;}const l=Math.hypot(p.moveX,p.moveY)||1,roleSpeeds=[3.1,3.4,2.45,3,3.05,3.15],targetSpeed=p.activity==="lobby"?245:(roleSpeeds[p.roleId]||3.05)*116.67,targetVx=p.moveX/l*targetSpeed,targetVy=p.moveY/l*targetSpeed,blend=1-Math.exp(-dt/.084);p.vx=Number(p.vx||0)+(targetVx-Number(p.vx||0))*blend;p.vy=Number(p.vy||0)+(targetVy-Number(p.vy||0))*blend;const minX=p.activity==="lobby"?92:35,maxX=p.activity==="lobby"?1028:1085,minY=p.activity==="lobby"?145:105,maxY=p.activity==="lobby"?570:625;p.x=Math.max(minX,Math.min(maxX,p.x+p.vx*dt));p.y=Math.max(minY,Math.min(maxY,p.y+p.vy*dt));}
+    for(const p of activePlayers){if(p.activity==="battle"&&p.hp<=0){if(p.respawnAt&&at>=p.respawnAt){p.hp=100;p.respawnAt=0;p.x=560;p.y=400;p.vx=0;p.vy=0;this.broadcast({type:"player_respawned",eventId:"respawn:"+p.id+":"+this.world.tick,serverTime:at,playerId:p.id,x:p.x,y:p.y,hp:p.hp});}continue;}if(at-Number(p.lastInputAt||0)>260){p.moveX=0;p.moveY=0;}const l=Math.hypot(p.moveX,p.moveY)||1,roleSpeeds=[3.1,3.4,2.45,3,3.05,3.15,2.7],targetSpeed=p.activity==="lobby"?245:(roleSpeeds[p.roleId]||3.05)*116.67,targetVx=p.moveX/l*targetSpeed,targetVy=p.moveY/l*targetSpeed,blend=1-Math.exp(-dt/.084);p.vx=Number(p.vx||0)+(targetVx-Number(p.vx||0))*blend;p.vy=Number(p.vy||0)+(targetVy-Number(p.vy||0))*blend;const minX=p.activity==="lobby"?92:35,maxX=p.activity==="lobby"?1028:1085,minY=p.activity==="lobby"?145:105,maxY=p.activity==="lobby"?570:625;p.x=Math.max(minX,Math.min(maxX,p.x+p.vx*dt));p.y=Math.max(minY,Math.min(maxY,p.y+p.vy*dt));}
     const ball=this.world.lobbyBall||(this.world.lobbyBall={x:560,y:330,vx:0,vy:0,lastKickAt:0,lastKicker:""});ball.x=Number(ball.x)||560;ball.y=Number(ball.y)||330;ball.vx=Number(ball.vx)||0;ball.vy=Number(ball.vy)||0;ball.x+=ball.vx*dt;ball.y+=ball.vy*dt;const drag=Math.pow(.986,dt*60);ball.vx*=drag;ball.vy*=drag;const radius=24,minBallX=116,maxBallX=1004,minBallY=169,maxBallY=546;if(ball.x<minBallX){ball.x=minBallX;ball.vx=Math.abs(ball.vx)*.84;}else if(ball.x>maxBallX){ball.x=maxBallX;ball.vx=-Math.abs(ball.vx)*.84;}if(ball.y<minBallY){ball.y=minBallY;ball.vy=Math.abs(ball.vy)*.84;}else if(ball.y>maxBallY){ball.y=maxBallY;ball.vy=-Math.abs(ball.vy)*.84;}for(const p of lobbyPlayers){const dx=ball.x-p.x,dy=ball.y-p.y,distance=Math.hypot(dx,dy),contact=48;if(distance>=contact)continue;const nx=distance>0?dx/distance:(p.direction<0?-1:1),ny=distance>0?dy/distance:0,overlap=contact-Math.max(.001,distance);ball.x+=nx*overlap;ball.y+=ny*overlap;const approach=Number(p.vx||0)*nx+Number(p.vy||0)*ny,canKick=at-Number(ball.lastKickAt||0)>90||String(ball.lastKicker||"")!==p.id;if(canKick&&(approach>18||Math.hypot(ball.vx,ball.vy)<55)){const impulse=Math.max(285,Math.min(620,Math.max(0,approach)*1.42+245));ball.vx=nx*impulse+Number(p.vx||0)*.26;ball.vy=ny*impulse+Number(p.vy||0)*.26;const speed=Math.hypot(ball.vx,ball.vy);if(speed>650){ball.vx=ball.vx/speed*650;ball.vy=ball.vy/speed*650;}ball.lastKickAt=at;ball.lastKicker=p.id;this.broadcast({type:"lobby_ball_hit",eventId:"lobby-ball:"+this.world.tick+":"+p.id,serverTime:at,playerId:p.id,x:ball.x,y:ball.y,power:speed});}}
     for(const e of Object.values(this.world.enemies)){if(!e.alive)continue;const targets=battlePlayers.filter(p=>p.area===Number(e.area||this.world.area)&&p.hp>0);if(!targets.length)continue;targets.sort((a,b)=>Math.hypot(a.x-e.x,a.y-e.y)-Math.hypot(b.x-e.x,b.y-e.y));const t=targets[0],dx=t.x-e.x,dy=t.y-e.y,l=Math.hypot(dx,dy)||1,isRanged=["ranged","sniper","fireCrystal","support"].includes(e.type),desired=isRanged?220:62,speed=e.type==="skirmisher"?170:isRanged?115:e.type==="berserker"?155:135;if(l>desired+15){e.x+=dx/l*speed*dt;e.y+=dy/l*speed*dt;e.state="chase";}else if(l<desired-25&&isRanged){e.x-=dx/l*speed*dt;e.y-=dy/l*speed*dt;e.state="retreat";}else{e.state="attack";if(Number(e.attackAt||0)<=at){e.attackAt=at+(isRanged?1450:1050);const attackEventId="enemy-attack:"+e.id+":"+this.world.tick;this.broadcast({type:"enemy_attack",eventId:attackEventId,serverTime:at,enemyId:e.id,targetId:t.id,x:e.x,y:e.y,targetX:t.x,targetY:t.y,ranged:isRanged});if(Number(t.invulnerableUntil||0)>at){this.broadcast({type:"player_evaded",eventId:attackEventId+":evade",serverTime:at,enemyId:e.id,playerId:t.id,hp:t.hp});continue;}const damage=this.enemyDamageForPlayer(e,t,battlePlayers,at);t.hp=Math.max(0,Math.round((t.hp-damage)*10)/10);if(t.hp===0)t.respawnAt=at+4000;this.broadcast({type:t.hp===0?"player_died":"player_damaged",eventId:attackEventId+":hit",serverTime:at,enemyId:e.id,playerId:t.id,damage,hp:t.hp});}}}
     for(const device of Object.values(this.world.devices)){if(device.scope!=="field")continue;const resource=this.world.resources[device.id];if(!resource||resource.remaining<=0)continue;device.progress=Number(device.progress||0)+dt;if(device.progress<2.25)continue;device.progress-=2.25;const amount=Math.min(resource.remaining,Math.max(1,Math.floor(Number(resource.quality)||1)));resource.remaining=Math.max(0,resource.remaining-amount);this.broadcast({type:"world_event",event:"resource_collected",eventId:"collect:"+device.id+":"+this.world.tick,serverTime:at,playerId:device.ownerId,entityId:device.id,data:{remaining:resource.remaining,resource:resource.resource||"rawOre",amount}});}

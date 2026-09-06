@@ -1,0 +1,14 @@
+Project Zero / SF Account Worker 3.2.8
+
+唯一后端文件：sf-account-worker.js
+以用户提供的SF Account Worker 3.2.5为基础升级，不使用独立好友Worker。
+
+沿用当前Worker的DB、APPS_SCRIPT_URL、SF_MAIL_SECRET与Durable Object绑定。
+
+全服支援等级规则：
+- 普通执行官：读取提供玩家最新存档charData[角色ID].level。
+- 主角：读取提供玩家最新存档protagonistStoryLevel。
+- showcase_levels只用于缺少最新角色存档时的兼容回退。
+- 展示位换序、去重不会改变角色与等级的对应关系。
+
+部署后访问 /api/health，应显示version 3.2.8。
