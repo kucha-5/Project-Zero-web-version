@@ -1,11 +1,14 @@
 {
-  "version": "49.32.4",
-  "build": "2026091006-github-music-recovery",
+  "version": "49.32.5",
+  "build": "2026091007-complete-github-audio-release",
   "publishedAt": "2026-08-29T12:00:00Z",
   "mandatory": false,
   "minimumLauncherVersion": "1.0.0",
   "saveSchemaVersion": 80,
   "changelog": [
+    "GitHub 网页发布改为完整资源包，明确包含全部16首大厅、商店、章节与Boss音乐，不再使用缺少音频的小型代码补丁",
+    "修复启动器下载版使用 file 协议时给本地 MP3 文件名附加网页缓存参数，导致 Chromium 无法定位本地音乐的问题",
+    "网页托管版继续使用构建号隔离音乐缓存，本地桌面版则保持真实文件路径，两种运行环境分别处理",
     "修复 GitHub Pages 登录音乐在首次交互前反复触发自动播放拦截，导致玩家点击后仍无法播放的问题",
     "所有音乐地址加入当前构建标识，避免 GitHub CDN 与旧 Service Worker 持续返回上一构建音频",
     "大厅、商店、章节与Boss音乐加载失败后会销毁失败实例，并在下一次玩家交互时真正重建播放器",

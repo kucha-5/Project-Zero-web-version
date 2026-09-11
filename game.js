@@ -646,7 +646,9 @@ function githubSafeAudioUrl(path){
   try{
     const url=new URL(path,document.baseURI);
     const build=window.PZ_UPDATE_INFO&&window.PZ_UPDATE_INFO.build;
-    if(build) url.searchParams.set("pzbuild",String(build));
+    // Hosted builds need cache busting. On file://, Chromium may treat the
+    // query as part of the Windows filename and fail to locate the MP3.
+    if(build&&/^https?:$/.test(url.protocol)) url.searchParams.set("pzbuild",String(build));
     return url.href;
   }catch(_){ return path; }
 }

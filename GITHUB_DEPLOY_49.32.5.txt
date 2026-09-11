@@ -1,0 +1,11 @@
+Project Zero V49.32.5 · GitHub 完整发布说明
+
+1. 解压完整包后，将包内文件与 assets 文件夹保持原层级上传到用于网页游戏的仓库根目录。
+2. 不要只上传 game.js、sw.js 或 version.json；assets/audio/bgm 必须包含 16 个 MP3。
+3. GitHub 仓库 Settings → Pages 中应部署包含 index.html 的分支根目录。
+4. 当前公开仓库 kucha-5/Project-Zero-Release 只有更新清单，未启用可用的游戏 Pages，不能直接作为网页游戏地址。
+5. 部署完成后首次进入页面，点击画布或按任意键以解除浏览器自动播放限制。
+6. 如果浏览器仍显示旧版本，使用页面的“清除旧缓存 / RESET CACHE”按钮一次。
+
+完整音乐目录：assets/audio/bgm/
+音乐文件数量：16

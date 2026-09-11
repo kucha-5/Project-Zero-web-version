@@ -1,0 +1,8 @@
+Project Zero V49.32.5
+Build: 2026091007-complete-github-audio-release
+
+- 此版本必须使用完整 GitHub 发布包，不能只上传代码补丁。
+- 完整包包含 assets/audio/bgm 下全部 16 个 MP3 文件。
+- 修复 file:// 桌面启动器版音乐路径被附加查询参数后无法读取的问题。
+- http:// 与 https:// 网页版继续使用构建号刷新音乐缓存。
+- 包含 .nojekyll、Service Worker 音频 Range 支持及播放器失败重建逻辑。
