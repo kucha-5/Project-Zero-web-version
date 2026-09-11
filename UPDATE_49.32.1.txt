@@ -1,0 +1,12 @@
+PROJECT ZERO V49.32.1 - GUIDED UNLOCK SEQUENCE
+
+- Newly unlocked UI tutorials now run as one continuous batch in the lobby.
+- New-player unlocks are staggered across Chapter 0 stages, account levels,
+  and later chapter clears, so only the relevant feature appears at each point.
+- Players no longer need to enter a feature, return to the lobby, and trigger
+  the next tutorial manually.
+- Removed Skip, close, and Escape-to-skip behavior from feature tutorials.
+- Expanded each feature into detailed steps covering purpose, resources,
+  operation order, rewards, progression priorities, and important restrictions.
+- The final step requires interaction with the highlighted real UI control.
+- Each tutorial remains permanently one-time and has no replay entry.

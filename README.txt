@@ -1,4 +1,4 @@
-Project Zero 49.30.7 - Guest Support & Franklin Shield Balance
+Project Zero 49.31.0 - Crystal Factory Hands-on Redesign
 
 Game/
   Browser game build 2026083001-coop-hub-ui-room-level.

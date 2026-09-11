@@ -1,0 +1,9 @@
+PROJECT ZERO V49.32.0 - COMMERCIAL FOCUS GUIDES
+
+- Replaced centered instruction modals with contextual, in-screen guidance.
+- The live UI remains visible while non-target areas are dimmed.
+- Animated focus borders and directional pointers identify the real control.
+- Players advance by clicking the highlighted UI and enter the feature directly.
+- Guides trigger only once when the relevant feature unlocks.
+- Skip, Escape, or completion permanently marks the guide as seen.
+- No replay or guide-reset entry exists.

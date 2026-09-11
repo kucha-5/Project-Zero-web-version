@@ -1,0 +1,8 @@
+PROJECT ZERO V49.31.9 - ONE-TIME UI GUIDE EXPANSION
+
+- Added automatic tutorials that trigger when each UI feature first unlocks.
+- Covered lobby systems, squad setup, growth, friends, operations, dungeons,
+  exploration, bosses, patrol, archives, Hard Mode, Daydream, and Crystal War.
+- Every guide can be skipped immediately.
+- Completing or skipping permanently marks that guide as seen.
+- No replay button, replay menu, or reset entry has been added.

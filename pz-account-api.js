@@ -151,6 +151,9 @@
     saveCrystalWarWorldV2:(saveData,baseRevision)=>request("/api/crystal-war/v2/rooms/save",{method:"PUT",body:JSON.stringify({saveData,baseRevision})}),
     leaveCrystalWarRoomV2:()=>request("/api/crystal-war/v2/rooms/leave",{method:"POST",body:"{}"}),
     createCrystalWarRealtimeTicketV3:()=>request("/api/crystal-war/v3/realtime-ticket",{method:"POST",body:"{}"}),
+    publishCrystalBlueprint:data=>request("/api/crystal-war/blueprints",{method:"POST",body:JSON.stringify(data||{})}),
+    listCrystalBlueprints:()=>request("/api/crystal-war/blueprints",{method:"GET"}),
+    findCrystalBlueprint:code=>request("/api/crystal-war/blueprints/find?code="+encodeURIComponent(String(code||"")),{method:"GET"}),
     get user(){return user;}, get configured(){return enabled();}
   };
 })();

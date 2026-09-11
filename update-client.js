@@ -2,8 +2,8 @@
   "use strict";
 
   const VERSION_URL="version.json";
-  const LOCAL_VERSION="49.30.7";
-  const LOCAL_BUILD="2026090501-guest-support-shield-balance";
+  const LOCAL_VERSION="49.32.3";
+  const LOCAL_BUILD="2026091005-protagonist-dialogue-choices";
   const FILE_RUNTIME=location.protocol==="file:";
   const BUILD_KEY="pz_runtime_build";
   const VERSION_KEY="pz_runtime_version";
@@ -18,7 +18,7 @@
     "story_chapter0_zh.js","story_chapter0_en.js",
     "story_chapter1_zh.js","story_chapter1_en.js",
     "story_chapter2_zh.js","story_chapter2_en.js",
-    "story_chapter3_zh.js","story_chapter3_en.js"
+    "story_chapter3_zh.js","story_chapter3_en.js","story_expansion_v49322.js"
   ];
   const REQUIRED_GAME="game.js";
   const OPTIONAL_AFTER_GAME=[

@@ -77,7 +77,8 @@ const REQUIRED_GAME_FILES = [
   'story_chapter0_zh.js', 'story_chapter0_en.js', 'story_chapter1_zh.js', 'story_chapter1_en.js',
   'story_chapter2_zh.js', 'story_chapter2_en.js', 'game_crystal_modules.js', 'game.js',
   'game_match3.js', 'game_patrol.js', 'game_side_story.js', 'game_daydream.js', 'game_daydream_title.js',
-  path.join('assets', 'ui', 'project_zero_logo.png')
+  path.join('assets', 'ui', 'project_zero_logo.png'),
+  path.join('assets', 'ui', 'kane_portrait.png')
 ];
 
 // Audio improves presentation but must never prevent a valid game build from

@@ -14,7 +14,7 @@
 
 // Build info for quick debugging
 window.PZ_BUILD_INFO = window.PZ_BUILD_INFO || {
-  build: "V49_28_1_COOP_DAMAGE_BALANCE",
+  build: "V49_31_7_COMBAT_IMPACT",
   storyModule: true,
   optimized: true
 };
@@ -41,6 +41,10 @@ const floraExecutorPortraitImg = new Image();
 floraExecutorPortraitImg.src = "assets/ui/flora_portrait_executor.png";
 let floraExecutorPortraitReady = false;
 floraExecutorPortraitImg.onload = () => { floraExecutorPortraitReady = true; };
+const kanePortraitImg = new Image();
+kanePortraitImg.src = "assets/ui/kane_portrait.png";
+let kanePortraitReady = false;
+kanePortraitImg.onload = () => { kanePortraitReady = true; };
 const crystalCurrencyImg = new Image();
 crystalCurrencyImg.src = "assets/ui/currency_crystal.png";
 let crystalCurrencyReady = false;
@@ -67,6 +71,7 @@ const crystalTopupTierImgs=CRYSTAL_TOPUP_TIERS.map(t=>{
 });
 let hermitLobbyBorderlessLayer = null;
 let floraLobbyBorderlessLayer = null;
+let kaneLobbyBorderlessLayer = null;
 let pzCursorReady = false;
 let pzCursorPulse = 0;
 pzCursorImg.onload = () => { pzCursorReady = true; };
@@ -635,15 +640,43 @@ function cloudTx(key){ return L(CLOUD_TEXT, key, key); }
 
 
 let audioUnlocked = false;
+let audioResumePromise = null;
+
+function retryActiveBgmAfterUnlock(){
+  if(!audioUnlocked) return;
+  if(gameMode === "login"){
+    loginBgmUnavailable = false;
+    requestLoginBgmPlay();
+    return;
+  }
+  const chapterRoute = desiredChapterBgm();
+  if(chapterRoute){
+    chapterBgmUnavailable.delete(chapterRoute.key);
+    if(!chapterBgmAudio || chapterBgmKey !== chapterRoute.key) selectChapterBgm(chapterRoute);
+    playChapterBgm();
+  }else{
+    if(gameMode === "shop") shopBgmUnavailable = false;
+    else worldBgmUnavailable = false;
+    requestWorldBgmPlay();
+  }
+}
 
 function unlockAudio(){
   if(!audioCtx){
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   }
-  if(audioCtx.state === "suspended") audioCtx.resume();
   audioUnlocked = true;
-  if(gameMode === "login") requestLoginBgmPlay();
-  else requestWorldBgmPlay();
+  if(audioCtx.state === "suspended"){
+    if(!audioResumePromise){
+      audioResumePromise = Promise.resolve(audioCtx.resume()).catch(()=>null).finally(()=>{
+        audioResumePromise = null;
+        retryActiveBgmAfterUnlock();
+      });
+    }
+  }
+  // Keep this call inside the actual key/mouse gesture. HTMLMediaElement.play()
+  // is otherwise rejected by browser autoplay policy on GitHub Pages.
+  retryActiveBgmAfterUnlock();
 }
 
 function audioEase01(x){
@@ -1461,6 +1494,12 @@ canvas.addEventListener("mousemove", e => {
     crystalWarRackPos.x=clamp(mouseX-crystalWarRackDrag.dx,12,W-312);
     crystalWarRackPos.y=clamp(mouseY-crystalWarRackDrag.dy,76,H-236);
   }
+  if(shopRecruitDrag){
+    const dx=mouseX-shopRecruitDrag.startX;
+    if(Math.abs(dx)>5)shopRecruitDrag.moved=true;
+    shopRecruitScrollX=clamp(shopRecruitDrag.startScroll-dx,0,permanentRecruitMaxScroll());
+    clicked=false;
+  }
   if(gameMode==="operation"&&selectedTab==="dualCrystal"&&window.PZCrystalWar&&typeof window.PZCrystalWar.pointerMove==="function")window.PZCrystalWar.pointerMove(mouseX,mouseY);
   if(gameMode === "match3" && mouseDown && window.PZMatch3) window.PZMatch3.pointerMove(mouseX,mouseY);
 });
@@ -1476,6 +1515,14 @@ canvas.addEventListener("mousedown", e => {
   const r = canvas.getBoundingClientRect();
   mouseX = (e.clientX - r.left) * W / r.width;
   mouseY = (e.clientY - r.top) * H / r.height;
+  if(gameMode==="shop"&&shopTab==="recruit"&&shopSubTab==="permanent"&&e.button===0&&mouseY>=238&&mouseY<=548){
+    const contentY=mouseY+shopRecruitScrollY;
+    if(contentY>=245&&contentY<=545){
+      unlockAudio();mouseDown=true;clicked=false;
+      shopRecruitDrag={startX:mouseX,startScroll:shopRecruitScrollX,moved:false};
+      return;
+    }
+  }
   if(gameMode==="battle"&&battleModeSource==="crystalWar"&&e.button===0&&window.PZCrystalWar&&typeof window.PZCrystalWar.handleBattleEmoteClick==="function"&&window.PZCrystalWar.handleBattleEmoteClick(mouseX,mouseY)){
     unlockAudio();mouseDown=false;clicked=false;mouseAttackConsumed=true;return;
   }
@@ -1505,9 +1552,10 @@ canvas.addEventListener("mousedown", e => {
   if (e.button === 0) { unlockAudio(); mouseDown = true; clicked = true; sfx("ui"); }
   if (e.button === 2) { unlockAudio(); keys["mouse2"] = true; }
 });
-canvas.addEventListener("mouseup", e => { if(e.button===0) { crystalWarRackDrag=null; if(gameMode==="operation"&&selectedTab==="dualCrystal"&&window.PZCrystalWar&&typeof window.PZCrystalWar.pointerUp==="function")window.PZCrystalWar.pointerUp(mouseX,mouseY); if(gameMode==="match3" && window.PZMatch3) window.PZMatch3.pointerUp(mouseX,mouseY); mouseDown = false; mouseAttackConsumed = false; } if(e.button===2) keys["mouse2"]=false; });
+canvas.addEventListener("mouseup", e => { if(e.button===0) { const recruitDrag=shopRecruitDrag;shopRecruitDrag=null;if(recruitDrag&&!recruitDrag.moved){clicked=true;sfx("ui");}else if(recruitDrag){clicked=false;} crystalWarRackDrag=null; if(gameMode==="operation"&&selectedTab==="dualCrystal"&&window.PZCrystalWar&&typeof window.PZCrystalWar.pointerUp==="function")window.PZCrystalWar.pointerUp(mouseX,mouseY); if(gameMode==="match3" && window.PZMatch3) window.PZMatch3.pointerUp(mouseX,mouseY); mouseDown = false; mouseAttackConsumed = false; } if(e.button===2) keys["mouse2"]=false; });
 canvas.addEventListener("contextmenu", e => e.preventDefault());
 canvas.addEventListener("wheel", e => {
+  if(gameMode==="archive"&&archiveEntry>=0&&archiveTab===0){archiveDetailScroll=Math.max(0,archiveDetailScroll+Math.sign(e.deltaY||0)*72);e.preventDefault();}
   if(gameMode==="operation"&&selectedTab==="combat"&&operationHandleWheel(e.deltaY||e.deltaX||0,mouseX,mouseY))e.preventDefault();
   if(gameMode==="operation"&&selectedTab==="dualCrystal"&&window.PZCrystalWar&&typeof window.PZCrystalWar.handleWheel==="function"&&window.PZCrystalWar.handleWheel(e.deltaY||e.deltaX||0,mouseX,mouseY))e.preventDefault();
   if(gameMode==="operation"&&window.PZDaydream&&typeof window.PZDaydream.handleWheel==="function"&&window.PZDaydream.handleWheel(e.deltaY||e.deltaX||0,mouseX,mouseY))e.preventDefault();
@@ -1515,7 +1563,11 @@ canvas.addEventListener("wheel", e => {
     operatorListWheelDelta += (e.deltaY || e.deltaX || 0);
     e.preventDefault();
   }
-  if(gameMode === "shop" && shopTab === "recruit" && shopSubTab === "permanent" && mouseY>=235 && mouseY<=440){
+  if(gameMode === "lobby" && lobbyAssistantSelectorOpen && lobbyAssistantSelectorTab === "executor"){
+    lobbyAssistantExecutorWheelDelta += (e.deltaY || e.deltaX || 0);
+    e.preventDefault();
+  }
+  if(gameMode === "shop" && shopTab === "recruit" && shopSubTab === "permanent" && mouseY>=230 && mouseY<=550){
     shopRecruitWheelDelta += (e.deltaY || e.deltaX || 0);
     e.preventDefault();
   }
@@ -1634,6 +1686,7 @@ let lobbyGuideStep = 0;
 let uiGuideSeen = {};
 let uiNewSeen = {};
 let uiGuidePrompt = null;
+let uiGuideAutoCooldown = 0;
 
 let tutorialStep = 0;
 let tutorialTarget = null;
@@ -1661,7 +1714,12 @@ let profileSignature = "";
 let profileSignatureEditing = false;
 let profileSignatureDraft = "";
 let archiveTab = 0;
+let archiveEntry = -1;
+let archiveDetailScroll = 0;
+let storyIntelRecords = [];
+let oneTimeExploreClaims = {};
 let prologueLine = 0;
+let prologueReply = null;
 let prologueAfterBattle = false;
 // V49.17.8 Tutorial resume: if player exits before finishing new-player tutorial, resume tutorial next launch.
 let tutorialInProgress = false;
@@ -1911,9 +1969,9 @@ let crystalWarRackDrag = null;
 let crystalWarApplyingSharedState = false;
 let crystalWarNetworkSeedApplied = 0;
 const CRYSTAL_WAR_FIELD_DEVICES=[
-  {id:"mineral",z:"矿物采集钻机",e:"MINERAL DRILL",icon:"⚙",color:"#82ffe2",cost:12,resources:["rawOre","scrap","stone","sulfur","quartz"]},
+  {id:"mineral",z:"矿物采集钻机",e:"MINERAL DRILL",icon:"⚙",color:"#82ffe2",cost:12,resources:["rawOre","scrap","stone","sulfur","quartz","ceramic"]},
   {id:"forestry",z:"树材采集无人机",e:"FORESTRY DRONE",icon:"⌁",color:"#7cffb2",cost:9,resources:["wood","resin","biomass"]},
-  {id:"bio",z:"生态采样器",e:"BIO COLLECTOR",icon:"✣",color:"#c89cff",cost:10,resources:["materials","fiber","herbs","flux"]}
+  {id:"bio",z:"生态采样器",e:"BIO COLLECTOR",icon:"✣",color:"#c89cff",cost:10,resources:["materials","fiber","herbs","flux","coolant"]}
 ];
 let selectedTab = "main";
 let mainChapterView = "chapters"; // chapters -> stage map
@@ -1937,6 +1995,8 @@ let lobbyDialogueLastIndex = {};
 let lobbyAssistantSelectorOpen = false;
 let lobbyAssistantSelectorTab = "executor";
 let lobbyAssistantPreviewRole = 0;
+let lobbyAssistantExecutorScrollY = 0;
+let lobbyAssistantExecutorWheelDelta = 0;
 let lobbyBackgroundTheme = "raven";
 let lobbyBackgroundPreviewTheme = "raven";
 let centerText = "", centerTimer = 0;
@@ -3531,7 +3591,7 @@ function saveGame(){
       updatedAt:now,
       accountUid:(!guestMode && cloudUser) ? cloudUser.uid : "",
       crystals, gold, expBooks, weaponOre, skillBooks, skillMaterials, playerLevel, playerExp, playerExpNeed, protagonistStoryLevel, playerName, playerUID, hasCreatedProfile, profileAvatarRole, profileAvatarFrame, profileShowcase, profileStyle, profileOverviewMode, profileSignature,
-      owned, cleared, hardCleared, projectAreaCleared, projectAreaMapClears, charData, lobbyExecutor, lobbyBackgroundTheme, team, teamPresets, teamPresetNames, borrowedSupport, renderQuality, targetFPS, monthlyOwned, monthlyClaimed, monthlyClaimDate, mailClaimed, mailDeleted, eventClaimed, lastLoginClaimDate, loginClaimIndex, monthlyLoginCheckin, versionLoginCheckin,
+      owned, cleared, hardCleared, projectAreaCleared, projectAreaMapClears, storyIntelRecords, oneTimeExploreClaims, charData, lobbyExecutor, lobbyBackgroundTheme, team, teamPresets, teamPresetNames, borrowedSupport, renderQuality, targetFPS, monthlyOwned, monthlyClaimed, monthlyClaimDate, mailClaimed, mailDeleted, eventClaimed, lastLoginClaimDate, loginClaimIndex, monthlyLoginCheckin, versionLoginCheckin,
       loginRewards, levelRewards, boughtPacks, ownedWeapons, weaponInventory, weaponLevelMigrationDone, crystalExchangePurchases, crystalExchangeWeekKey, dungeonStamina, dungeonWeeklyCrystalLeft, dungeonCrystalWeekKey, dungeonLastStaminaDate, dungeonCandy, dungeonStimulant, dungeonCandyMonthKey, dungeonCandyDailyUsed, dungeonCandyDailyKey, dungeonRewardMultiplier, materialDungeonDifficulty, materialDungeonDifficulties, materialDungeonSelected, materialDungeonScroll, moduleDungeonTarget, audioMuted, bgmVolume, sfxVolume, particlesEnabled, damageTextEnabled, tutorialCompleted, tutorialInProgress, tutorialResumeMode, language, prologueDone, lobbyGuideDone, lobbyGuideStep, achievements, totalKills, totalParries, totalChains, totalBossKills, totalGoldEarned, totalCrystalsEarned, growthGuidePage, growthGuidePageClaimed, growthGuideTaskClaimed, bossMultiplier, bossDifficulty, bossDifficulties, bossKrosWeeklyKey, dragonClaw, crystalHand, elementalFragments, uiGuideSeen, uiNewSeen, actionRecordLevel, actionRecordExp, actionRecordExpNeed, actionRecordPage, actionRecordAdvanced, actionRecordUltimate, actionRecordClaimed, actionRecordWeaponChoice, actionRecordTab, actionRecordTaskTab, actionRecordTaskClaimed, battleManualDailyClaimed,
       battleResume:captureBattleResumeSnapshot()
     };
@@ -3580,6 +3640,8 @@ function migrateSaveData(d){
   addMissing("mailDeleted", false);
   addMissing("projectAreaCleared", false);
   addMissing("projectAreaMapClears", d.projectAreaCleared ? {project_area:true} : {});
+  addMissing("storyIntelRecords", []);
+  addMissing("oneTimeExploreClaims", {});
   addMissing("team", [PROTAGONIST_ROLE,0,1]);
   addMissing("teamPresets", [[PROTAGONIST_ROLE,0,1],[PROTAGONIST_ROLE],[0,1],[PROTAGONIST_ROLE,0]]);
   addMissing("teamPresetNames", ["","","",""]);
@@ -3709,6 +3771,8 @@ function loadGame(){
     if(typeof d.profileOverviewMode==="string"&&["stats","achievements"].includes(d.profileOverviewMode))profileOverviewMode=d.profileOverviewMode;
     if(typeof d.profileSignature==="string")profileSignature=String(d.profileSignature).replace(/[\r\n\t]/g," ").trim().slice(0,36);
     if(d.cleared) cleared = d.cleared;
+    if(Array.isArray(d.storyIntelRecords)) storyIntelRecords=d.storyIntelRecords.slice(-160).filter(v=>v&&typeof v==="object");
+    if(d.oneTimeExploreClaims&&typeof d.oneTimeExploreClaims==="object") oneTimeExploreClaims={...d.oneTimeExploreClaims};
     if(d.hardCleared && typeof d.hardCleared==="object") hardCleared = d.hardCleared;
     if(typeof d.projectAreaCleared === "boolean") projectAreaCleared = d.projectAreaCleared;
     if(d.projectAreaMapClears&&typeof d.projectAreaMapClears==="object")projectAreaMapClears=Object.assign({},d.projectAreaMapClears);
@@ -4680,6 +4744,8 @@ let ownedWeapons = {flora:false};
 let shopSubTab = "limited";
 let shopRecruitScrollX = 0;
 let shopRecruitWheelDelta = 0;
+let shopRecruitScrollY = 0;
+let shopRecruitDrag = null;
 let shopLimitedScrollY = 0;
 let shopLimitedWheelDelta = 0;
 let boughtPacks = {starter:false, growth:false, weapon:false};
@@ -5013,6 +5079,51 @@ rebuildStoryScripts();
 refreshLanguageRuntimeText();
 
 let storyIndex = 0, currentStory = [];
+let storyReplyChoice = -1;
+
+function isProtagonistStorySpeaker(name){
+  return name === "{playerName}" || name === "主角" || name === "Protagonist";
+}
+
+function protagonistReplyChoices(rawText){
+  const original = String(rawText || "").trim();
+  const zh = language !== "en";
+  const quiet = /^(…|\.\.\.|\?)+$/.test(original);
+  const question = /[？?]$/.test(original);
+  const urgent = /[！!]$/.test(original);
+  let variants;
+  if(quiet){
+    variants = zh ? [original || "……", "……先观察。", "保持警戒。"] : [original || "...", "...I'll observe first.", "Stay alert."];
+  }else if(question){
+    variants = zh ? [original, "先确认一下，" + original, "告诉我实情——" + original] : [original, "Let me confirm: " + original, "Tell me the truth—" + original];
+  }else if(urgent){
+    variants = zh ? [original, "交给我。" + original, "别停下——" + original] : [original, "Leave it to me. " + original, "Keep moving—" + original];
+  }else{
+    variants = zh ? [original, "我明白。" + original, "就这么决定。" + original] : [original, "Understood. " + original, "It's decided. " + original];
+  }
+  const seen = new Set();
+  return variants.filter(v=>{ const key=String(v||"").trim(); if(!key||seen.has(key)) return false; seen.add(key); return true; }).slice(0,3).map((spoken,i)=>({
+    spoken,
+    tone: zh ? ["直接回应","谨慎回应","坚定回应"][i] : ["Direct","Cautious","Resolute"][i]
+  }));
+}
+
+function currentStoryReplyOptions(){
+  const line=currentStory[storyIndex];
+  if(!Array.isArray(line)||line._pzChoiceResolved||!isProtagonistStorySpeaker(line[0])) return null;
+  return protagonistReplyChoices(formatStoryText(line[1]));
+}
+
+function selectStoryReply(index){
+  const line=currentStory[storyIndex], options=currentStoryReplyOptions();
+  if(!line||!options||!options[index]) return false;
+  line[1]=options[index].spoken;
+  line._pzChoiceResolved=true;
+  line._pzChoiceTone=options[index].tone;
+  storyReplyChoice=index;
+  sfx("ui");
+  return true;
+}
 let settlement = {stage:1, reward:0, stars:3};
 
 const player = {x:W/2,y:H/2+115,vx:0,vy:0,r:20,hp:100,energy:80,ult:1600,role:0,facing:1,attackCd:0,skillCd:0,ultCd:0,dashCd:0,inv:0,chain:0,chainTimer:0,guardTimer:0,parryReady:0,parryTarget:null,perfectBuff:0,switchCd:0};
@@ -5085,6 +5196,30 @@ function resetUltForBattle(){
 function showCenter(t,n=50){ centerText=localizeText ? localizeText(t) : t; centerTimer=n; }
 function doShake(v){ shake=Math.max(shake,v); }
 function doHitStop(v){ hitStop=Math.max(hitStop,v); }
+
+// V49.31.7 Combat Impact: visual-only body motion and layered hit feedback.
+function startAttackMotion(step=1,heavy=false){
+  player.attackMotion=Math.max(player.attackMotion||0,heavy?16:12);
+  player.attackMotionMax=heavy?16:12;
+  player.attackMotionStep=step;
+}
+
+function spawnCombatImpact(x,y,color="#fff",heavy=false,boss=false,dir=1){
+  const power=heavy?(boss?13:10):(boss?8:6);
+  addSlash(x,y,boss?(heavy?132:104):(heavy?96:68),color,heavy?18:12,"impactRing");
+  if(heavy)addSlash(x,y,boss?78:58,"#ffffff",12,"impactCore");
+  if(!particlesEnabled)return;
+  const count=Math.min(heavy?(boss?22:16):(boss?13:9),24);
+  for(let i=0;i<count;i++){
+    const spread=(Math.random()-.5)*(heavy?2.25:1.65),a=(dir<0?Math.PI:0)+spread;
+    const speed=2.8+Math.random()*power;
+    particles.push({x:x+(Math.random()-.5)*8,y:y+(Math.random()-.5)*8,
+      vx:Math.cos(a)*speed,vy:Math.sin(a)*speed-.5,life:12+Math.random()*10,max:22,
+      size:1+Math.random()*1.8,color:i%4===0?"#ffffff":color,spark:true,
+      angle:a,len:8+Math.random()*(heavy?22:14)});
+  }
+  trimRuntimeCollections();
+}
 
 function addParticles(x,y,color,count=10,power=4){
   if(!particlesEnabled) return;
@@ -5375,13 +5510,15 @@ function createEnemy(x,y,boss=false,type="normal"){
   type = type || "normal";
   const commissionStage = battleModeSource==="commission" ? currentCommissionStage() : null;
   const materialScale=battleModeSource==="materialDungeon"?10+Math.max(1,(materialDungeonRun&&materialDungeonRun.difficulty)||materialDungeonDifficulty||1)*10:0;
+  const hardStoryLevelBonus=battleModeSource==="main"&&battleHardMode?(5+Math.min(5,Math.floor(Math.max(0,(selectedStage||1)-1)/2))):0;
   const stageScale = battleModeSource==="crystalWar"
     ? crystalWarScaledLevel()
-    : ((materialScale||commissionStage) ? (materialScale||(commissionStage&&commissionStage.lv)) : (selectedStage||1));
-  const cappedScale=Math.min(70,Math.max(1,stageScale||1));
+    : ((materialScale||commissionStage) ? (materialScale||(commissionStage&&commissionStage.lv)) : (selectedStage||1)+hardStoryLevelBonus);
+  const cappedScale=Math.min(80,Math.max(1,stageScale||1));
   const hpBase = boss ? 1650 + cappedScale*95 : type==="shield" ? 760 + cappedScale*45 : type==="berserker" ? 620 + cappedScale*38 : type==="ranged" ? 470 + cappedScale*30 : type==="sniper" ? 430 + cappedScale*28 : type==="skirmisher" ? 520 + cappedScale*32 : type==="support" ? 620 + cappedScale*36 : type==="elite" ? 820 + cappedScale*48 : type==="fireCrystal" ? 650 + cappedScale*38 : type==="lancer" ? 590+cappedScale*36 : type==="disruptor" ? 500+cappedScale*31 : type==="bomber" ? 540+cappedScale*34 : 560 + cappedScale*34;
-  const hp=Math.floor(hpBase*(battleHardMode?1.12:1));
-  const shield = boss ? 880 + cappedScale*65 : type==="shield" ? 520 + cappedScale*42 : type==="elite" ? 360 + cappedScale*30 : type==="support" ? 240 + cappedScale*20 : type==="disruptor" ? 300+cappedScale*24 : type==="ranged" ? 180 + cappedScale*18 : type==="sniper" ? 120 + cappedScale*12 : 0;
+  const hp=Math.floor(hpBase*(battleHardMode?1.35:1));
+  const shieldBase = boss ? 880 + cappedScale*65 : type==="shield" ? 520 + cappedScale*42 : type==="elite" ? 360 + cappedScale*30 : type==="support" ? 240 + cappedScale*20 : type==="disruptor" ? 300+cappedScale*24 : type==="ranged" ? 180 + cappedScale*18 : type==="sniper" ? 120 + cappedScale*12 : 0;
+  const shield=Math.floor(shieldBase*(battleHardMode?1.25:1));
   const rawLv = boss ? cappedScale + 7 : type==="elite" ? cappedScale + 4 : type==="shield" ? cappedScale + 2 : type==="berserker" ? cappedScale + 3 : ["ranged","sniper","skirmisher","support","lancer","disruptor","bomber"].includes(type) ? cappedScale + 2 : cappedScale;
   const lv=Math.min(70,rawLv);
   const specialEligible=!boss&&["main","daydream","crystalWar"].includes(battleModeSource)&&!["support","fireCrystal"].includes(type)&&!enemies.some(e=>e&&e.special);
@@ -5603,19 +5740,22 @@ function spawnAreaLegacyChapterPrototype(){
 }
 
 
+const PLAYER_LEVEL_EXP_GAIN_MULTIPLIER=4.5;
 function addPlayerExp(amount){
   // Legacy compatibility: old stage EXP now feeds Action Record EXP.
   if(typeof arAddExp === "function") arAddExp(amount || 0, false);
   // Slow only the very early account curve so new players have time to learn
   // each newly introduced system. Character and weapon growth are unchanged.
   const earlyRate=playerLevel<5?.68:playerLevel<10?.82:1;
-  amount=Math.max(1,Math.floor((amount||0)*earlyRate*3));
+  // Previous account EXP used 3x. This adds another 1.5x gain multiplier.
+  amount=Math.max(1,Math.floor((amount||0)*earlyRate*PLAYER_LEVEL_EXP_GAIN_MULTIPLIER));
   playerExp += amount;
   while(playerExp >= playerExpNeed){
     playerExp -= playerExpNeed;
     playerLevel++;
     playerExpNeed = Math.floor(playerExpNeed * 1.24 + 420);
   }
+  return amount;
 }
 
 
@@ -6230,9 +6370,10 @@ function getPZCrystalWarSharedState(){
 function applyPZCrystalWarSharedState(state,isHost){
   if(!state||typeof state!=="object"||battleModeSource!=="crystalWar"||gameMode!=="battle")return false;
   const sharedArea=Math.max(1,Math.floor(Number(state.area||area)));
+  const sharedRoute=String(state.route||battleRoute||"center");
+  if(sharedArea!==area||sharedRoute!==String(battleRoute||"center"))return false;
   crystalWarApplyingSharedState=true;
   try{
-    if(sharedArea!==area){area=sharedArea;spawnCrystalWarArea();}
     const remoteEnemies=Array.isArray(state.enemies)?state.enemies:[];
     const byId=new Map(enemies.map((enemy,index)=>[String(enemy.syncId||("cw-e-"+area+"-"+index)),enemy]));
     for(const remote of remoteEnemies){const enemy=byId.get(String(remote.id));if(!enemy)continue;enemy.syncId=String(remote.id);enemy.hp=Math.max(0,Math.min(enemy.maxHp,Number(remote.hp)||0));enemy.alive=remote.alive!==false&&enemy.hp>0;if(!isHost){if(Number.isFinite(+remote.x))enemy.netX=+remote.x;if(Number.isFinite(+remote.y))enemy.netY=+remote.y;enemy.netUpdatedAt=performance.now();}}
@@ -6257,11 +6398,8 @@ window.getPZCrystalWarRoleProfile=()=>({
 
 window.applyPZCrystalWarInitialWorld=function(world){
  if(!world||battleModeSource!=="crystalWar"||gameMode!=="battle")return false;
- const incomingSeed=Math.max(0,Math.floor(Number(world.seed)||0)),incomingArea=Math.max(1,Math.floor(Number(world.area)||area));
- const incomingRoute=String(world.route||"center");
- if((incomingArea!==area||incomingRoute!==battleRoute)&&typeof window.applyPZCrystalWarRouteChange==="function")window.applyPZCrystalWarRouteChange({area:incomingArea,route:incomingRoute,routeRevision:Number(world.routeRevision||0),spawn:null,restored:true});
- if(incomingSeed&&incomingSeed!==crystalWarNetworkSeedApplied){crystalWarNetworkSeedApplied=incomingSeed;area=incomingArea;if(incomingRoute==="center")spawnCrystalWarArea();}
- else if(incomingArea!==area){area=incomingArea;if(incomingRoute==="center")spawnCrystalWarArea();}
+ const incomingSeed=Math.max(0,Math.floor(Number(world.seed)||0));
+ if(incomingSeed&&incomingSeed!==crystalWarNetworkSeedApplied)crystalWarNetworkSeedApplied=incomingSeed;
  for(const d of world.devices||[]){if(d.scope==="base")continue;const id=String(d.mineId||d.id||"");if(id&&!crystalWarMiners.some(v=>String(v.mineId)===id))crystalWarMiners.push({mineId:id,device:String(d.device||"mineral"),progress:Number(d.progress)||0,phase:0});}
  return window.applyPZCrystalWarAuthoritativeSnapshot({...world,players:world.players||[],enemies:world.enemies||[],resources:world.resources||[]});
 };
@@ -6283,11 +6421,12 @@ window.applyPZCrystalWarRouteChange=function(message){
 let crystalWarHealthRevision=0;
 window.applyPZCrystalWarAuthoritativeSnapshot=function(snapshot){
  if(!snapshot||battleModeSource!=="crystalWar"||gameMode!=="battle")return false;
- const snapshotArea=Math.max(1,Math.floor(Number(snapshot.area)||area)),snapshotRoute=String(snapshot.route||battleRoute||"center");if(snapshotArea!==area||snapshotRoute!==battleRoute)window.applyPZCrystalWarRouteChange({area:snapshotArea,route:snapshotRoute,routeRevision:Number(snapshot.routeRevision||0)});
+ const ownId=String(window.PZAccount?.user?.id||""),own=(snapshot.players||[]).find(p=>String(p.id)===ownId);
+ const snapshotArea=Math.max(1,Math.floor(Number(own?.area)||area)),snapshotRoute=String(own?.route||battleRoute||"center");
+ if(snapshotArea!==area||snapshotRoute!==battleRoute)return false;
  const enemyMap=new Map(enemies.map((enemy,index)=>[String(enemy.syncId||("cw-e-"+area+"-"+index)),enemy]));
  for(const remote of snapshot.enemies||[]){const enemy=enemyMap.get(String(remote.id));if(!enemy)continue;enemy.netX=Number(remote.x);enemy.netY=Number(remote.y);enemy.netUpdatedAt=performance.now();enemy.hp=Math.max(0,Math.min(enemy.maxHp,Number(remote.hp)||0));enemy.alive=remote.alive!==false&&enemy.hp>0;enemy.networkState=remote.state||"idle";}
  const nodeMap=new Map(crystalWarMines.map(node=>[String(node.id),node]));for(const remote of snapshot.resources||[]){const node=nodeMap.get(String(remote.id));if(node)node.remaining=Math.max(0,Number(remote.remaining)||0);}
- const ownId=String(window.PZAccount?.user?.id||""),own=(snapshot.players||[]).find(p=>String(p.id)===ownId);
  if(own){const networkConfig=window.PZCrystalWar?.getSharedBattleConfig?.()||{},lead=Math.max(0,Math.min(.12,Number(networkConfig.rtt||0)/2000+.025)),targetX=Number(own.x)+(Number(own.vx)||0)*lead,targetY=Number(own.y)+(Number(own.vy)||0)*lead,error=Math.hypot(targetX-player.x,targetY-player.y);if(error>3){const correction=error>360?1:error>140?.22:error>55?.10:.045;player.x=clamp(player.x+(targetX-player.x)*correction,35,W-35);player.y=clamp(player.y+(targetY-player.y)*correction,105,H-35);}crystalWarHealthRevision=Math.max(crystalWarHealthRevision,Number(own.healthRevision)||0);const ratio=Number.isFinite(Number(own.hpRatio))?Number(own.hpRatio):Number(own.hp)/100;if(Number.isFinite(ratio))player.hp=clamp(Math.round(playerMaxHp()*ratio),0,playerMaxHp());}
  areaCleared=enemies.length>0&&enemies.every(enemy=>!enemy.alive);return true;
 };
@@ -6484,7 +6623,7 @@ function enterLobby(){
   }
 }
 function enterOperation(){ clearTransientBattleState(); resetBattleSourceToMain(); gameMode="operation"; selectedTab="main"; mainChapterView="chapters"; operationDetailVisible=false; }
-function enterStory(id){ if(selectedTab==="main") resetBattleSourceToMain(); rebuildStoryScripts(); selectedStage=id; currentStory=storyScripts[id] || [[mt("storyFallbackSpeaker"),mt("storyFallbackText")]]; storyIndex=0; gameMode="story"; }
+function enterStory(id){ if(selectedTab==="main") resetBattleSourceToMain(); rebuildStoryScripts(); selectedStage=id; currentStory=storyScripts[id] || [[mt("storyFallbackSpeaker"),mt("storyFallbackText")]]; storyIndex=0; storyReplyChoice=-1; gameMode="story"; }
 
 function nearestEnemy(){
   let b=null, bd=Infinity;
@@ -7008,7 +7147,7 @@ function applyNoxRuinAttackCost(){
 
 function enemyImmunityActive(e,kind){
   if(!e||e.special!==kind) return false;
-  return ((e.immunityClock||0)%240)<90;
+  return true;
 }
 
 function applyEnemyStatus(e,key,frames,data={}){
@@ -7064,13 +7203,14 @@ function hitEnemy(e,dmg,knock=8,stunDmg=16,color="#fff",label=null,sourceKind="b
   if(enemyImmunityActive(e,"physicalImmune")&&isPhysicalRole(sourceRole)){
     addText(e.x,e.y-e.r-42,language==="en"?"PHYSICAL IMMUNE":"物理免疫","#ffe0a8",true);return false;
   }
-  if(enemyImmunityActive(e,"skillImmune")&&sourceKind==="skill"){
+  if(enemyImmunityActive(e,"skillImmune")&&["skill","ultimate","chain"].includes(sourceKind)){
     addText(e.x,e.y-e.r-42,language==="en"?"SKILL IMMUNE":"技能免疫","#caa7ff",true);return false;
   }
   const networkConfig=battleModeSource==="crystalWar"&&window.PZCrystalWar&&typeof window.PZCrystalWar.getSharedBattleConfig==="function"?window.PZCrystalWar.getSharedBattleConfig():null;
   if(networkConfig&&networkConfig.authoritative){
     if(sourceKind==="basic"){player.energy=clamp(player.energy+8,0,100);gainUlt(label==="HEAVY HIT"||label==="3rd HIT"||label==="FOCUS HIT"?110:70,"basicHit");}
-    addParticles(e.x,e.y,color,e.boss?12:8,e.boss?5:3);addSlash(e.x,e.y,e.boss?100:70,color,12,"networkHit");
+    const preview=Math.max(1,Math.min(Number(dmg)||1,e.maxHp*.35));e.hp=Math.max(1,e.hp-preview);e.networkPredictedAt=performance.now();
+    addText(e.x,e.y-e.r-28,"-"+Math.round(preview),color,true);addParticles(e.x,e.y,color,e.boss?12:8,e.boss?5:3);addSlash(e.x,e.y,e.boss?100:70,color,12,"networkHit");
     if(window.PZCrystalWar&&typeof window.PZCrystalWar.sendBattleHit==="function")window.PZCrystalWar.sendBattleHit(String(e.syncId||""),{damage:Math.max(1,Number(dmg)||1),sourceKind,sourceRole,area,label:String(label||"").slice(0,32)});
     return true;
   }
@@ -7136,10 +7276,12 @@ function hitEnemy(e,dmg,knock=8,stunDmg=16,color="#fff",label=null,sourceKind="b
   addSlash(e.x,e.y,e.boss?105:74,color,14,"hit");
   addText(e.x,e.y-e.r-10,(crit?"CRIT ":"")+Math.floor(final),crit?"#ffe066":color,crit);
   if(label) addText(e.x,e.y+e.r+28,label,color,label.includes("PARRY"));
-  const heavyHit = label==="PARRY!" || label==="3rd HIT" || label==="FOCUS HIT" || label==="ULT";
-  doShake(e.boss?(heavyHit?18:14):(heavyHit?11:8));
-  doHitStop(e.boss?(heavyHit?9:7):(heavyHit?7:5));
-  flash=Math.max(flash,heavyHit?8:6);
+  const heavyHit = label==="PARRY!" || label==="3rd HIT" || label==="FOCUS HIT" || label==="ULT" || label==="CHAIN" || label==="SHIELD CRASH";
+  const impactDir=e.x>=player.x?1:-1;
+  if(!periodicImpact)spawnCombatImpact(e.x,e.y,color,heavyHit,!!e.boss,impactDir);
+  doShake(e.boss?(heavyHit?18:11):(heavyHit?10:5));
+  doHitStop(e.boss?(heavyHit?9:5):(heavyHit?7:3));
+  flash=Math.max(flash,heavyHit?7:2.5);
   if(e.stun<=0 && e.stun>-999 && !(e.breakLock>0)){
     e.breakLock = e.boss ? 90 : 70;
     e.stun=-(e.boss ? 32 : 24);
@@ -7346,6 +7488,7 @@ function protagonistAttack(){
   const sx=player.x+player.facing*(step===3?50:35);
   const range=step===3?92:76;
   const color=step===3?"#ffffff":"#cfd3d8";
+  startAttackMotion(step,step===3);
   player.attackCd=step===3?32:28;
   attackInputLock=18;
   sfx(step===1?"slash1":step===2?"slash2":"slash3");
@@ -7518,6 +7661,7 @@ function attack(){
   if(player.chainTimer<=0) player.chain=0;
   player.chain=(player.chain%3)+1; player.chainTimer=38;
   const step=player.chain, sx=player.x+player.facing*(step===3?48:34), range=step===3?105:82, color=step===3?role.color:role.sub;
+  startAttackMotion(step,step===3);
   player.attackCd=(step===3?32:28)+(player.role===6?3:0);
   attackInputLock=18;
   sfx(step===1?"slash1":step===2?"slash2":"slash3");
@@ -8254,9 +8398,18 @@ function drawLoading(){
 function updatePrologue(){
   menuPulse++;
   const lines = prologueAfterBattle ? getPrologueAfterLines() : getPrologueLines();
+  const line=lines[prologueLine]||lines[lines.length-1];
+  if(line&&isProtagonistStorySpeaker(line[0])&&!prologueReply){
+    const options=protagonistReplyChoices(formatStoryText(line[1]));
+    for(let i=0;i<options.length;i++){
+      if((clicked&&inRect(155,205+i*76,W-310,62))||justPressed(String(i+1))){ prologueReply=options[i]; sfx("ui"); clicked=false; mouseDown=false; return; }
+    }
+    clicked=false; return;
+  }
 
   if(clicked || justPressed("enter") || justPressed(" ")){
     prologueLine++;
+    prologueReply=null;
     if(prologueLine >= lines.length){
       if(!prologueAfterBattle){
         startTutorialBattle();
@@ -8315,6 +8468,7 @@ function drawRavenhadoColorBlock(){
 function drawPrologue(){
   const lines = prologueAfterBattle ? getPrologueAfterLines() : getPrologueLines();
   const line = lines[prologueLine] || lines[lines.length-1];
+  const replyOptions=isProtagonistStorySpeaker(line[0])&&!prologueReply?protagonistReplyChoices(formatStoryText(line[1])):null;
   drawRavenhadoColorBlock();
 
   // main character simple silhouette
@@ -8356,9 +8510,18 @@ function drawPrologue(){
 
   ctx.fillStyle="#fff";
   ctx.font="22px " + FONT_UI;
-  wrapText(line[1],95,H-102,W-230,32);
+  wrapText(replyOptions?tr("选择你的回应","Choose your response"):(prologueReply?prologueReply.spoken:line[1]),95,H-102,W-230,32);
 
-  drawBtn(ui("next"),"CLICK",W-390,H-82,165,48,true,"#ffe066");
+  if(replyOptions){
+    ctx.fillStyle="rgba(124,199,255,.82)";ctx.font="bold 15px "+FONT_UI;ctx.fillText(tr("序章对话选择 · 最多3项","PROLOGUE CHOICE · UP TO 3"),155,178);
+    replyOptions.forEach((option,i)=>{
+      const x=155,y=205+i*76,w=W-310,h=62,hover=inRect(x,y,w,h);
+      ctx.fillStyle=hover?"rgba(124,199,255,.20)":"rgba(12,20,34,.94)";ctx.fillRect(x,y,w,h);
+      ctx.strokeStyle=hover?"#7cc7ff":"rgba(124,199,255,.34)";ctx.lineWidth=hover?2:1;ctx.strokeRect(x,y,w,h);
+      ctx.fillStyle="#ffe066";ctx.font="bold 15px "+FONT_UI;ctx.fillText((i+1)+"  "+option.tone,x+18,y+24);
+      ctx.fillStyle="#fff";ctx.font="17px "+FONT_UI;ctx.fillText(option.spoken.length>74?option.spoken.slice(0,72)+"…":option.spoken,x+18,y+49);
+    });
+  }else drawBtn(ui("next"),"CLICK",W-390,H-82,165,48,true,"#ffe066");
   ctx.fillStyle="rgba(255,255,255,.45)";
   ctx.font="13px " + FONT_UI;
   ctx.textAlign="left";
@@ -9107,6 +9270,21 @@ const UI_GUIDE_TEXT = {
   }
 };
 
+// V49.31.9: one-time unlock tutorials. They are deliberately stored in the
+// same permanent seen map as the original feature guides; no replay path exists.
+Object.assign(UI_GUIDE_TEXT,{
+  archive:{title:{zh:"功能解锁｜资料档案",en:"Feature Unlocked | Archive"},body:{zh:"档案集中保存主线正文、执行官身份与异常资料。新条目会随剧情进度和角色获得自动开放。",en:"Archive stores story transcripts, Executor identities, and anomaly records. Entries unlock with story progress and collection."}},
+  friends:{title:{zh:"功能解锁｜好友与支援",en:"Feature Unlocked | Friends & Support"},body:{zh:"好友系统用于添加玩家、查看在线状态，并在支持的作战中选择好友执行官提供支援。",en:"Add players, review online status, and select a friend's Executor as support in eligible operations."}},
+  teamSetup:{title:{zh:"功能解锁｜队伍编成",en:"Feature Unlocked | Squad Setup"},body:{zh:"出击前可调整三名执行官、角色顺序与好友支援。阵亡成员无法继续参与本次行动。",en:"Before deployment, configure three Executors, order, and friend support. Defeated members cannot continue that operation."}},
+  operatorGrowth:{title:{zh:"功能解锁｜执行官培养",en:"Feature Unlocked | Executor Growth"},body:{zh:"角色等级、技能等级、武器与模块共同决定战斗属性。资源有限时建议优先培养常用队伍。",en:"Level, skills, weapon, and modules determine combat stats. Prioritize your regular squad when resources are limited."}},
+  hardMode:{title:{zh:"功能解锁｜主线困难模式",en:"Feature Unlocked | Story Hard Mode"},body:{zh:"通关指定主线后可切换困难模式。敌人等级、生命、护盾、伤害与特殊抗性都会提高。",en:"Hard Mode unlocks after the required story clear. Enemy level, HP, Shield, damage, and special resistances increase."}},
+  moduleDungeon:{title:{zh:"功能解锁｜模块副本",en:"Feature Unlocked | Module Trial"},body:{zh:"模块副本提供角色模块与强化资源。更高难度拥有更好的掉落，同时要求更完整的队伍配置。",en:"Module Trials provide modules and upgrade resources. Higher grades improve drops and demand stronger squad builds."}},
+  projectArea:{title:{zh:"功能解锁｜区域探索",en:"Feature Unlocked | Area Exploration"},body:{zh:"探索关卡侧重调查、机关与一次性收集。靠近目标后按 F 互动，首次完成可获得完整奖励。",en:"Exploration focuses on investigation, mechanisms, and one-time finds. Press F near targets; first clears grant full rewards."}},
+  bossChallenge:{title:{zh:"功能解锁｜Boss挑战",en:"Feature Unlocked | Boss Challenge"},body:{zh:"Boss拥有多阶段生命与特殊机制。观察预警、制造击破窗口，并合理保留终结技能量。",en:"Bosses use multiple phases and unique mechanics. Read warnings, create Break windows, and reserve Ultimate energy."}},
+  patrol:{title:{zh:"功能解锁｜巡逻派遣",en:"Feature Unlocked | Patrol"},body:{zh:"派遣空闲执行官进行定时巡逻，完成后返回领取资源。派遣不会影响角色永久状态。",en:"Dispatch idle Executors on timed patrols, then return to claim resources. Dispatch does not alter permanent character state."}},
+  crystalWar:{title:{zh:"功能解锁｜晶体战争",en:"Feature Unlocked | Crystal War"},body:{zh:"晶体战争包含持续战区、基地工业、供电、物流与联机协作。建议先完成独立设备实操训练。",en:"Crystal War combines an endless front, base industry, power, logistics, and co-op. Complete device training first."}}
+});
+
 function uiGuidePick(v){ return v ? (language === "en" ? (v.en || v.zh || "") : (v.zh || v.en || "")) : ""; }
 
 function ensureStarterRoster(){
@@ -9163,7 +9341,19 @@ function featureGuideSteps(key){
     daydream:["Choose a Daydream file","Set modifiers and squad","Investigate random nodes"]
   };
   const source=language==="en"?en:zh;
-  return source[key]||source.operation;
+  const extra={
+    archive:{zh:["浏览档案分类","选择已解锁条目","阅读完整记录"],en:["Browse archive categories","Select an unlocked entry","Read the complete record"]},
+    friends:{zh:["搜索或查看好友","管理好友状态","选择作战支援"],en:["Search or review friends","Manage friend status","Choose operation support"]},
+    teamSetup:{zh:["选择出战成员","调整队伍顺序","确认支援并出击"],en:["Select squad members","Adjust squad order","Confirm support and deploy"]},
+    operatorGrowth:{zh:["提升角色等级","强化技能与武器","配置适合的模块"],en:["Raise character level","Upgrade skills and weapon","Equip suitable modules"]},
+    hardMode:{zh:["切换困难难度","确认强化敌情","重新配置队伍"],en:["Switch to Hard Mode","Review enhanced threats","Reconfigure the squad"]},
+    moduleDungeon:{zh:["选择模块目标","确认难度与掉落","消耗体力开始挑战"],en:["Choose a module target","Review grade and drops","Spend stamina to challenge"]},
+    projectArea:{zh:["观察探索目标","按 F 调查互动","完成一次性收集"],en:["Review exploration goals","Press F to investigate","Complete one-time finds"]},
+    bossChallenge:{zh:["查看首领机制","选择挑战难度","利用击破窗口输出"],en:["Review boss mechanics","Select challenge grade","Attack during Break windows"]},
+    patrol:{zh:["选择巡逻任务","派遣空闲角色","倒计时结束后领取"],en:["Choose a patrol","Dispatch idle Executors","Claim when the timer ends"]},
+    crystalWar:{zh:["进入持续战区","建设供电与物流","与队友协同推进"],en:["Enter the persistent front","Build power and logistics","Advance with teammates"]}
+  };
+  return source[key]||(extra[key]?(language==="en"?extra[key].en:extra[key].zh):source.operation);
 }
 
 function requestFeatureGuide(key, enterFn){
@@ -9173,6 +9363,7 @@ function requestFeatureGuide(key, enterFn){
     return true;
   }
   uiGuidePrompt = {key:key, enter:enterFn, step:0};
+  clicked=false;
   sfx("ui");
   return true;
 }
@@ -9185,9 +9376,30 @@ function closeFeatureGuidePrompt(markSeen, enterAfter){
     saveGame();
   }
   uiGuidePrompt = null;
+  uiGuideAutoCooldown = prompt.autoUnlock ? 8 : 50;
   clicked = false;
   mouseDown = false;
   if(enterAfter && prompt && typeof prompt.enter === "function") prompt.enter();
+}
+
+function updateAutoFeatureGuideUnlocks(){
+  uiGuideAutoCooldown=Math.max(0,uiGuideAutoCooldown-frameScale);
+  if(uiGuidePrompt||uiGuideAutoCooldown>0||gameMode!=="lobby"||!prologueDone||!tutorialCompleted||!lobbyGuideDone)return false;
+  if((window.PZStory&&window.PZStory.active)||lobbyCheckinOpen||lobbyMonthlyCardPopupOpen||lobbyNoticeOpen||staminaRecoverOpen||lobbyAssistantSelectorOpen)return false;
+  const base=true,c0=chapter0Complete(),c1=storyChapterComplete(1),c2=storyChapterComplete(2),done=n=>!!cleared[n];
+  const rules=[
+    ["operation",base],["operators",done(1)],["operatorGrowth",done(2)],["teamSetup",done(3)],["mail",done(4)],
+    ["shop",done(5)],["warehouse",done(6)],["profile",done(7)],["achievements",done(8)],["manual",done(9)],
+    ["event",done(10)],["archive",c0],["pass",c0],["commission",c0&&playerLevel>=5],["dungeon",c0&&playerLevel>=6],
+    ["projectArea",c0&&playerLevel>=7],["bossChallenge",c0&&playerLevel>=8],["patrol",c0&&playerLevel>=9],["sideStory",c0&&playerLevel>=10],
+    ["friends",c0&&playerLevel>=11],["notice",c0&&playerLevel>=12],["checkin",c0&&playerLevel>=13],["settings",c0&&playerLevel>=14],
+    ["moduleDungeon",c1],["daydream",c2],["hardMode",c2&&playerLevel>=20],["crystalWar",c2&&playerLevel>=22]
+  ];
+  const next=rules.find(([key,open])=>open&&!(uiGuideSeen&&uiGuideSeen[key]));
+  if(!next)return false;
+  requestFeatureGuide(next[0],null);
+  if(uiGuidePrompt)uiGuidePrompt.autoUnlock=true;
+  return true;
 }
 
 function updateFeatureGuidePrompt(){
@@ -9285,6 +9497,46 @@ function drawFeatureGuidePrompt(){
   ctx.fillText("×",x+568,y+39);
   ctx.restore();
 }
+
+// V49.32.0: contextual focus guides inspired by commercial live-service RPGs.
+// The actual unlocked control stays visible and clickable under a guided mask.
+const FEATURE_GUIDE_TARGETS={
+  achievements:{x:28,y:30,w:96,h:58},manual:{x:28,y:100,w:96,h:58},pass:{x:28,y:170,w:96,h:58},
+  profile:{x:28,y:405,w:166,h:54},archive:{x:194,y:405,w:84,h:54},notice:{x:286,y:490,w:62,h:54},checkin:{x:278,y:542,w:78,h:70},
+  operation:{x:690,y:94,w:374,h:190},mainStage:{x:690,y:94,w:374,h:190},commission:{x:690,y:94,w:374,h:190},teamSetup:{x:690,y:94,w:374,h:190},hardMode:{x:690,y:94,w:374,h:190},
+  event:{x:690,y:298,w:175,h:74},operators:{x:880,y:298,w:184,h:74},operatorGrowth:{x:880,y:298,w:184,h:74},
+  shop:{x:690,y:386,w:260,h:82},mail:{x:964,y:386,w:100,h:82},warehouse:{x:690,y:482,w:300,h:122},settings:{x:1003,y:482,w:61,h:122},
+  friends:{x:28,y:405,w:250,h:54},dungeon:{x:690,y:94,w:374,h:190},projectArea:{x:690,y:94,w:374,h:190},bossChallenge:{x:690,y:94,w:374,h:190},patrol:{x:690,y:94,w:374,h:190},moduleDungeon:{x:690,y:94,w:374,h:190},sideStory:{x:690,y:298,w:175,h:74},daydream:{x:690,y:94,w:374,h:190},crystalWar:{x:690,y:94,w:374,h:190}
+};
+function featureGuideTarget(key,step=0){const base=FEATURE_GUIDE_TARGETS[key]||FEATURE_GUIDE_TARGETS.operation,pad=step===0?7:step===1?11:15;return{x:Math.max(8,base.x-pad),y:Math.max(8,base.y-pad),w:Math.min(W-16,base.w+pad*2),h:Math.min(H-16,base.h+pad*2)};}
+function featureGuideFocusSteps(key){
+  const z={operation:["这是主线、委托与副本的统一入口","先确认玩法类型、关卡情报与首次奖励","最后配置三人队伍与支援，再点击开始行动"],operators:["左侧列表切换当前执行官，未获得角色会保持锁定","等级、技能、武器和模块分别影响不同战斗属性","培养资源有限时，优先完成常用三人队伍"],operatorGrowth:["先提升角色等级，获得基础生命、攻击与防御","再强化普通攻击、技能和终结技等级","最后装备武器与模块，检查属性是否符合定位"],teamSetup:["三个位置决定可切换的出战执行官","拖动或选择角色调整顺序，并检查成员生命状态","确认好友支援与关卡机制后再开始行动"],shop:["先切换角色、武器或资源分类","购买前核对水晶消耗、每周限购和持有数量","确认后完成兑换；测试版本不会产生真实收费"],mail:["未读邮件和可领取附件会显示提示","打开邮件检查有效期与附件内容","可批量领取，但过期邮件将无法获得奖励"],warehouse:["使用分类筛选培养材料、装备与特殊道具","数量不足时查看对应的获取来源","仓库只展示持有物，不会在查看时消耗资源"],profile:["这里显示玩家等级、UID和账号概况","只能选择已经获得的执行官作为头像或展示角色","头像框、签名与展示阵容保存后同步到账户资料"],settings:["图像与帧率会影响性能和特效数量","音量、语言及战斗显示可分别调整","离开设置页面时会自动保存当前选项"],achievements:["按旅程、战斗和收集分类查看目标","达到条件后条目会显示可领取标记","奖励需要手动领取，领取后永久记录完成状态"],manual:["每日任务记录当天可完成的基础行动","成长目标引导账号逐步培养队伍","完成项目后手动领取经验与培养资源"],pass:["完成行动记录任务获得通行证经验","等级提升后解锁对应奖励档位","基础与高级奖励轨道分别判断领取条件"],event:["活动页面集中展示限时玩法与阶段目标","先查看活动期限、开放条件和任务顺序","达到条件后及时领取，部分奖励无法跨期保留"],archive:["主线记录保存已完成章节的完整正文","执行官档案包含身份、职业与作战资料","异常资料随剧情调查进度逐步开放"],friends:["使用UID搜索并发送好友申请","好友状态与支援角色会显示在列表中","进入支持的关卡前可选择好友执行官助战"],commission:["委托拥有独立章节、敌人数量与限时波次","战前阅读区域规则和敌人弱点","每波会刷新计时，完成全部波次才算通关"],dungeon:["副本按材料、Boss、探索和巡逻分类","不同类型消耗体力并提供不同奖励","选择难度前先核对推荐等级和首次奖励"],projectArea:["区域探索以机关、调查与收集为主","靠近高亮目标后按F进行互动","宝箱与现场资源通常只提供一次完整奖励"],bossChallenge:["Boss拥有多条生命和阶段转换机制","观察攻击预警，使用弹刀、闪避与击破创造窗口","保留终结技能量，在阶段弱点暴露时集中输出"],patrol:["选择巡逻任务并查看所需时间与奖励","派遣当前可用的执行官开始计时","巡逻结束后返回页面手动领取资源"],moduleDungeon:["选择需要获取的模块目标与难度","更高难度提高掉落，同时强化敌人配置","根据角色定位搭配模块，不要只追求单一攻击属性"],daydream:["选择重现档案、难度词条与出战队伍","调查节点会改变线索、污染和后续路线","合理使用折跃次数，在污染失控前抵达终点"],hardMode:["困难模式需要先完成对应主线关卡","敌人额外提高等级、生命、护盾、伤害与抗性","重新检查队伍培养度和生存能力后再出击"],crystalWar:["晶体战争包含持续战区与多人协作","基地需要建立供电、生产和物流线路","建议先完成设备实操，再与队友推进长期战区"]};
+  const e={operation:["This is the unified entry for story, commissions, and dungeons","Review mode, stage intel, and first-clear rewards","Configure three Executors and support before deployment"],operators:["Use the roster to select an owned Executor","Level, skills, weapon, and modules affect different stats","Prioritize the three Executors in your regular squad"],teamSetup:["Three slots define the Executors available in battle","Adjust order and check each member's current HP","Confirm support and stage mechanics before deployment"]};
+  return (language==="en"?(e[key]||featureGuideSteps(key)):(z[key]||featureGuideSteps(key)));
+}
+function featureGuideAutoEnter(key){
+  const routes={operation:()=>enterOperation(),mainStage:()=>{enterOperation();selectedTab="main";mainChapterView="chapters";},commission:()=>{enterOperation();selectedTab="combat";selectedCommissionChapter=0;},operators:()=>gameMode="operators",operatorGrowth:()=>gameMode="operators",mail:()=>gameMode="mail",shop:()=>gameMode="shop",warehouse:()=>gameMode="warehouse",profile:()=>gameMode="profile",settings:()=>openSettingsFrom("lobby"),achievements:()=>gameMode="achievements",manual:()=>{growthGuideTab="daily";gameMode="growthGuide";},pass:()=>gameMode="actionRecord",event:()=>gameMode="event",archive:()=>gameMode="archive",friends:()=>gameMode="friends",notice:()=>{lobbyNoticeOpen=true;lobbyNoticeSelected=0;},checkin:()=>{normalizeMonthlyLoginCheckin();lobbyCheckinOpen=true;monthlyCheckinMsg="";},teamSetup:()=>{enterOperation();selectedTab="main";},dungeon:()=>{enterOperation();selectedTab="dungeon";},projectArea:()=>{enterOperation();selectedTab="dungeon";dungeonSelected=2;},bossChallenge:()=>{enterOperation();selectedTab="dungeon";dungeonSelected=1;},patrol:()=>{enterOperation();selectedTab="dungeon";dungeonSelected=3;},moduleDungeon:()=>{enterOperation();selectedTab="dungeon";dungeonSelected=0;},sideStory:()=>{enterOperation();selectedTab="sideStory";},daydream:()=>{enterOperation();selectedTab="dualCrystal";},hardMode:()=>{enterOperation();selectedTab="main";mainChapterView="chapters";},crystalWar:()=>{enterOperation();selectedTab="dualCrystal";}};
+  return routes[key]||(()=>{});
+}
+updateFeatureGuidePrompt=function(){
+  if(!uiGuidePrompt)return false;
+  const steps=featureGuideFocusSteps(uiGuidePrompt.key),step=clamp(uiGuidePrompt.step||0,0,steps.length-1),target=featureGuideTarget(uiGuidePrompt.key,step);
+  const advance=()=>{if(step<steps.length-1){uiGuidePrompt.step=step+1;sfx("ui");clicked=false;}else closeFeatureGuidePrompt(true,true);};
+  if(justPressed("enter")||justPressed(" ")){advance();return true;}
+  if(clicked){if(step===steps.length-1&&inRect(target.x,target.y,target.w,target.h)){advance();return true;}if(step<steps.length-1&&inRect(W/2-105,H-82,210,48)){advance();return true;}}
+  clicked=false;return true;
+};
+drawFeatureGuidePrompt=function(){
+  if(!uiGuidePrompt)return;
+  const data=featureGuideData(uiGuidePrompt.key),steps=featureGuideFocusSteps(uiGuidePrompt.key),step=clamp(uiGuidePrompt.step||0,0,steps.length-1),target=featureGuideTarget(uiGuidePrompt.key,step),pulse=.5+.5*Math.sin(performance.now()/170);
+  ctx.save();ctx.fillStyle="rgba(1,3,10,.82)";ctx.fillRect(0,0,W,target.y);ctx.fillRect(0,target.y,target.x,target.h);ctx.fillRect(target.x+target.w,target.y,W-target.x-target.w,target.h);ctx.fillRect(0,target.y+target.h,W,H-target.y-target.h);
+  ctx.strokeStyle="rgba(255,224,102,"+(.72+.28*pulse)+")";ctx.lineWidth=3+pulse*2;ctx.shadowBlur=18+pulse*10;ctx.shadowColor="#ffe066";ctx.beginPath();ctx.roundRect(target.x,target.y,target.w,target.h,14);ctx.stroke();ctx.shadowBlur=0;
+  const onRight=target.x+target.w<W*.57,bw=390,bh=205,bx=onRight?Math.min(W-bw-28,target.x+target.w+34):Math.max(28,target.x-bw-34),by=clamp(target.y+target.h*.5-bh*.5,78,H-bh-30),tipX=onRight?bx-18:bx+bw+18,tipY=clamp(target.y+target.h*.5,by+34,by+bh-34);
+  ctx.fillStyle="#ffe066";ctx.beginPath();if(onRight){ctx.moveTo(tipX,tipY);ctx.lineTo(tipX+18,tipY-12);ctx.lineTo(tipX+18,tipY+12);}else{ctx.moveTo(tipX,tipY);ctx.lineTo(tipX-18,tipY-12);ctx.lineTo(tipX-18,tipY+12);}ctx.closePath();ctx.fill();
+  ctx.beginPath();ctx.roundRect(bx,by,bw,bh,16);ctx.fillStyle="rgba(8,13,27,.98)";ctx.fill();ctx.strokeStyle="rgba(124,199,255,.55)";ctx.lineWidth=1.5;ctx.stroke();ctx.fillStyle="#7cc7ff";ctx.fillRect(bx,by,6,bh);
+  ctx.textAlign="left";ctx.fillStyle="rgba(124,199,255,.9)";ctx.font="bold 10px "+FONT_UI;ctx.fillText((language==="en"?"NEW FUNCTION  ":"新功能解锁  ")+String(step+1).padStart(2,"0")+" / "+String(steps.length).padStart(2,"0"),bx+24,by+28);ctx.fillStyle="#fff";ctx.font="bold 20px "+FONT_UI;ctx.fillText(uiGuidePick(data.title),bx+24,by+58);ctx.fillStyle="rgba(255,255,255,.63)";ctx.font="12px "+FONT_UI;wrapText(uiGuidePick(data.body),bx+24,by+84,bw-48,19);ctx.fillStyle="#ffe066";ctx.font="bold 15px "+FONT_UI;ctx.fillText("◆  "+steps[step],bx+24,by+153);ctx.fillStyle="rgba(255,255,255,.54)";ctx.font="11px "+FONT_UI;ctx.fillText(language==="en"?"Click the highlighted area to continue":"点击高亮区域继续",bx+24,by+180);
+  if(step<steps.length-1)drawBtn(language==="en"?"NEXT":"下一步","",W/2-105,H-82,210,48,true,"#ffe066");else{ctx.fillStyle="rgba(255,224,102,.78)";ctx.font="bold 12px "+FONT_UI;ctx.textAlign="center";ctx.fillText(language==="en"?"CLICK THE HIGHLIGHTED FUNCTION":"点击高亮功能完成引导",W/2,H-48);}ctx.restore();
+};
 
 function setOperationTabWithGuide(tab, guideKey, after){
   return requestFeatureGuide(guideKey, function(){
@@ -10205,6 +10457,14 @@ function updateStory(){
   const storyOnly = selectedTab==="main" && !!(stages[selectedStage-1]&&stages[selectedStage-1].storyOnly);
   const finish=()=>{ if(chapter0Final) completeChapter0Epilogue(); else if(storyOnly) completeStoryOnlyStage(); else enterTeamSetup(); };
   if(clicked && inRect(W-205,H-82,165,48)){ clicked=false; mouseDown=false; finish(); return; }
+  const replyOptions=currentStoryReplyOptions();
+  if(replyOptions){
+    for(let i=0;i<replyOptions.length;i++){
+      if((clicked&&inRect(155,205+i*76,W-310,62))||justPressed(String(i+1))){ selectStoryReply(i); clicked=false; mouseDown=false; return; }
+    }
+    clicked=false;
+    return;
+  }
   if(clicked || justPressed("enter") || justPressed(" ")){ storyIndex++; if(storyIndex>=currentStory.length) finish(); }
   if(justPressed("escape")) finish();
   clicked=false;
@@ -10359,6 +10619,14 @@ const CRYSTAL_EXCHANGE_ITEMS=[
   {id:"skill",cost:160,max:2,zh:"技能档案",en:"Skill Records",descZh:"三类技能资料各1",descEn:"1 of each Skill Record",apply(){skillMaterials.normal++;skillMaterials.skill++;skillMaterials.ultimate++;}},
   {id:"fragments",cost:180,max:2,zh:"属性碎片组",en:"Element Fragments",descZh:"六种属性碎片各1",descEn:"1 of each Element Fragment",apply(){for(const key of ["fire","physical","ice","wind","dark","crystal"])elementalFragments[key]=(elementalFragments[key]||0)+1;}}
 ];
+function permanentRecruitItems(){
+  return [{i:0,price:1800},{i:1,price:2200},{i:2,price:2400},{i:5,price:3200},{i:6,price:3600}];
+}
+function permanentRecruitMaxScroll(){
+  const items=permanentRecruitItems(),cardW=430,gap=20,visibleW=W-112;
+  return Math.max(0,items.length*(cardW+gap)-gap-visibleW);
+}
+function permanentRecruitMaxVerticalScroll(){ return 300; }
 const SHOP_PACKS=[
   {id:"starter",cat:1,accent:"#7cffb2",zh:"启程补给",en:"Starter Supply",descZh:"经验书×8 · 金币×8000 · 水晶×180",descEn:"EXP ×8 · Gold ×8,000 · Crystal ×180",price:"$0.99",limitZh:"永久限购1次",limitEn:"ONE-TIME"},
   {id:"tactical",cat:2,accent:"#ff8d72",zh:"战术支援",en:"Tactical Support",descZh:"武器素材×8 · 经验书×12 · 水晶×720",descEn:"Ore ×8 · EXP ×12 · Crystal ×720",price:"$9.99",limitZh:"限时限购1次",limitEn:"LIMITED · 1"},
@@ -10413,10 +10681,10 @@ function updateShop(){
   normalizeMonthlyCardRuntime();
   normalizeCrystalExchangeWeekly();
   if(shopTab==="recruit"&&shopSubTab==="permanent"){
-    const total=5*218+4*16,visible=W-112,max=Math.max(0,total-visible);
-    if(shopRecruitWheelDelta){shopRecruitScrollX=clamp(shopRecruitScrollX+shopRecruitWheelDelta*.65,0,max);shopRecruitWheelDelta=0;}
-    shopRecruitScrollX=clamp(shopRecruitScrollX,0,max);
-  }else shopRecruitWheelDelta=0;
+    if(shopRecruitWheelDelta){shopRecruitScrollY=clamp(shopRecruitScrollY+shopRecruitWheelDelta*.72,0,permanentRecruitMaxVerticalScroll());shopRecruitWheelDelta=0;}
+    shopRecruitScrollX=clamp(shopRecruitScrollX,0,permanentRecruitMaxScroll());
+    shopRecruitScrollY=clamp(shopRecruitScrollY,0,permanentRecruitMaxVerticalScroll());
+  }else{shopRecruitWheelDelta=0;shopRecruitDrag=null;}
   if(shopTab==="recruit"&&shopSubTab==="limited"){
     if(shopLimitedWheelDelta){shopLimitedScrollY=clamp(shopLimitedScrollY+shopLimitedWheelDelta*.70,0,330);shopLimitedWheelDelta=0;}
     shopLimitedScrollY=clamp(shopLimitedScrollY,0,330);
@@ -10492,17 +10760,21 @@ function updateShop(){
         }else shopMsg=tx("floraPriceLow");
       }
       if(shopSubTab==="permanent"){
-        const items=[{i:0,price:1800},{i:1,price:2200},{i:2,price:2400},{i:5,price:3200},{i:6,price:3600}];
+        const items=permanentRecruitItems(),cardW=430,gap=20,startX=56,cardY=250-shopRecruitScrollY;
         for(let n=0;n<items.length;n++){
-          const x=56+n*234-shopRecruitScrollX,y=250;
-          if(x+218>=56&&x<=W-56&&inRect(x,y,218,185)){
+          const x=startX+n*(cardW+gap)-shopRecruitScrollX,y=cardY;
+          if(x+cardW>=startX&&x<=W-56&&inRect(x+224,y+226,182,42)){
             const it=items[n];
             if(owned[it.i]) shopMsg=roleName(it.i)+mt("alreadyOwnedSuffix");
             else if(crystals>=it.price){ crystals-=it.price; owned[it.i]=true; if(charData[it.i])charData[it.i].equippedWeaponId=defaultWeaponIdForRole(it.i); shopMsg=roleName(it.i)+mt("recruitedSuffix"); sfx("buy"); saveGame(); autoCloudSaveNow(true); }
             else shopMsg=mt("notEnoughCrystal");
           }
         }
-        for(let i=0;i<CRYSTAL_EXCHANGE_ITEMS.length;i++) if(inRect(56+i*171,482,160,58)){buyCrystalExchange(i);break;}
+        const exchangeY=594-shopRecruitScrollY;
+        for(let i=0;i<CRYSTAL_EXCHANGE_ITEMS.length;i++){
+          const col=i%3,row=Math.floor(i/3),x=56+col*342,y=exchangeY+38+row*94;
+          if(inRect(x,y,322,78)){buyCrystalExchange(i);break;}
+        }
       }
     }
 
@@ -10701,7 +10973,7 @@ function updateBattle(){
   if(dx||dy){ const l=Math.hypot(dx,dy),operationSpeed=battleModeSource==="commission"&&operationRun?.config?.player==="rapid"?1.18:1; dx/=l; dy/=l; player.vx+=dx*role.speed*MOVE_SPEED_MULT*.35*operationSpeed*frameScale; player.vy+=dy*role.speed*MOVE_SPEED_MULT*.35*operationSpeed*frameScale; if(Math.abs(dx)>.1)player.facing=dx>0?1:-1; }
   if(lockTarget&&lockTarget.alive) player.facing=lockTarget.x>player.x?1:-1; else if(lockTarget&&!lockTarget.alive) lockTarget=null;
   const slow=slowMo>0?.45:1; player.x+=player.vx*slow*frameScale; player.y+=player.vy*slow*frameScale; player.vx*=Math.pow(.82,frameScale); player.vy*=Math.pow(.82,frameScale); player.x=clamp(player.x,35,W-35); player.y=clamp(player.y,105,H-35);
-  player.attackCd=Math.max(0,player.attackCd-frameScale); attackInputLock=Math.max(0,attackInputLock-frameScale); attackBuffer=Math.max(0,attackBuffer-frameScale); skillBuffer=Math.max(0,skillBuffer-frameScale); ultBuffer=Math.max(0,ultBuffer-frameScale); dashBuffer=Math.max(0,dashBuffer-frameScale); player.skillCd=Math.max(0,player.skillCd-frameScale); player.ultCd=Math.max(0,player.ultCd-frameScale); player.dashCd=Math.max(0,player.dashCd-frameScale); player.switchCd=Math.max(0,player.switchCd-frameScale); player.inv=Math.max(0,player.inv-frameScale); player.chainTimer=Math.max(0,player.chainTimer-frameScale); player.guardTimer=Math.max(0,player.guardTimer-frameScale); player.parryReady=Math.max(0,player.parryReady-frameScale); player.perfectBuff=Math.max(0,player.perfectBuff-frameScale); teamDamageAmpTimer=Math.max(0,teamDamageAmpTimer-frameScale); franklinDamageAmpTimer=Math.max(0,franklinDamageAmpTimer-frameScale); chloeElementDamageAmpTimer=Math.max(0,chloeElementDamageAmpTimer-frameScale); chloeTrueDamageTimer=Math.max(0,chloeTrueDamageTimer-frameScale); noxDamageAmpTimer=Math.max(0,noxDamageAmpTimer-frameScale); if(player.parryReady<=0)player.parryTarget=null;
+  player.attackCd=Math.max(0,player.attackCd-frameScale); player.attackMotion=Math.max(0,(player.attackMotion||0)-frameScale); attackInputLock=Math.max(0,attackInputLock-frameScale); attackBuffer=Math.max(0,attackBuffer-frameScale); skillBuffer=Math.max(0,skillBuffer-frameScale); ultBuffer=Math.max(0,ultBuffer-frameScale); dashBuffer=Math.max(0,dashBuffer-frameScale); player.skillCd=Math.max(0,player.skillCd-frameScale); player.ultCd=Math.max(0,player.ultCd-frameScale); player.dashCd=Math.max(0,player.dashCd-frameScale); player.switchCd=Math.max(0,player.switchCd-frameScale); player.inv=Math.max(0,player.inv-frameScale); player.chainTimer=Math.max(0,player.chainTimer-frameScale); player.guardTimer=Math.max(0,player.guardTimer-frameScale); player.parryReady=Math.max(0,player.parryReady-frameScale); player.perfectBuff=Math.max(0,player.perfectBuff-frameScale); teamDamageAmpTimer=Math.max(0,teamDamageAmpTimer-frameScale); franklinDamageAmpTimer=Math.max(0,franklinDamageAmpTimer-frameScale); chloeElementDamageAmpTimer=Math.max(0,chloeElementDamageAmpTimer-frameScale); chloeTrueDamageTimer=Math.max(0,chloeTrueDamageTimer-frameScale); noxDamageAmpTimer=Math.max(0,noxDamageAmpTimer-frameScale); if(player.parryReady<=0)player.parryTarget=null;
   if(battleModeSource==="crystalWar"&&window.PZCrystalWar&&typeof window.PZCrystalWar.syncBattlePresence==="function")window.PZCrystalWar.syncBattlePresence({roleId:player.role,roleLevel:Math.max(1,roleDisplayLevel(player.role)||1),maxHp:Math.max(1,playerMaxHp()),defense:Math.max(0,operatorStatDef(player.role)||0),damageReduction:clamp(roleModuleTotals(player.role).damageReductionPct||0,0,.5),x:player.x,y:player.y,hp:player.hp,area,route:battleRoute||"center",moveX:dx,moveY:dy,direction:player.facing});
   const crystalWarNetworkGuest=isPZCrystalWarNetworkGuest();
   for(const e of enemies){
@@ -10948,7 +11220,7 @@ function enemyHit(e){
     if(e.bossKros && e.phase>=2) playerBleedTimer=Math.max(playerBleedTimer,150);
     let dmg = e.boss ? (e.phase===3?26:18) : (e.rage?14:e.type==="fireCrystal"?12:10);
     if(e.bossKros)dmg*=Number(e.bossDamageScale||1);
-    if(battleHardMode)dmg*=1.12;
+    if(battleHardMode)dmg*=1.28;
     if(e.crystalColossus && e.phase>=2) dmg*=1.10;
     if(e.type==="fireCrystal")applyPlayerStatus("burn",120,{tick:1,damage:battleHardMode?5:4});
     if(damageCurrentRoleHp(dmg, "HIT", "#ff5555",e)) return;
@@ -13328,9 +13600,50 @@ function loadTeamPreset(index){
   showCenter(language==="en"?("Team "+(slot+1)+" loaded"):("已载入队伍 "+(slot+1)),45);
 }
 
+function drawKanePortrait(x,y,w,h,variant="card"){
+  if(!kanePortraitReady || !kanePortraitImg.width) return false;
+  const sources={
+    // Close half-body framing. The original artwork is never modified.
+    card:{x:370,y:250,w:900,h:1613},
+    detail:{x:20,y:170,w:1600,h:2088},
+    shop:{x:370,y:250,w:900,h:1613}
+  };
+  const source=sources[variant]||sources.card;
+  // Use the same contain-fit rule as Flora and Hermit.
+  const scale=Math.min(w/source.w,h/source.h);
+  const dw=source.w*scale,dh=source.h*scale;
+  ctx.save();
+  ctx.beginPath();ctx.rect(x,y,w,h);ctx.clip();
+  ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality="high";
+  ctx.drawImage(kanePortraitImg,source.x,source.y,source.w,source.h,x+(w-dw)/2,y+(h-dh)/2,dw,dh);
+  ctx.restore();
+  return true;
+}
+
+function drawKaneLobbyPortraitCentered(){
+  if(!kanePortraitReady || !kanePortraitImg.width) return false;
+  const cx=W/2-100;
+  if(!kaneLobbyBorderlessLayer){
+    const layer=document.createElement("canvas");
+    layer.width=840;layer.height=1208;
+    const lctx=layer.getContext("2d");
+    lctx.imageSmoothingEnabled=true;lctx.imageSmoothingQuality="high";
+    lctx.drawImage(kanePortraitImg,0,0,kanePortraitImg.width,kanePortraitImg.height,0,0,840,1208);
+    kaneLobbyBorderlessLayer=layer;
+  }
+  ctx.save();ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality="high";
+  const scale=.98,dw=840*scale,dh=1208*scale;
+  ctx.drawImage(kaneLobbyBorderlessLayer,cx-dw/2,-110,dw,dh);
+  ctx.restore();
+  return true;
+}
+
 
 function drawFloraLobbyPortraitCentered(){
-  if(!floraExecutorPortraitReady || !floraExecutorPortraitImg.width) return false;
+  const sourceImg=(floraExecutorPortraitReady && floraExecutorPortraitImg.width)
+    ? floraExecutorPortraitImg
+    : ((floraPortraitReady && floraPortraitImg.width) ? floraPortraitImg : null);
+  if(!sourceImg) return false;
   const cx=W/2-100;
   // Match Hermit's lobby composition exactly: the complete transparent artwork
   // is fitted to the same 840x1208 layer, center point and top offset.
@@ -13341,7 +13654,7 @@ function drawFloraLobbyPortraitCentered(){
     lctx.imageSmoothingEnabled=true;lctx.imageSmoothingQuality="high";
     // Use Flora's title-free full artwork without cropping. Match the protagonist
     // lobby portrait's exact 840x1208 canvas, center point and top offset.
-    lctx.drawImage(floraExecutorPortraitImg,0,0,floraExecutorPortraitImg.width,floraExecutorPortraitImg.height,0,0,840,1208);
+    lctx.drawImage(sourceImg,0,0,sourceImg.width,sourceImg.height,0,0,840,1208);
     lctx.globalCompositeOperation="destination-in";
     const dissolve=lctx.createLinearGradient(0,0,840,0);
     dissolve.addColorStop(0,"rgba(255,255,255,0)");
@@ -13483,11 +13796,14 @@ function drawLobbyPlaceholderRole(i){
 }
 
 function drawLobbyExecutor(){
+  if(lobbyExecutor===0 && drawKaneLobbyPortraitCentered()){
+    return;
+  }
   if(lobbyExecutor===PROTAGONIST_ROLE && hermitPortraitReady){
     drawLobbyHermitPortrait();
     return;
   }
-  if(lobbyExecutor===3 && floraExecutorPortraitReady && drawFloraLobbyPortraitCentered()){
+  if(lobbyExecutor===3 && drawFloraLobbyPortraitCentered()){
     return;
   }
   ctx.save();
@@ -13522,6 +13838,7 @@ const LOBBY_BACKGROUND_THEMES = [
 function openLobbyAssistantSelector(){
   lobbyAssistantSelectorOpen=true;lobbyAssistantSelectorTab="executor";
   lobbyAssistantPreviewRole=lobbyExecutor;lobbyBackgroundPreviewTheme=lobbyBackgroundTheme;
+  lobbyAssistantExecutorScrollY=0;lobbyAssistantExecutorWheelDelta=0;
   lobbyDialogueText="";clicked=false;sfx("ui");
 }
 
@@ -13535,13 +13852,23 @@ function applyLobbyAssistantSelection(){
 
 function updateLobbyAssistantSelector(){
   if(justPressed("escape")){closeLobbyAssistantSelector();return;}
+  if(lobbyAssistantSelectorTab==="executor"){
+    const rows=Math.ceil(roles.length/4),totalH=rows*188-14,maxScroll=Math.max(0,totalH-350);
+    if(lobbyAssistantExecutorWheelDelta){
+      lobbyAssistantExecutorScrollY=clamp(lobbyAssistantExecutorScrollY+lobbyAssistantExecutorWheelDelta*.55,0,maxScroll);
+      lobbyAssistantExecutorWheelDelta=0;
+    }
+    lobbyAssistantExecutorScrollY=clamp(lobbyAssistantExecutorScrollY,0,maxScroll);
+  }else lobbyAssistantExecutorWheelDelta=0;
   if(!clicked)return;
   if(inRect(1024,48,48,48)){closeLobbyAssistantSelector();return;}
-  if(inRect(70,92,170,44)){lobbyAssistantSelectorTab="executor";clicked=false;return;}
-  if(inRect(252,92,170,44)){lobbyAssistantSelectorTab="background";clicked=false;return;}
+  if(inRect(70,104,170,44)){lobbyAssistantSelectorTab="executor";clicked=false;return;}
+  if(inRect(252,104,170,44)){lobbyAssistantSelectorTab="background";clicked=false;return;}
   if(lobbyAssistantSelectorTab==="executor"){
+    const columns=4,cardW=226,cardH=174,gapX=14,gapY=14,startX=62,startY=166;
     for(let i=0;i<roles.length;i++){
-      if(inRect(62+i*174,174,156,265)){
+      const xx=startX+(i%columns)*(cardW+gapX),yy=startY+Math.floor(i/columns)*(cardH+gapY)-lobbyAssistantExecutorScrollY;
+      if(yy+cardH>=startY && yy<=516 && inRect(xx,yy,cardW,cardH)){
         if(owned[i]){lobbyAssistantPreviewRole=i;sfx("ui");}
         else showCenter(language==="en"?"Operator not obtained":"尚未获得该执行官",60);
         clicked=false;return;
@@ -13579,7 +13906,27 @@ function drawLobbyAssistantSelector(){
   for(let i=0;i<tabs.length;i++){const xx=70+i*182,sel=lobbyAssistantSelectorTab===tabs[i][0];ctx.fillStyle=sel?"rgba(124,199,255,.20)":"rgba(255,255,255,.06)";ctx.fillRect(xx,104,170,44);ctx.strokeStyle=sel?"#7cc7ff":"rgba(255,255,255,.15)";ctx.strokeRect(xx,104,170,44);ctx.fillStyle=sel?"#7cc7ff":"#fff";ctx.font="bold 14px "+FONT_UI;ctx.textAlign="center";ctx.fillText(tabs[i][1],xx+85,132);}
   ctx.fillStyle="rgba(255,255,255,.10)";ctx.beginPath();ctx.arc(1048,72,24,0,Math.PI*2);ctx.fill();ctx.strokeStyle="rgba(255,255,255,.32)";ctx.stroke();ctx.fillStyle="#fff";ctx.font="bold 24px Arial";ctx.fillText("×",1048,80);
   if(lobbyAssistantSelectorTab==="executor"){
-    for(let i=0;i<roles.length;i++){const xx=62+i*174,yy=174,sel=lobbyAssistantPreviewRole===i,lock=!owned[i],hover=inRect(xx,yy,156,265)&&!lock;ctx.fillStyle=sel?"rgba(255,224,102,.15)":hover?"rgba(124,199,255,.14)":"rgba(255,255,255,.045)";ctx.fillRect(xx,yy,156,265);ctx.strokeStyle=sel?"#ffe066":hover?"#7cc7ff":"rgba(255,255,255,.14)";ctx.lineWidth=sel?3:1;ctx.strokeRect(xx,yy,156,265);drawPortrait(xx+18,yy+18,120,170,roles[i],lock);ctx.fillStyle=lock?"#777":"#fff";ctx.font="bold 18px "+FONT_UI;ctx.textAlign="left";ctx.fillText(roleName(i),xx+16,yy+218);ctx.fillStyle=lock?"#666":"rgba(255,255,255,.58)";ctx.font="11px "+FONT_UI;ctx.fillText(lock?(language==="en"?"NOT OBTAINED":"尚未获得"):roleStyle(i),xx+16,yy+242);if(sel){ctx.fillStyle="#ffe066";ctx.font="bold 10px "+FONT_UI;ctx.fillText(language==="en"?"PREVIEW":"预览中",xx+16,yy+259);}}
+    const columns=4,cardW=226,cardH=174,gapX=14,gapY=14,startX=62,startY=166,viewportH=350;
+    const rows=Math.ceil(roles.length/columns),totalH=rows*(cardH+gapY)-gapY,maxScroll=Math.max(0,totalH-viewportH);
+    ctx.save();ctx.beginPath();ctx.rect(startX-4,startY-4,columns*cardW+(columns-1)*gapX+8,viewportH+8);ctx.clip();
+    for(let i=0;i<roles.length;i++){
+      const xx=startX+(i%columns)*(cardW+gapX),yy=startY+Math.floor(i/columns)*(cardH+gapY)-lobbyAssistantExecutorScrollY;
+      if(yy+cardH<startY-4||yy>startY+viewportH+4)continue;
+      const sel=lobbyAssistantPreviewRole===i,lock=!owned[i],hover=inRect(xx,yy,cardW,cardH)&&!lock;
+      ctx.fillStyle=sel?"rgba(255,224,102,.15)":hover?"rgba(124,199,255,.14)":"rgba(255,255,255,.045)";ctx.fillRect(xx,yy,cardW,cardH);
+      ctx.strokeStyle=sel?"#ffe066":hover?"#7cc7ff":"rgba(255,255,255,.14)";ctx.lineWidth=sel?3:1;ctx.strokeRect(xx,yy,cardW,cardH);
+      drawExecutorArt(i,xx+10,yy+10,92,146,false);
+      ctx.fillStyle=lock?"#777":"#fff";ctx.font="bold 17px "+FONT_UI;ctx.textAlign="left";ctx.fillText(roleName(i),xx+114,yy+54);
+      ctx.fillStyle=lock?"#666":"rgba(255,255,255,.58)";ctx.font="11px "+FONT_UI;wrapText(lock?(language==="en"?"NOT OBTAINED":"尚未获得"):roleStyle(i),xx+114,yy+80,98,17);
+      if(sel){ctx.fillStyle="#ffe066";ctx.font="bold 10px "+FONT_UI;ctx.fillText(language==="en"?"PREVIEW":"预览中",xx+114,yy+145);}
+    }
+    ctx.restore();
+    if(maxScroll>0){
+      const tx=1029,knobH=Math.max(70,viewportH*(viewportH/totalH));
+      ctx.fillStyle="rgba(255,255,255,.10)";ctx.fillRect(tx,startY,5,viewportH);
+      ctx.fillStyle="#7cc7ff";ctx.fillRect(tx,startY+(viewportH-knobH)*(lobbyAssistantExecutorScrollY/maxScroll),5,knobH);
+      ctx.fillStyle="rgba(255,255,255,.52)";ctx.font="11px "+FONT_UI;ctx.textAlign="right";ctx.fillText(language==="en"?"Mouse wheel · More operators":"鼠标滚轮 · 查看更多执行官",1018,535);
+    }
   }else{
     for(let i=0;i<LOBBY_BACKGROUND_THEMES.length;i++){const item=LOBBY_BACKGROUND_THEMES[i],xx=72+(i%2)*338,yy=180+Math.floor(i/2)*145,sel=lobbyBackgroundPreviewTheme===item.id,hover=inRect(xx,yy,312,118);const g=ctx.createLinearGradient(xx,yy,xx+312,yy+118);g.addColorStop(0,item.a);g.addColorStop(1,item.b);ctx.fillStyle=g;ctx.fillRect(xx,yy,312,118);ctx.strokeStyle=sel?"#ffe066":hover?item.accent:"rgba(255,255,255,.18)";ctx.lineWidth=sel?3:1;ctx.strokeRect(xx,yy,312,118);ctx.fillStyle=item.accent;ctx.fillRect(xx,yy,5,118);ctx.fillStyle="#fff";ctx.font="bold 20px "+FONT_UI;ctx.textAlign="left";ctx.fillText(language==="en"?item.en:item.zh,xx+22,yy+50);ctx.fillStyle="rgba(255,255,255,.52)";ctx.font="11px "+FONT_UI;ctx.fillText(sel?(language==="en"?"SELECTED":"已选择"):(language==="en"?"CLICK TO PREVIEW":"点击预览"),xx+22,yy+82);}
     ctx.fillStyle="rgba(255,255,255,.05)";ctx.fillRect(770,180,270,263);ctx.strokeStyle=theme.accent;ctx.strokeRect(770,180,270,263);ctx.fillStyle=theme.a;ctx.fillRect(782,192,246,190);ctx.fillStyle=theme.b+"cc";ctx.fillRect(782,287,246,95);ctx.fillStyle=theme.accent;ctx.beginPath();ctx.arc(905,275,42,0,Math.PI*2);ctx.fill();ctx.fillStyle="#fff";ctx.font="bold 15px "+FONT_UI;ctx.textAlign="center";ctx.fillText(language==="en"?theme.en:theme.zh,905,415);
@@ -14719,9 +15066,9 @@ function drawLobby(){
   const parallaxNow=performance.now();
   const parallaxDt=lobbyParallaxLastRenderAt?clamp(parallaxNow-lobbyParallaxLastRenderAt,0,50):16.67;
   lobbyParallaxLastRenderAt=parallaxNow;
-  const parallaxTargetX=clamp((mouseX-W/2)/(W/2)*5,-5,5);
-  const parallaxTargetY=clamp((mouseY-H/2)/(H/2)*3,-3,3);
-  const parallaxBlend=1-Math.exp(-parallaxDt/72);
+  const parallaxTargetX=clamp((mouseX-W/2)/(W/2)*2.2,-2.2,2.2);
+  const parallaxTargetY=clamp((mouseY-H/2)/(H/2)*1.3,-1.3,1.3);
+  const parallaxBlend=1-Math.exp(-parallaxDt/165);
   lobbyParallaxX+=(parallaxTargetX-lobbyParallaxX)*parallaxBlend;
   lobbyParallaxY+=(parallaxTargetY-lobbyParallaxY)*parallaxBlend;
   const bg=ctx.createLinearGradient(0,0,W,H);
@@ -14734,8 +15081,8 @@ function drawLobby(){
     const dw=lobbyBackgroundImg.width*scale,dh=lobbyBackgroundImg.height*scale;
     ctx.save();
     ctx.globalAlpha=.82;
-    const bgX=Math.round(lobbyParallaxX),bgY=Math.round(lobbyParallaxY);
-    ctx.drawImage(lobbyBackgroundImg,Math.floor((W-dw)/2)+bgX,Math.floor((H-dh)/2)+bgY,Math.ceil(dw),Math.ceil(dh));
+    const bgX=lobbyParallaxX*.28,bgY=lobbyParallaxY*.28;
+    ctx.drawImage(lobbyBackgroundImg,(W-dw)/2+bgX,(H-dh)/2+bgY,dw,dh);
     ctx.restore();
   }
   drawLobbyThemeEffect();
@@ -14750,10 +15097,11 @@ function drawLobby(){
 
   ctx.fillStyle="rgba(73,113,190,.045)";ctx.beginPath();ctx.moveTo(325,78);ctx.lineTo(665,78);ctx.lineTo(640,H);ctx.lineTo(286,H);ctx.closePath();ctx.fill();
   ctx.strokeStyle="rgba(124,199,255,.14)";ctx.strokeRect(14,14,W-28,H-28);
+  // The featured executor remains anchored like Arknights' home assistant.
+  // Only the foreground interface plane receives the subtle pointer offset.
+  drawLobbyExecutor();
   ctx.save();
-  // Reuse the already-smoothed pointer values; one canvas transform moves the UI
-  // without creating extra layers, layout work, or per-widget animation cost.
-  ctx.translate(Math.round(-lobbyParallaxX*.55),Math.round(-lobbyParallaxY*.55));
+  ctx.translate(-lobbyParallaxX*.58,-lobbyParallaxY*.48);
 
   // Left quick-access rail: achievements / battle manual / pass.
   drawLobbyRailButton(28,30,96,58,language==="en"?"Achievements":"成就",language==="en"?"Records":"完成记录","#ffe066");
@@ -14763,8 +15111,7 @@ function drawLobby(){
   drawNewDiamond(116,108,contentDot("manual"));
   drawNewDiamond(116,178,contentDot("pass",canUseActionRecord()));
 
-  // Center executor is intentionally frameless so the portrait sits in the scene.
-  drawLobbyExecutor();
+  // Dialogue and switch belong to the UI plane, while the portrait stays fixed.
   drawLobbyDialogue();
   drawLobbySwitchButton();
 
@@ -14866,12 +15213,13 @@ const commissionChapters = [
     {name:"Last Transmission",zh:"最后传输",type:"chapterBoss",mechanicZh:"全域失联：校准、激光、虚空与电弧按阶段组合，Boss拥有五次增援",mechanicEn:"Total Blackout: calibration, laser, void and arc phases combine",lv:132,target:190,waves:10,bossWaves:[2,4,6,8,10],mapMechanic:"signalChaos",traps:["beacon","laser","void","arc"]}
   ]}
 ];
-const commissionStages = commissionChapters.flatMap((chapter,ci)=>chapter.stages.map((s,si)=>({
-  ...s,id:commissionChapters.slice(0,ci).reduce((n,c)=>n+c.stages.length,0)+si+1,chapter:ci+1,localId:Number.isFinite(s.stageNo)?s.stageNo:(ci===0?si:si+1),reward:s.initial?120:320+ci*90+si*35,exp:s.initial?500:1100+ci*450+si*180,
-  milestones:Array.from({length:Math.ceil(s.target/5)},(_,mi)=>{const at=Math.min(s.target,(mi+1)*5),major=at%25===0||at===s.target;return {at,gold:major?0:180+ci*40,crystal:major?20+ci*5:0,ore:at===s.target?2+ci:0};}),
+const commissionStageEnemyTarget=(s,ci,si)=>ci===0&&si===1?s.target:(s.initial?Math.min(30,s.target):s.type==="chapterBoss"?50:s.type==="bossPrep"?48:s.type==="elite"?46:Math.min(45,s.target));
+const commissionStages = commissionChapters.flatMap((chapter,ci)=>chapter.stages.map((s,si)=>{const target=commissionStageEnemyTarget(s,ci,si);return ({
+  ...s,target,id:commissionChapters.slice(0,ci).reduce((n,c)=>n+c.stages.length,0)+si+1,chapter:ci+1,localId:Number.isFinite(s.stageNo)?s.stageNo:(ci===0?si:si+1),reward:s.initial?120:320+ci*90+si*35,exp:s.initial?500:1100+ci*450+si*180,
+  milestones:Array.from({length:Math.ceil(target/5)},(_,mi)=>{const at=Math.min(target,(mi+1)*5),major=at%25===0||at===target;return {at,gold:major?0:180+ci*40,crystal:major?20+ci*5:0,ore:at===target?2+ci:0};}),
   name:"C"+(ci+1)+"-"+(si+1)+" "+s.name,zh:"委托 "+(ci+1)+"-"+(si+1)+" "+s.zh,
   desc:s.mechanicEn,zhDesc:s.mechanicZh
-})));
+});}));
 
 function currentCommissionStages(){ return commissionStages.filter(s=>s.chapter===selectedCommissionChapter+1); }
 function currentCommissionStage(){ return commissionStages[selectedStage-1] || commissionStages[0]; }
@@ -14924,6 +15272,7 @@ function materialDungeonsV42(){
 function roman(n){ return ["","Ⅰ","Ⅱ","Ⅲ","Ⅳ","Ⅴ","Ⅵ"][n] || String(n); }
 
 function storyChapterComplete(chapter){
+  if(chapter===0) return !!cleared[11];
   if(chapter===1) return !!cleared["ch1_10"];
   if(chapter===2) return !!cleared.ch2_complete || !!cleared.ch2_11;
   if(chapter===3) return !!cleared.ch3_complete || !!cleared.ch3p2_3 || !!cleared.ch3p2_8;
@@ -15691,6 +16040,7 @@ function projectAreaInteract(){
     return true;
   }
 
+  recordStoryIntel(best,"projectArea");
   best.done=true;
   const run=ensureProjectAreaRun();
   const r=best.reward||{};
@@ -16428,6 +16778,18 @@ function pushBattleReward(label,amount,color){
   battleRewardNotices=battleRewardNotices.slice(0,5);
 }
 
+function recordStoryIntel(target,source="main"){
+  if(!target||(!target.text&&!target.label))return;
+  const key=[source,selectedMainChapter,selectedStage,area,target.key||target.label||target.text].join(":");
+  if(storyIntelRecords.some(v=>v.key===key))return;
+  storyIntelRecords.push({key,chapter:selectedMainChapter,stage:selectedStage,area,source,label:String(target.label||target.type||"记录"),text:String(target.text||""),languageAtCollection:language,collectedAt:Date.now()});
+  if(storyIntelRecords.length>160)storyIntelRecords.splice(0,storyIntelRecords.length-160);
+}
+
+function exploreClaimKey(target){
+  return ["explore",selectedMainChapter,selectedStage,area,battleSideArea||"center",target?.key||target?.type||"object"].join(":");
+}
+
 function battleExploreInteract(){
   if(!supportsStageExploration()) return false;
   let target=null,nearest=72;
@@ -16439,11 +16801,16 @@ function battleExploreInteract(){
   if(!target) return false;
   target.done=true;
   battleExploreOpened[target.key]=true;
+  recordStoryIntel(target,"story");
   const reward=target.reward||{};
-  if(reward.gold){ gold+=reward.gold; totalGoldEarned+=reward.gold; pushBattleReward(language==="en"?"Gold":"金币",reward.gold,"#ffe066"); }
-  if(reward.expBooks){ expBooks+=reward.expBooks; pushBattleReward(language==="en"?"EXP Book":"经验书",reward.expBooks,"#7cc7ff"); }
-  if(reward.weaponOre){ weaponOre+=reward.weaponOre; pushBattleReward(language==="en"?"Refined Alloy":"精炼合金",reward.weaponOre,"#c35cff"); }
-  if(reward.crystals){ const gained=Math.max(0,Math.floor(reward.crystals)); grantExactEventCrystals(gained); pushBattleReward(language==="en"?"Crystal":"水晶",gained,"#7cc7ff"); }
+  const claimKey=exploreClaimKey(target),alreadyClaimed=!!oneTimeExploreClaims[claimKey];
+  if(!alreadyClaimed){
+    if(reward.gold){ gold+=reward.gold; totalGoldEarned+=reward.gold; pushBattleReward(language==="en"?"Gold":"金币",reward.gold,"#ffe066"); }
+    if(reward.expBooks){ expBooks+=reward.expBooks; pushBattleReward(language==="en"?"EXP Book":"经验书",reward.expBooks,"#7cc7ff"); }
+    if(reward.weaponOre){ weaponOre+=reward.weaponOre; pushBattleReward(language==="en"?"Refined Alloy":"精炼合金",reward.weaponOre,"#c35cff"); }
+    if(reward.crystals){ const gained=Math.max(0,Math.floor(reward.crystals)); grantExactEventCrystals(gained); pushBattleReward(language==="en"?"Crystal":"水晶",gained,"#7cc7ff"); }
+    if(Object.keys(reward).length)oneTimeExploreClaims[claimKey]=true;
+  }else if(Object.keys(reward).length)showActionPrompt(language==="en"?"Exploration reward already claimed":"探索奖励已领取，本次不重复发放",120);
   if(target.type==="chest") showActionPrompt(language==="en"?"Chest opened":"宝箱已开启",75);
   else if(target.type==="reading") showActionPrompt(target.text,180);
   else showActionPrompt(target.label+"："+target.text,150);
@@ -16481,7 +16848,10 @@ function damageNearbyBattleCrates(x,y,range){
     if(o.hp<=0){
       o.done=true; battleExploreOpened[o.key]=true;
       const reward=o.reward||{};
-      if(reward.gold){ gold+=reward.gold; totalGoldEarned+=reward.gold; pushBattleReward(language==="en"?"Gold":"金币",reward.gold,"#ffe066"); }
+      const claimKey=exploreClaimKey(o),alreadyClaimed=!!oneTimeExploreClaims[claimKey];
+      if(!alreadyClaimed&&reward.gold){ gold+=reward.gold; totalGoldEarned+=reward.gold; pushBattleReward(language==="en"?"Gold":"金币",reward.gold,"#ffe066"); }
+      if(!alreadyClaimed&&Object.keys(reward).length)oneTimeExploreClaims[claimKey]=true;
+      if(alreadyClaimed)pushBattleReward(language==="en"?"Already claimed":"已领取",0,"#999");
       addParticles(o.x,o.y,"#e7c38d",18,7);doShake(6);sfx("reward"); saveGame(); autoCloudSaveNow(true);
     }
   }
@@ -17637,7 +18007,22 @@ function drawStory(){
   const st=stages[selectedStage-1], line=currentStory[storyIndex]||[mt("storyFallbackSpeaker"),mt("storyFallbackText")], speaker=formatStoryText(line[0]), text=formatStoryText(line[1]);
   const bg=ctx.createLinearGradient(0,0,0,H); bg.addColorStop(0,"#11172d"); bg.addColorStop(.55,"#070912"); bg.addColorStop(1,"#03040a"); ctx.fillStyle=bg; ctx.fillRect(0,0,W,H);
   ctx.fillStyle="rgba(255,255,255,.70)"; ctx.font="14px " + FONT_UI; ctx.textAlign="left"; ctx.fillText(stageCode(selectedStage)+" "+stageDisplayName(st),90,78);
-  ctx.fillStyle="rgba(0,0,0,.72)"; ctx.fillRect(65,H-190,W-130,150); ctx.strokeStyle="rgba(255,255,255,.16)"; ctx.strokeRect(65,H-190,W-130,150); ctx.fillStyle="#ffe066"; ctx.font="bold 24px " + FONT_UI; ctx.fillText(speaker,95,H-146); ctx.fillStyle="#fff"; ctx.font="22px " + FONT_UI; wrapText(text,95,H-102,W-230,32); drawBtn(tr("下一句","Next"),"CLICK",W-390,H-82,165,48,true,"#ffe066"); drawBtn(tr("跳过剧情","Skip Story"),"ESC",W-205,H-82,165,48);
+  const replyOptions=currentStoryReplyOptions();
+  ctx.fillStyle="rgba(0,0,0,.72)"; ctx.fillRect(65,H-190,W-130,150); ctx.strokeStyle="rgba(255,255,255,.16)"; ctx.strokeRect(65,H-190,W-130,150); ctx.fillStyle="#ffe066"; ctx.font="bold 24px " + FONT_UI; ctx.fillText(replyOptions?protagonistName():speaker,95,H-146); ctx.fillStyle="#fff"; ctx.font="22px " + FONT_UI; wrapText(replyOptions?tr("选择你的回应","Choose your response"):text,95,H-102,W-230,32);
+  if(replyOptions){
+    ctx.fillStyle="rgba(124,199,255,.82)"; ctx.font="bold 15px "+FONT_UI; ctx.fillText(tr("对话选择 · 最多3项","DIALOGUE CHOICE · UP TO 3"),155,178);
+    replyOptions.forEach((option,i)=>{
+      const x=155,y=205+i*76,w=W-310,h=62,hover=inRect(x,y,w,h);
+      ctx.fillStyle=hover?"rgba(124,199,255,.20)":"rgba(12,20,34,.94)";ctx.fillRect(x,y,w,h);
+      ctx.strokeStyle=hover?"#7cc7ff":"rgba(124,199,255,.34)";ctx.lineWidth=hover?2:1;ctx.strokeRect(x,y,w,h);
+      ctx.fillStyle="#ffe066";ctx.font="bold 15px "+FONT_UI;ctx.fillText((i+1)+"  "+option.tone,x+18,y+24);
+      ctx.fillStyle="#fff";ctx.font="17px "+FONT_UI;ctx.fillText(option.spoken.length>74?option.spoken.slice(0,72)+"…":option.spoken,x+18,y+49);
+    });
+  }else{
+    if(line._pzChoiceResolved){ctx.fillStyle="rgba(124,199,255,.72)";ctx.font="bold 13px "+FONT_UI;ctx.fillText((line._pzChoiceTone||tr("已选择","Selected")).toUpperCase(),95,H-118);}
+    drawBtn(tr("下一句","Next"),"CLICK",W-390,H-82,165,48,true,"#ffe066");
+  }
+  drawBtn(tr("跳过剧情","Skip Story"),"ESC",W-205,H-82,165,48);
 }
 function wrapText(text,x,y,maxWidth,lineHeight){ let line=""; for(const ch of text){ const test=line+ch; if(ctx.measureText(test).width>maxWidth&&line){ctx.fillText(line,x,y); line=ch; y+=lineHeight;} else line=test; } ctx.fillText(line,x,y); }
 
@@ -17951,6 +18336,10 @@ function drawProtagonistArtBox(x,y,w,h,large=false){
   if(!drawHermitPortrait(x,y,w,h,"full")) drawPortrait(x,y,w,h,roles[4],false);
 }
 function drawExecutorArt(i,x,y,w,h,large=false){
+  if(i===0 && drawKanePortrait(x,y,w,h,large?"detail":"card")){
+    if(!owned[i]){ctx.save();ctx.fillStyle="rgba(0,0,0,.36)";ctx.fillRect(x,y,w,h);ctx.restore();}
+    return;
+  }
   if(i===PROTAGONIST_ROLE && drawHermitPortrait(x,y,w,h,large?"full":"card")){
     if(!owned[i]){ctx.save();ctx.fillStyle="rgba(0,0,0,.62)";ctx.fillRect(x,y,w,h);ctx.restore();}
     return;
@@ -18068,7 +18457,7 @@ function drawOperatorListPage(){
     ctx.textAlign="right";
     ctx.fillStyle="#fff";
     ctx.font="bold 20px "+FONT_UI;
-    ctx.fillText(roleName(i),x+cardW-18,y+405);
+    ctx.fillText(i===6?(language==="en"?"Abeqi…":"阿贝其……"):roleName(i),x+cardW-18,y+405);
 
   }
   ctx.restore();
@@ -18676,7 +19065,12 @@ function drawOperatorWeaponTab(i,x=780,y=112,w=302,h=506){
 function drawOperatorProfileTab(i,x=780,y=112,w=302,h=506){
   const bx=x+22,by=y+76,r=roles[i]||{};
   drawInsetLabel(language==="en"?"OPERATOR FILE":"执行官档案",bx,by,258,36,"#7cc7ff","rgba(124,199,255,.08)","rgba(124,199,255,.22)",14,true,"center");
-  const rows=isProtagonist(i)?[
+  const rows=i===6?[
+    [language==="en"?"Full Name":"全名",language==="en"?"Abeqi Franklin":"阿贝其·富兰克琳"],
+    [language==="en"?"Class":"职业",language==="en"?"Physical Defender":"物理盾卫"],
+    [language==="en"?"Affiliation":"所属",language==="en"?"Frontline Defense Unit":"前线防卫部队"],
+    [language==="en"?"Specialty":"专长",language==="en"?"Team shields / Counter":"全队护盾 / 自动弹刀"]
+  ]:isProtagonist(i)?[
     [language==="en"?"Identity":"身份",language==="en"?"Hermit / Protagonist":"隐者 / 主角"],
     [language==="en"?"Growth":"成长",language==="en"?"Synchronized with main story":"随主线进度同步"],
     [language==="en"?"Weapon":"武器",language==="en"?"Gray Core Blade":"灰白核心刃"],
@@ -18688,7 +19082,8 @@ function drawOperatorProfileTab(i,x=780,y=112,w=302,h=506){
     [language==="en"?"Combat Role":"战斗定位",roleStyle(i)]
   ];
   rows.forEach((row,n)=>{drawInsetLabel(row[0],bx,by+56+n*52,82,38,"#a8b6cc","rgba(255,255,255,.045)","rgba(255,255,255,.10)",10,true,"left");drawInsetLabel(row[1],bx+90,by+56+n*52,168,38,"#fff","rgba(255,255,255,.06)","rgba(255,255,255,.12)",10,true,"center");});
-  drawInsetLabel(language==="en"?"Level breakthrough is performed in the Stats tab at each level cap.":"等级达到上限后，请在“属性”页直接完成基础等级突破。",bx,by+278,258,58,"#ffe066","rgba(255,224,102,.07)","rgba(255,224,102,.18)",10,true,"center");
+  const note=i===6?(language==="en"?"A steadfast defender. Her ultimate orders a battlefield bombardment, grants the squad shields, and resets two automatic counters.":"重装防线执行官。终结技下达全场轰炸指令，为全队赋予护盾，并重置2次自动弹刀反击。"):(language==="en"?"Level breakthrough is performed in the Stats tab at each level cap.":"等级达到上限后，请在“属性”页直接完成基础等级突破。");
+  drawInsetLabel(note,bx,by+278,258,58,"#ffe066","rgba(255,224,102,.07)","rgba(255,224,102,.18)",10,true,"center");
 }
 
 function drawFloraImageBox(x,y,w,h,alpha=1){
@@ -18814,6 +19209,30 @@ function drawShopPackArt(pack,x,y,w,h){
   ctx.globalAlpha=1;
 }
 
+function drawPermanentRecruitCard(it,x,y,w=430,h=290){
+  const i=it.i,r=roles[i],rank=executorRank(i),hover=inRect(x,y,w,h),ownedNow=!!owned[i];
+  const pulse=.5+.5*Math.sin(menuPulse*.035+i*1.7);
+  const bg=ctx.createLinearGradient(x,y,x+w,y+h);
+  bg.addColorStop(0,"rgba(11,20,36,.98)");
+  bg.addColorStop(.58,"rgba(18,22,38,.96)");
+  bg.addColorStop(1,rank==="S"?"rgba(58,47,23,.94)":"rgba(28,35,48,.94)");
+  ctx.fillStyle=bg;ctx.fillRect(x,y,w,h);
+  ctx.strokeStyle=hover?r.color:(rank==="S"?"rgba(255,224,102,.48)":"rgba(124,199,255,.34)");ctx.lineWidth=hover?2.5:1.5;ctx.strokeRect(x,y,w,h);
+  ctx.fillStyle=r.color;ctx.fillRect(x,y,6,h);
+  ctx.save();ctx.globalAlpha=.055+.035*pulse;ctx.fillStyle=r.color;ctx.font="bold 112px Arial";ctx.textAlign="right";ctx.fillText(roleName(i).slice(0,1),x+w-14,y+116);ctx.restore();
+  for(let k=0;k<5;k++){const yy=y+28+k*48+(menuPulse*.18+k*17)%32;ctx.fillStyle="rgba(255,255,255,"+(.018+k*.004)+")";ctx.fillRect(x+204,yy,w-218,1);}
+  ctx.fillStyle="rgba(4,8,15,.72)";ctx.fillRect(x+14,y+14,190,h-28);ctx.strokeStyle="rgba(255,255,255,.13)";ctx.strokeRect(x+14,y+14,190,h-28);
+  drawExecutorArt(i,x+14,y+14,190,h-28,false);
+  ctx.textAlign="left";ctx.fillStyle="rgba(255,255,255,.43)";ctx.font="bold 9px Arial";ctx.fillText("PERMANENT EXECUTOR / DIRECT ACCESS",x+224,y+34);
+  ctx.fillStyle=r.color;ctx.font="bold 25px "+FONT_UI;ctx.fillText(fitTextToWidth(roleName(i),184,25,true),x+224,y+70);
+  drawInsetLabel(rank,x+224,y+88,42,28,rank==="S"?"#ffe066":"#7cc7ff","rgba(255,255,255,.05)","rgba(255,255,255,.18)",13,true,"center");
+  drawInsetLabel(roleStyle(i),x+274,y+88,132,28,"#d8e1ec","rgba(255,255,255,.05)","rgba(255,255,255,.18)",10,true,"center");
+  ctx.fillStyle="rgba(255,255,255,.66)";ctx.font="11px "+FONT_UI;ctx.fillText(fitTextToWidth(r.line,182,11,false),x+224,y+143);
+  ctx.fillStyle="rgba(255,255,255,.38)";ctx.font="9px "+FONT_UI;ctx.fillText(language==="en"?"Fixed price · permanent unlock":"明码直购 · 永久获得",x+224,y+170);
+  ctx.fillStyle=ownedNow?"#7cc7ff":"#ffe066";ctx.font="bold 17px Arial";ctx.fillText(ownedNow?(language==="en"?"RECRUITED":"已获得"):("◆ "+it.price),x+224,y+206);
+  drawBtn(ownedNow?(language==="en"?"Owned":"已拥有"):(language==="en"?"Recruit":"确认招募"),ownedNow?"✓":("◆ "+it.price),x+224,y+226,182,42,!ownedNow,ownedNow?"#7cc7ff":"#ffe066");
+}
+
 function drawShop(){
   normalizeMonthlyCardRuntime();
   normalizeCrystalExchangeWeekly();
@@ -18890,31 +19309,30 @@ function drawShop(){
     if(shopSubTab==="limited"){
       drawLimitedRecruitShowcase();
     }else{
-      const items=[{i:0,price:1800},{i:1,price:2200},{i:2,price:2400},{i:5,price:3200},{i:6,price:3600}];
-      const startX=56,viewW=W-112,cardW=218,gap=16,totalW=items.length*(cardW+gap)-gap,maxScroll=Math.max(0,totalW-viewW);
-      shopRecruitScrollX=clamp(shopRecruitScrollX,0,maxScroll);
-      ctx.save();ctx.beginPath();ctx.rect(startX-2,242,viewW+4,198);ctx.clip();
+      const items=permanentRecruitItems(),startX=56,viewW=W-112,cardW=430,gap=20,totalW=items.length*(cardW+gap)-gap,maxScroll=permanentRecruitMaxScroll();
+      shopRecruitScrollX=clamp(shopRecruitScrollX,0,maxScroll);shopRecruitScrollY=clamp(shopRecruitScrollY,0,permanentRecruitMaxVerticalScroll());
+      ctx.save();ctx.beginPath();ctx.rect(42,232,W-84,322);ctx.clip();
+      const cardY=250-shopRecruitScrollY;
       for(let n=0;n<items.length;n++){
-        const it=items[n],x=startX+n*(cardW+gap)-shopRecruitScrollX,y=250,r=roles[it.i],rank=executorRank(it.i),hover=inRect(x,y,cardW,185);
-        ctx.fillStyle=hover?"rgba(124,199,255,.12)":"rgba(255,255,255,.07)"; ctx.fillRect(x,y,cardW,185);
-        ctx.strokeStyle=hover?r.color:rank==="S"?"rgba(255,224,102,.30)":"rgba(255,255,255,.14)"; ctx.lineWidth=hover?2:1;ctx.strokeRect(x,y,cardW,185);
-        drawExecutorArt(it.i,x+10,y+18,72,132,false);
-        ctx.fillStyle=r.color; ctx.font="bold 15px " + FONT_UI; ctx.textAlign="left"; ctx.fillText(fitTextToWidth(roleName(it.i),118,15,true),x+90,y+48);
-        ctx.fillStyle=rank==="S"?"#ffe066":"rgba(255,255,255,.72)"; ctx.font="11px " + FONT_UI; ctx.fillText(rank+" / "+fitTextToWidth(roleStyle(it.i),112,11,false),x+90,y+78);
-        ctx.fillStyle=owned[it.i]?"#7cc7ff":"#ffe066"; ctx.font="bold 14px " + FONT_UI; ctx.fillText(owned[it.i]?ui("claimed"):it.price+" "+ui("crystal"),x+90,y+130);
+        const x=startX+n*(cardW+gap)-shopRecruitScrollX;
+        if(x+cardW>=42&&x<=W-42)drawPermanentRecruitCard(items[n],x,cardY,cardW,290);
+      }
+      const exchangeY=594-shopRecruitScrollY;
+      ctx.fillStyle="rgba(255,255,255,.48)";ctx.font="bold 12px "+FONT_UI;ctx.textAlign="left";ctx.fillText(language==="en"?"CRYSTAL EXCHANGE · WEEKLY RESET":"水晶兑换物品 · 每周刷新",56,exchangeY+14);
+      for(let i=0;i<CRYSTAL_EXCHANGE_ITEMS.length;i++){
+        const item=CRYSTAL_EXCHANGE_ITEMS[i],col=i%3,row=Math.floor(i/3),x=56+col*342,y=exchangeY+38+row*94,bought=Math.max(0,Number(crystalExchangePurchases[item.id])||0),sold=bought>=item.max;
+        const g=ctx.createLinearGradient(x,y,x+322,y+78);g.addColorStop(0,sold?"rgba(255,255,255,.025)":"rgba(21,39,62,.92)");g.addColorStop(1,"rgba(5,10,20,.96)");ctx.fillStyle=g;ctx.fillRect(x,y,322,78);
+        ctx.strokeStyle=sold?"rgba(255,255,255,.08)":"rgba(124,199,255,.30)";ctx.strokeRect(x,y,322,78);ctx.fillStyle=sold?"#555":"#7cc7ff";ctx.fillRect(x,y,5,78);
+        ctx.fillStyle=sold?"#777":"#fff";ctx.font="bold 13px "+FONT_UI;ctx.fillText(language==="en"?item.en:item.zh,x+20,y+27);
+        if(!sold)drawCurrencyIcon("crystal",x+20,y+42,20);
+        ctx.fillStyle=sold?"#666":"#7cc7ff";ctx.font="10px "+FONT_UI;ctx.fillText((sold?"":item.cost+" · ")+fitTextToWidth(language==="en"?item.descEn:item.descZh,190,10,false),x+(sold?20:48),y+59);
+        ctx.textAlign="right";ctx.fillStyle=sold?"#666":"#ffe066";ctx.font="bold 11px "+FONT_UI;ctx.fillText((item.max-bought)+" / "+item.max,x+302,y+28);ctx.textAlign="left";
       }
       ctx.restore();
-      if(maxScroll>0){ctx.fillStyle="rgba(255,255,255,.10)";ctx.fillRect(startX,438,viewW,4);const knob=Math.max(150,viewW*(viewW/totalW)),kx=startX+(viewW-knob)*(shopRecruitScrollX/maxScroll);ctx.fillStyle="#7cc7ff";ctx.fillRect(kx,438,knob,4);ctx.fillStyle="rgba(255,255,255,.50)";ctx.font="10px "+FONT_UI;ctx.textAlign="right";ctx.fillText(language==="en"?"Mouse wheel · Browse permanent executors":"鼠标滚轮 · 浏览常驻执行官",W-56,458);}
-      ctx.fillStyle="rgba(255,255,255,.48)";ctx.font="bold 11px "+FONT_UI;ctx.textAlign="left";ctx.fillText(language==="en"?"WEEKLY RESOURCE EXCHANGE · REFRESHES MONDAY":"每周资源兑换 · 每周一刷新",56,475);
-      for(let i=0;i<CRYSTAL_EXCHANGE_ITEMS.length;i++){
-        const item=CRYSTAL_EXCHANGE_ITEMS[i],x=56+i*171,y=482,bought=Math.max(0,Number(crystalExchangePurchases[item.id])||0),sold=bought>=item.max;
-        ctx.fillStyle=sold?"rgba(255,255,255,.025)":"rgba(124,199,255,.065)";ctx.fillRect(x,y,160,58);
-        ctx.strokeStyle=sold?"rgba(255,255,255,.08)":"rgba(124,199,255,.24)";ctx.strokeRect(x,y,160,58);
-        ctx.fillStyle=sold?"#777":"#fff";ctx.font="bold 10px "+FONT_UI;ctx.fillText(language==="en"?item.en:item.zh,x+9,y+20);
-        if(!sold)drawCurrencyIcon("crystal",x+10,y+27,16);
-        ctx.fillStyle=sold?"#666":"#7cc7ff";ctx.font="8px "+FONT_UI;ctx.fillText((sold?"":item.cost+" · ")+fitTextToWidth(language==="en"?item.descEn:item.descZh,118,8,false),x+(sold?9:28),y+41);
-        ctx.textAlign="right";ctx.fillStyle=sold?"#666":"#ffe066";ctx.font="9px "+FONT_UI;ctx.fillText((item.max-bought)+"/"+item.max,x+151,y+19);ctx.textAlign="left";
-      }
+      if(maxScroll>0){ctx.fillStyle="rgba(255,255,255,.10)";ctx.fillRect(startX,538,viewW,4);const knob=Math.max(120,viewW*(viewW/totalW)),kx=startX+(viewW-knob)*(shopRecruitScrollX/maxScroll);ctx.fillStyle="#7cc7ff";ctx.fillRect(kx,538,knob,4);}
+      ctx.fillStyle="rgba(255,255,255,.58)";ctx.font="10px "+FONT_UI;ctx.textAlign="left";ctx.fillText(language==="en"?"Hold left mouse and drag → to browse operators":"按住鼠标左键横向拖动 → 查看更多角色",56,558);
+      ctx.textAlign="right";ctx.fillText(language==="en"?"Mouse wheel ↓ Crystal exchange":"滚轮向下 · 查看水晶兑换物品",W-56,558);
+      ctx.fillStyle="rgba(255,255,255,.10)";ctx.fillRect(W-30,238,4,300);const vKnob=110,vY=238+(300-vKnob)*(shopRecruitScrollY/permanentRecruitMaxVerticalScroll());ctx.fillStyle="#ffe066";ctx.fillRect(W-30,vY,4,vKnob);
     }
   }
 
@@ -19100,9 +19518,12 @@ function drawPlayer(){
   const bob=moving?Math.sin(animTime*12)*2.4:Math.sin(animTime*3.2)*.8;
   const lean=clamp((player.vx||0)*.035,-.12,.12);
   const weaponSwing=player.attackCd>0?Math.sin(clamp(player.attackCd/18,0,1)*Math.PI)*.65:0;
+  const motionMax=Math.max(1,player.attackMotionMax||1),motion=clamp((player.attackMotion||0)/motionMax,0,1);
+  const strikeCurve=Math.sin((1-motion)*Math.PI),lunge=player.facing*strikeCurve*((player.attackMotionStep||1)===3?16:10);
   ctx.save();
-  ctx.translate(player.x,player.y+bob);
-  ctx.rotate(lean);
+  ctx.translate(player.x+lunge,player.y+bob-strikeCurve*2);
+  ctx.rotate(lean+player.facing*strikeCurve*.055);
+  ctx.scale(1+strikeCurve*.08,1-strikeCurve*.055);
 
   if(playerStatuses.burn){ctx.strokeStyle="#ff785f";ctx.lineWidth=3;ctx.setLineDash([8,5]);ctx.beginPath();ctx.arc(0,0,player.r+14,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);}
 
@@ -19344,6 +19765,18 @@ function drawEffects(){
       continue;
     }
     ctx.translate(s.x,s.y);
+    if(s.type==="impactRing" || s.type==="impactCore"){
+      const p=1-a;
+      ctx.globalAlpha=a*(s.type==="impactCore"?.92:.72);
+      ctx.strokeStyle=s.color;ctx.lineWidth=(s.type==="impactCore"?7:4)*a;
+      ctx.shadowBlur=s.type==="impactCore"?18:12;ctx.shadowColor=s.color;
+      ctx.beginPath();ctx.arc(0,0,s.r*(.22+.78*p),0,Math.PI*2);ctx.stroke();
+      if(s.type==="impactCore"){
+        ctx.lineWidth=3*a;
+        for(let i=0;i<4;i++){const q=i*Math.PI/2+(s.rot||0);ctx.beginPath();ctx.moveTo(Math.cos(q)*8,Math.sin(q)*8);ctx.lineTo(Math.cos(q)*s.r*(.45+.4*p),Math.sin(q)*s.r*(.45+.4*p));ctx.stroke();}
+      }
+      ctx.restore();continue;
+    }
     ctx.rotate(s.rot||0);
     ctx.strokeStyle=s.color;
     ctx.lineWidth=s.type==="ultimate"?10:s.type==="frostField"?6:s.type==="ice"?5:s.type==="parry"?8:s.type==="break"?7:5;
@@ -20627,6 +21060,76 @@ window.PZMatch3Host = {
   justPressed, inRect, drawBtn, wrapText, sfx, saveGame, safeSaveGame
 };
 
+function archiveStoryData(){return[
+  {title:["第零章 · 进入","Chapter 0 · Entry"],summary:["隐者在末日废墟中醒来，与凯恩共同追查白日梦、晶体人与巨型核心的异常共鸣。","Hermit awakens in the ruins and investigates Daydream, the Crystal Humanoid, and the giant core with Kane."],keywords:["晶体人","白日梦边界","核心共鸣"]},
+  {title:["第一章 · 幸存者","Chapter 1 · Survivors"],summary:["雷文哈多小队进入 Project 4，确认撤离后仍有幸存者，并追踪裂隙聚居地与失踪事件。","The Ravenhado squad enters Project 4, confirms survivors remain, and traces the rift settlement and disappearances."],keywords:["Project 4","裂隙聚居地","幸存者"]},
+  {title:["第二章 · 再次深入","Chapter 2 · Return"],summary:["小队再次深入异常区域，调查晶体扩张、撤离路线与不断变化的空间结构。","The squad returns to investigate crystal expansion, evacuation routes, and changing spatial structures."],keywords:["空间异常","撤离路线","晶体扩张"]},
+  {title:["第三章 · 扩张","Chapter 3 · Expansion"],summary:["Project 4 的边界继续扩大。北区疏散线、媒体记录和雨云下的监测数据揭示新的危机。","Project 4 continues expanding. Northern evacuation lines, media records, and rain-cloud monitoring reveal a new crisis."],keywords:["北区疏散","扩张监测","小赖"]}
+];}
+function archiveRoleData(id){const names={0:["凯恩","Kane"],1:["艾洛","Ailo"],2:["诺克斯","Nox"],3:["芙洛拉","Flora"],4:["隐者","Hermit"],5:["克洛伊","Chloe"],6:["阿贝其·富兰克琳","Abeqi Franklin"]},classes={0:["剑卫","Swordguard"],1:["法武","Arts Weapon"],2:["盾卫","Defender"],3:["法武","Arts Weapon"],4:["引领","Guide"],5:["协辅","Support"],6:["盾卫","Defender"]},mechanics={0:["连续斩击、第三段重击与火焰标记，适合维持近战压制。","Combo slashes, a heavy third hit, and flame marks sustain melee pressure."],1:["远程元素攻击与范围技能，负责安全距离输出和群体处理。","Ranged elemental attacks and area skills handle groups from safety."],2:["承受正面压力，通过防御、弹刀和护盾保护队伍。","Holds the front with defense, parries, and squad protection."],3:["冰属性群伤与冻结控制，可中断敌群行动并创造输出窗口。","Ice area damage and Freeze interrupt groups and create damage windows."],4:["根据主线成长的核心执行官，擅长切换节奏与衔接队伍机制。","A story-synced core operator who links team mechanics and tempo."],5:["为队友提供增益、连携条件与战场辅助。","Provides buffs, chain conditions, and battlefield utility."],6:["为全队提供护盾；终结技轰炸全场，并重置2次自动弹刀反击。","Grants squad shields; her ultimate bombards the field and resets two automatic counters."]};return{name:names[id]||[roleName(id),roleName(id)],className:classes[id]||[roleStyle(id),roleStyle(id)],mechanic:mechanics[id]||[roleStyle(id),roleStyle(id)],position:id===6?["前排承伤 / 团队护盾 / 反击","Frontline tank / squad shield / counter"]:id===3?["群体控制 / 法术输出","Crowd control / Arts damage"]:id===4?["队伍核心 / 机制引导","Team core / mechanic enabler"]:[roleStyle(id),roleStyle(id)]};}
+function archiveAnomalyData(){return[
+ {title:["Project 4","Project 4"],body:["持续扩张的封锁区域。其内部道路、建筑和天气记录会发生不符合常理的变化。","An expanding exclusion zone whose roads, buildings, and weather records change unnaturally."]},
+ {title:["晶体人","Crystal Humanoid"],body:["具有人形轮廓的晶体生命。会模仿战斗行为，并对特定核心频率产生回应。","A humanoid crystal life-form that imitates combat behavior and responds to core frequencies."]},
+ {title:["白日梦重现","Daydream Reconstruction"],body:["由记忆、污染与异常空间重组而成的调查区域。路线和事件并不固定。","An investigation space reconstructed from memory, contamination, and anomalies; routes are unstable."]},
+ {title:["晶体恶龙 · 克罗斯","Crystal Dragon · Kros"],body:["高威胁晶体生命，其飞行、吐息与核心阶段会持续改变战场安全区。","A high-threat crystal organism whose flight, breath, and core phases reshape safe zones."]}
+];}
+function drawArchiveEntryDetail(){const x=294,y=202,w=762,h=366;ctx.fillStyle="rgba(4,10,19,.985)";ctx.fillRect(x,y,w,h);ctx.strokeStyle="#88d8ff";ctx.lineWidth=2;ctx.strokeRect(x,y,w,h);drawBtn(language==="en"?"Close":"关闭","ESC",930,216,108,36,false,"#fff");if(archiveTab===0){const d=archiveStoryData()[archiveEntry],intel=storyIntelRecords.filter(v=>Number(v.chapter)===archiveEntry);ctx.fillStyle="#88d8ff";ctx.font="bold 13px "+FONT_UI;ctx.fillText(language==="en"?d.title[1]:d.title[0],322,242);ctx.fillStyle="#fff";ctx.font="bold 20px "+FONT_UI;ctx.fillText(language==="en"?"STORY SUMMARY":"主线概况",322,278);ctx.fillStyle="rgba(255,255,255,.72)";ctx.font="12px "+FONT_UI;wrapText(language==="en"?d.summary[1]:d.summary[0],322,306,680,21);ctx.fillStyle="#7cffb2";ctx.font="bold 11px "+FONT_UI;ctx.fillText((language==="en"?"KEY RECORDS · ":"关键记录 · ")+(language==="en"?d.keywords.join(" / "):d.keywords.join(" / ")),322,365);ctx.fillStyle="#ffe066";ctx.font="bold 13px "+FONT_UI;ctx.fillText(language==="en"?"FIELD INTELLIGENCE ACQUIRED WITH F":"按 F 获取的现场信息",322,406);if(!intel.length){ctx.fillStyle="rgba(255,255,255,.4)";ctx.font="11px "+FONT_UI;ctx.fillText(language==="en"?"No recorded field intelligence yet. Previously cleared stages retain the summary above.":"尚无单独记录的现场信息；旧存档已保留上方章节概要。",322,435);}intel.slice(-4).forEach((v,i)=>{ctx.fillStyle="#88d8ff";ctx.font="bold 10px "+FONT_UI;ctx.fillText("0"+(i+1)+" · "+(v.label||"记录"),322,435+i*28);ctx.fillStyle="rgba(255,255,255,.63)";ctx.font="10px "+FONT_UI;ctx.fillText(String(v.text||"").slice(0,74),475,435+i*28);});}else if(archiveTab===1){const ids=owned.map((v,i)=>v?i:-1).filter(i=>i>=0),id=ids[archiveEntry],d=archiveRoleData(id);ctx.fillStyle=roles[id].color;ctx.font="bold 13px "+FONT_UI;ctx.fillText(language==="en"?"EXECUTOR RECORD":"执行官档案",322,242);ctx.fillStyle="#fff";ctx.font="bold 27px "+FONT_UI;ctx.fillText(language==="en"?d.name[1]:d.name[0],322,284);const rows=[[language==="en"?"CLASS":"职业",language==="en"?d.className[1]:d.className[0]],[language==="en"?"POSITION":"角色定位",language==="en"?d.position[1]:d.position[0]],[language==="en"?"ELEMENT":"属性",fragmentName(roleFragmentKey(id)).replace(language==="en"?" Fragment":"属性碎片","")],[language==="en"?"WEAPON":"武器类型",weaponTypeLabel(roleWeaponType(id))]];rows.forEach((r,i)=>{ctx.fillStyle="rgba(255,255,255,.08)";ctx.fillRect(322,315+i*48,150,36);ctx.fillStyle="rgba(255,255,255,.5)";ctx.font="bold 10px "+FONT_UI;ctx.fillText(r[0],336,338+i*48);ctx.fillStyle="rgba(255,255,255,.06)";ctx.fillRect(482,315+i*48,530,36);ctx.fillStyle="#fff";ctx.fillText(r[1],498,338+i*48);});ctx.fillStyle=roles[id].color;ctx.font="bold 12px "+FONT_UI;ctx.fillText(language==="en"?"CORE MECHANICS":"核心机制",322,526);ctx.fillStyle="rgba(255,255,255,.7)";ctx.font="11px "+FONT_UI;wrapText(language==="en"?d.mechanic[1]:d.mechanic[0],430,526,575,18);}else{const d=archiveAnomalyData()[archiveEntry];ctx.fillStyle="#c89cff";ctx.font="bold 13px "+FONT_UI;ctx.fillText(language==="en"?"ANOMALY INDEX":"异常现象索引",322,242);ctx.fillStyle="#fff";ctx.font="bold 27px "+FONT_UI;ctx.fillText(language==="en"?d.title[1]:d.title[0],322,288);ctx.fillStyle="rgba(255,255,255,.72)";ctx.font="13px "+FONT_UI;wrapText(language==="en"?d.body[1]:d.body[0],322,330,680,23);ctx.fillStyle="#ffe066";ctx.font="bold 12px "+FONT_UI;ctx.fillText(language==="en"?"OBSERVATION NOTES":"观测要点",322,420);ctx.fillStyle="rgba(255,255,255,.6)";ctx.font="11px "+FONT_UI;wrapText(language==="en"?"Archive information expands as related story stages and field investigations are completed.":"完成相关主线关卡并在战场按 F 调查后，此处将持续补充现场记录。",322,452,670,21);}}
+
+const ARCHIVE_COMBAT_RECORDS={
+0:{normal:["断焰连斩","Ashen Chain"],normalText:["以三段连续剑击压制近距离目标，第三段重击造成更高伤害与削韧；持续命中会为目标附加燃烧与破甲。","A three-hit sword chain. The final heavy slash deals increased damage and stagger; repeated hits apply Burn and Armor Break."],skill:["战术号令","Battle Command"],skillText:["挥出强化斩击并发布进攻指令，为队伍创造集中输出窗口。","Delivers a reinforced slash and issues an attack order, creating a focused damage window for the squad."],ultimate:["焚痕爆发","Scorch Mark Burst"],ultimateText:["引爆战场上的标记并发动大范围斩击，对聚集目标造成高额物理伤害。","Detonates marks and unleashes a wide slash, dealing heavy Physical damage to grouped enemies."]},
+1:{normal:["风矢连射","Gale Volley"],normalText:["保持距离连续射击，攻击会追踪前方目标并积累技能能量。","Maintains range with tracking volleys that build Skill Energy."],skill:["风压聚束","Pressure Convergence"],skillText:["在目标区域制造风压，将敌人向中心牵引并造成连续伤害。","Creates a pressure field that pulls enemies inward and deals repeated damage."],ultimate:["风暴回廊","Tempest Corridor"],ultimateText:["展开大型风暴领域，持续攻击范围内目标并强化群体处理能力。","Deploys a large storm field that repeatedly attacks enemies within it."]},
+2:{normal:["暗刃双斩","Dark Twin Blades"],normalText:["使用双刃快速攻击，在承受压力时仍可维持近战输出。","Fast twin-blade attacks that maintain melee pressure while under fire."],skill:["毁灭姿态","Ruin Stance"],skillText:["进入强化状态，以生命负荷换取攻击能力，并提高正面压制效率。","Enters an empowered state, trading health strain for greater offensive pressure."],ultimate:["终末歼灭","Final Annihilation"],ultimateText:["释放覆盖战场的暗属性冲击，对全部敌人造成高额伤害。","Releases a battlefield-wide Dark impact against all enemies."]},
+3:{normal:["霜晶术式","Frost Formula"],normalText:["发射冰属性术式攻击，连续命中可稳定压低敌群行动空间。","Fires Ice formulas that steadily restrict enemy movement."],skill:["寒域冻结","Frozen Domain"],skillText:["在指定区域生成寒域，对敌群造成伤害并施加冻结控制。","Creates a frozen domain that damages and freezes groups."],ultimate:["永冬降临","Everwinter"],ultimateText:["展开覆盖战场的大型冰雪领域，对全部目标造成多段冰属性伤害。","Covers the field in an Everwinter domain, dealing multiple waves of Ice damage."]},
+4:{normal:["灰白刃式","Ash-White Form"],normalText:["以核心刃完成稳定连段，并根据主线成长获得更高的综合作战能力。","Uses the Core Blade for stable chains and gains broader combat ability through story progression."],skill:["边界切割","Boundary Sever"],skillText:["切开前方异常空间，对直线范围目标造成伤害与削韧。","Severs anomalous space ahead, damaging and staggering targets in a line."],ultimate:["灰白领域","Ash-White Domain"],ultimateText:["展开持续领域，对领域内敌人反复造成伤害，并连接队伍作战节奏。","Deploys a persistent field that repeatedly damages enemies and links squad tempo."]},
+5:{normal:["协同射击","Coordinated Fire"],normalText:["以中距离攻击协助队伍，稳定触发辅助效果。","Supports the squad with steady mid-range fire."],skill:["协辅矩阵","Support Matrix"],skillText:["部署辅助领域，为队友提供增益、恢复与连携条件。","Deploys a support field that grants buffs, recovery, and Chain conditions."],ultimate:["全域协同","Total Coordination"],ultimateText:["强化全队战斗循环，并在关键时刻维持队伍状态。","Strengthens the squad's combat loop and stabilizes the team during critical moments."]},
+6:{normal:["重盾击列","Heavy Shield Sequence"],normalText:["以较慢的重盾攻击推进，最后一段造成显著物理伤害与削韧。","A slower heavy-shield sequence whose final hit deals strong Physical damage and stagger."],skill:["阵线护盾","Line Shield"],skillText:["为全队赋予100点护盾。护盾以蓝色边框围绕生命条显示。","Grants every squad member a 100-point shield, shown as a blue frame around the HP bar."],ultimate:["坚守阵线","Hold the Line"],ultimateText:["轰炸全场敌人，为全队赋予400点护盾与伤害提升，并将阿贝其的反击次数重置为2次。受到攻击时反击会自动弹刀并伤害攻击者。","Bombards all enemies, grants the squad 400 Shield and a damage bonus, and resets Abeqi's two Counters. A Counter automatically parries an incoming attack and damages the attacker."]}
+};
+function archiveStorySource(ch){if(ch===0)return language==="en"?window.PZ_CHAPTER0_STORY_EN:window.PZ_CHAPTER0_STORY_ZH;if(ch===1)return language==="en"?window.PZ_CHAPTER1_STORY_EN:window.PZ_CHAPTER1_STORY_ZH;if(ch===2)return language==="en"?window.PZ_CHAPTER2_STORY_EN:window.PZ_CHAPTER2_STORY_ZH;const a=language==="en"?window.PZ_CHAPTER3_PART1_STORY_EN:window.PZ_CHAPTER3_PART1_STORY_ZH,b=language==="en"?window.PZ_CHAPTER3_PART2_STORY_EN:window.PZ_CHAPTER3_PART2_STORY_ZH;return Object.assign({},a||{},b||{});}
+function archiveStoryLines(ch){const src=archiveStorySource(ch)||{},out=[];Object.keys(src).sort((a,b)=>(+a||0)-(+b||0)).forEach(stage=>{out.push({heading:(language==="en"?"STAGE ":"关卡 ")+stage});for(const line of src[stage]||[]){if(Array.isArray(line))out.push({speaker:String(line[0]||""),text:String(line[1]||"")});else if(line&&typeof line==="object")out.push({speaker:String(line.speaker||line.name||""),text:String(line.text||line.content||"")});}});return out;}
+function archiveWrap(text,x,y,width,lineHeight,color){ctx.fillStyle=color||"rgba(255,255,255,.76)";const words=String(text||"").split("");let line="",yy=y;for(const c of words){if(c==="\n"||ctx.measureText(line+c).width>width){ctx.fillText(line,x,yy);yy+=lineHeight;line=c==="\n"?"":c;}else line+=c;}if(line)ctx.fillText(line,x,yy);return yy+lineHeight;}
+drawArchiveEntryDetail=function(){
+  const W0=W,H0=H;ctx.fillStyle="#050914";ctx.fillRect(0,0,W0,H0);drawBtn(language==="en"?"Back to Archive":"返回档案","ESC",42,28,180,42,false,"#fff");
+  if(archiveTab===1){const ids=owned.map((v,i)=>v?i:-1).filter(i=>i>=0),id=ids[archiveEntry],d=archiveRoleData(id),combat=ARCHIVE_COMBAT_RECORDS[id]||ARCHIVE_COMBAT_RECORDS[4],col=roles[id]?.color||"#88d8ff";ctx.fillStyle="rgba(255,255,255,.035)";ctx.fillRect(38,90,360,530);ctx.strokeStyle=col;ctx.lineWidth=2;ctx.strokeRect(38,90,360,530);drawExecutorArt(id,52,104,332,500,true);const x=430;ctx.fillStyle=col;ctx.font="bold 12px "+FONT_UI;ctx.fillText(language==="en"?"EXECUTOR ARCHIVE / COMBAT RECORD":"执行官档案 / 作战记录",x,70);ctx.fillStyle="#fff";ctx.font="bold 34px "+FONT_UI;ctx.fillText(language==="en"?d.name[1]:d.name[0],x,112);ctx.fillStyle="rgba(255,255,255,.6)";ctx.font="12px "+FONT_UI;ctx.fillText((language==="en"?d.className[1]:d.className[0])+"  ·  "+(language==="en"?d.position[1]:d.position[0])+"  ·  "+weaponTypeLabel(roleWeaponType(id)),x,140);const blocks=[[combat.normal,combat.normalText,"A / "+(language==="en"?"NORMAL ATTACK":"普通攻击")],[combat.skill,combat.skillText,"E / "+(language==="en"?"SKILL":"技能")],[combat.ultimate,combat.ultimateText,"Q / "+(language==="en"?"ULTIMATE":"终结技")],[[language==="en"?"Core Mechanism":"核心机制",language==="en"?"Core Mechanism":"核心机制"],d.mechanic,language==="en"?"TACTICAL ROLE":"机制与定位"]];blocks.forEach((b,i)=>{const y=170+i*108;ctx.fillStyle="rgba(255,255,255,.055)";ctx.fillRect(x,y,642,94);ctx.strokeStyle=i===3?col:"rgba(255,255,255,.14)";ctx.strokeRect(x,y,642,94);ctx.fillStyle=i===2?"#ffe066":col;ctx.font="bold 10px "+FONT_UI;ctx.fillText(b[2],x+16,y+20);ctx.fillStyle="#fff";ctx.font="bold 16px "+FONT_UI;ctx.fillText(language==="en"?b[0][1]:b[0][0],x+16,y+43);ctx.font="11px "+FONT_UI;archiveWrap(language==="en"?b[1][1]:b[1][0],x+210,y+28,410,17,"rgba(255,255,255,.7)");});return;}
+  if(archiveTab===0){const d=archiveStoryData()[archiveEntry],lines=archiveStoryLines(archiveEntry);ctx.fillStyle="#88d8ff";ctx.font="bold 12px "+FONT_UI;ctx.fillText(language==="en"?"COMPLETE STORY TRANSCRIPT":"完整剧情档案",52,92);ctx.fillStyle="#fff";ctx.font="bold 30px "+FONT_UI;ctx.fillText(language==="en"?d.title[1]:d.title[0],52,130);ctx.fillStyle="rgba(255,255,255,.58)";ctx.font="12px "+FONT_UI;archiveWrap(language==="en"?d.summary[1]:d.summary[0],52,158,1015,19);ctx.save();ctx.beginPath();ctx.rect(46,205,1030,405);ctx.clip();let y=225-archiveDetailScroll;for(const line of lines){if(line.heading){y+=18;ctx.fillStyle="rgba(136,216,255,.10)";ctx.fillRect(52,y-20,1010,34);ctx.fillStyle="#88d8ff";ctx.font="bold 13px "+FONT_UI;ctx.fillText(line.heading,68,y+2);y+=30;}else{if(line.speaker){ctx.fillStyle="#ffe066";ctx.font="bold 11px "+FONT_UI;ctx.fillText(line.speaker,68,y);}ctx.font="12px "+FONT_UI;y=archiveWrap(line.text,190,y,850,19,"rgba(255,255,255,.78)")+8;}}const intel=storyIntelRecords.filter(v=>Number(v.chapter)===archiveEntry);if(intel.length){y+=18;ctx.fillStyle="#7cffb2";ctx.font="bold 13px "+FONT_UI;ctx.fillText(language==="en"?"FIELD INTELLIGENCE":"现场调查线索",68,y);y+=28;for(const v of intel)y=archiveWrap("• "+v.label+"："+v.text,68,y,980,19,"rgba(255,255,255,.72)")+7;}ctx.restore();ctx.fillStyle="rgba(255,255,255,.45)";ctx.font="10px "+FONT_UI;ctx.textAlign="right";ctx.fillText(language==="en"?"Mouse wheel to read the full transcript":"鼠标滚轮阅读完整剧情正文",1068,635);ctx.textAlign="left";return;}
+  const d=archiveAnomalyData()[archiveEntry];ctx.fillStyle="#c89cff";ctx.font="bold 12px "+FONT_UI;ctx.fillText(language==="en"?"ANOMALY RESEARCH PAPER":"异常研究档案",52,92);ctx.fillStyle="#fff";ctx.font="bold 34px "+FONT_UI;ctx.fillText(language==="en"?d.title[1]:d.title[0],52,140);ctx.fillStyle="rgba(255,255,255,.07)";ctx.fillRect(52,175,1016,360);ctx.font="14px "+FONT_UI;archiveWrap(language==="en"?d.body[1]:d.body[0],82,220,950,24,"rgba(255,255,255,.78)");ctx.fillStyle="#ffe066";ctx.font="bold 13px "+FONT_UI;ctx.fillText(language==="en"?"RESEARCH STATUS":"研究状态",82,330);ctx.font="12px "+FONT_UI;archiveWrap(language==="en"?"This independent page will expand with taxonomy, observed behavior, countermeasures, samples, and related incidents as formal setting material is supplied.":"该独立页面已预留分类、观测行为、应对方案、样本记录与关联事件。你之后提供正式设定时，可直接扩写为完整研究论文。",82,365,940,22,"rgba(255,255,255,.68)");
+};
+
+const ARCHIVE_IDENTITY_RECORDS={
+  0:{identity:["雷文哈多战斗部执行官","Ravenhado Combat Division Executor"],affiliation:["雷文哈多政府 · 战斗部","Ravenhado Government · Combat Division"],profession:["职业剑卫 / 小队战术指挥","Professional Swordguard / Squad Tactical Lead"],status:["现役 · Project 4 调查队","Active · Project 4 Investigation Team"]},
+  1:{identity:["风系术式执行官","Wind Arts Executor"],affiliation:["雷文哈多政府 · 异常应对编队","Ravenhado Government · Anomaly Response Unit"],profession:["职业法武 / 远程控场","Professional Arts Weapon / Ranged Control"],status:["现役 · 外勤调查","Active · Field Investigation"]},
+  2:{identity:["重装近战执行官","Heavy Melee Executor"],affiliation:["下层都市协力人员","Lower-City Cooperative Operative"],profession:["职业盾卫 / 正面压制","Professional Defender / Frontline Suppression"],status:["协力状态 · 临时编入小队","Cooperative Status · Temporarily Assigned"]},
+  3:{identity:["医疗与冰系术式执行官","Medical and Ice Arts Executor"],affiliation:["雷文哈多医疗支援体系","Ravenhado Medical Support Service"],profession:["职业法武 / 控制与救护","Professional Arts Weapon / Control and Aid"],status:["现役 · 战地医疗支援","Active · Field Medical Support"]},
+  4:{identity:["异常核心共鸣者","Anomaly Core Resonator"],affiliation:["Project 4 联合调查队","Project 4 Joint Investigation Team"],profession:["引领者 / 核心刃使用者","Guide / Core-Blade User"],status:["重点观察 · 主线行动人员","Under Observation · Story Operations"]},
+  5:{identity:["协同作战执行官","Coordinated Operations Executor"],affiliation:["雷文哈多综合支援组","Ravenhado Integrated Support Unit"],profession:["职业协辅 / 战场增益与恢复","Professional Support / Buffs and Recovery"],status:["现役 · 小队支援席","Active · Squad Support"]},
+  6:{identity:["重装防线执行官","Heavy Defensive-Line Executor"],affiliation:["雷文哈多防卫体系","Ravenhado Defense Service"],profession:["职业盾卫 / 团队护盾与反击","Professional Defender / Shields and Counters"],status:["现役 · 前线防卫","Active · Frontline Defense"]}
+};
+const drawArchiveEntryDetailBeforeIdentity=drawArchiveEntryDetail;
+drawArchiveEntryDetail=function(){
+  if(archiveTab!==1)return drawArchiveEntryDetailBeforeIdentity();
+  const ids=owned.map((v,i)=>v?i:-1).filter(i=>i>=0),id=ids[archiveEntry],d=archiveRoleData(id),identity=ARCHIVE_IDENTITY_RECORDS[id]||ARCHIVE_IDENTITY_RECORDS[4],combat=ARCHIVE_COMBAT_RECORDS[id]||ARCHIVE_COMBAT_RECORDS[4],col=roles[id]?.color||"#88d8ff";
+  ctx.fillStyle="#050914";ctx.fillRect(0,0,W,H);drawBtn(language==="en"?"Back to Archive":"返回档案","ESC",42,28,180,42,false,"#fff");
+  ctx.fillStyle="rgba(255,255,255,.035)";ctx.fillRect(38,90,330,530);ctx.strokeStyle=col;ctx.lineWidth=2;ctx.strokeRect(38,90,330,530);drawExecutorArt(id,50,102,306,506,true);
+  const x=400,tx=v=>language==="en"?v[1]:v[0];ctx.fillStyle=col;ctx.font="bold 12px "+FONT_UI;ctx.fillText(language==="en"?"EXECUTOR ARCHIVE / IDENTITY & COMBAT":"执行官档案 / 身份与作战记录",x,64);ctx.fillStyle="#fff";ctx.font="bold 32px "+FONT_UI;ctx.fillText(tx(d.name),x,104);
+  const facts=[[language==="en"?"IDENTITY":"身份",identity.identity],[language==="en"?"AFFILIATION":"所属",identity.affiliation],[language==="en"?"PROFESSION":"职业",identity.profession],[language==="en"?"STATUS":"状态",identity.status]];
+  facts.forEach((row,i)=>{const y=126+i*34;ctx.fillStyle="rgba(255,255,255,.055)";ctx.fillRect(x,y,672,28);ctx.fillStyle="rgba(255,255,255,.42)";ctx.font="bold 9px "+FONT_UI;ctx.fillText(row[0],x+12,y+18);ctx.fillStyle="#fff";ctx.font="bold 10px "+FONT_UI;ctx.fillText(tx(row[1]),x+118,y+18);});
+  const blocks=[[combat.normal,combat.normalText,"A / "+(language==="en"?"NORMAL ATTACK":"普通攻击")],[combat.skill,combat.skillText,"E / "+(language==="en"?"SKILL":"技能")],[combat.ultimate,combat.ultimateText,"Q / "+(language==="en"?"ULTIMATE":"终结技")],[[language==="en"?"Core Mechanism":"核心机制",language==="en"?"Core Mechanism":"核心机制"],d.mechanic,language==="en"?"TACTICAL ROLE":"机制与定位"]];
+  blocks.forEach((b,i)=>{const y=276+i*83;ctx.fillStyle="rgba(255,255,255,.045)";ctx.fillRect(x,y,672,72);ctx.strokeStyle=i===3?col:"rgba(255,255,255,.12)";ctx.strokeRect(x,y,672,72);ctx.fillStyle=i===2?"#ffe066":col;ctx.font="bold 9px "+FONT_UI;ctx.fillText(b[2],x+12,y+17);ctx.fillStyle="#fff";ctx.font="bold 13px "+FONT_UI;ctx.fillText(tx(b[0]),x+12,y+39);ctx.font="10px "+FONT_UI;archiveWrap(tx(b[1]),x+184,y+23,466,15,"rgba(255,255,255,.68)");});
+};
+
+function englishStoryIntelRecord(v){
+  const cjk=/[\u3400-\u9fff]/,labels={"现场记录":"Field Record","晶体读数":"Crystal Reading","废弃终端":"Abandoned Terminal","异常坐标":"Anomaly Coordinates","求救信号":"Distress Signal","新鲜足迹":"Fresh Footprints","幸存者":"Survivor","战地终端":"Field Terminal","晶体装置":"Crystal Device","路线开关":"Route Switch","安全门":"Security Door","支路档案":"Side Archive","裂隙居民":"Rift Resident"};
+  let label=String(v.label||"Field Record"),text=String(v.text||"");
+  if(cjk.test(label))label=labels[label]||("Field Intelligence · C"+(Number(v.chapter)||0)+"-"+(Number(v.stage)||0));
+  if(cjk.test(text))text="Recovered field evidence from Area "+(Number(v.area)||1)+". The original record has been indexed under this operation for review.";
+  return {...v,label,text};
+}
+const drawArchiveEntryDetailBeforeIntelLocalization=drawArchiveEntryDetail;
+drawArchiveEntryDetail=function(){
+  if(language!=="en"||archiveTab!==0)return drawArchiveEntryDetailBeforeIntelLocalization();
+  const original=storyIntelRecords;storyIntelRecords=original.map(englishStoryIntelRecord);
+  try{return drawArchiveEntryDetailBeforeIntelLocalization();}finally{storyIntelRecords=original;}
+};
+
 function drawArchive(){
   const bg=ctx.createLinearGradient(0,0,W,H);bg.addColorStop(0,"#101a2b");bg.addColorStop(.55,"#080d18");bg.addColorStop(1,"#03050b");ctx.fillStyle=bg;ctx.fillRect(0,0,W,H);
   ctx.fillStyle="rgba(124,199,255,.045)";for(let x=24;x<W;x+=56)ctx.fillRect(x,0,1,H);
@@ -20648,12 +21151,20 @@ function drawArchive(){
     const anomaly=[{n:language==="en"?"Project 4":"Project 4",ok:true,c:"#82ffe2"},{n:language==="en"?"Crystal Humanoid":"晶体人",ok:storyChapterComplete(0),c:"#ff9f7c"},{n:language==="en"?"Daydream Reconstruction":"白日梦重现",ok:storyChapterComplete(1),c:"#b998ff"},{n:language==="en"?"Crystal Dragon · Kros":"晶体恶龙 · 克罗斯",ok:storyChapterComplete(2),c:"#ff758a"}];
     anomaly.forEach((a,i)=>{const x=310+(i%2)*362,y=220+Math.floor(i/2)*142;ctx.fillStyle=a.ok?"rgba(255,255,255,.06)":"rgba(255,255,255,.025)";ctx.fillRect(x,y,338,118);ctx.strokeStyle=a.ok?a.c:"rgba(255,255,255,.10)";ctx.strokeRect(x,y,338,118);ctx.fillStyle=a.ok?a.c:"#555";ctx.font="bold 30px Arial";ctx.fillText("◇",x+24,y+54);ctx.fillStyle=a.ok?"#fff":"#666";ctx.font="bold 15px "+FONT_UI;ctx.fillText(a.n,x+72,y+42);ctx.fillStyle="rgba(255,255,255,.42)";ctx.font="10px "+FONT_UI;ctx.fillText(a.ok?(language==="en"?"INDEX AVAILABLE":"索引已开放"):(language==="en"?"DATA LOCKED":"资料未解锁"),x+72,y+68);});
   }
-  ctx.fillStyle="rgba(255,255,255,.30)";ctx.font="10px "+FONT_UI;ctx.fillText(language==="en"?"This first archive release opens navigation; detailed reading entries will be expanded later.":"本次先正式开放档案页面与分类导航，详细文本条目将在后续版本继续补充。",310,568);
+  if(archiveEntry>=0)drawArchiveEntryDetail();
+  else{ctx.fillStyle="rgba(255,255,255,.30)";ctx.font="10px "+FONT_UI;ctx.fillText(language==="en"?"Select an available entry to open its detailed record.":"点击已开放条目可查看详细记录。",310,568);}
 }
 
 function updateArchive(){
-  if(justPressed("escape")){enterLobby();clicked=false;return;}
-  if(clicked){if(inRect(920,34,150,42)){enterLobby();clicked=false;return;}for(let i=0;i<3;i++)if(inRect(48,128+i*58,205,46)){archiveTab=i;clicked=false;return;}}
+  if(justPressed("escape")){if(archiveEntry>=0){archiveEntry=-1;clicked=false;return;}enterLobby();clicked=false;return;}
+  if(clicked){
+    if(archiveEntry>=0){if(inRect(42,28,180,42)||inRect(930,216,108,36)){archiveEntry=-1;archiveDetailScroll=0;clicked=false;return;}clicked=false;return;}
+    if(inRect(920,34,150,42)){enterLobby();clicked=false;return;}
+    for(let i=0;i<3;i++)if(inRect(48,128+i*58,205,46)){archiveTab=i;archiveEntry=-1;clicked=false;return;}
+    if(archiveTab===0){for(let i=0;i<4;i++){const open=i===0||storyChapterComplete(i);if(open&&inRect(310,216+i*78,724,62)){archiveEntry=i;archiveDetailScroll=0;clicked=false;return;}}}
+    else if(archiveTab===1){const ids=owned.map((v,i)=>v?i:-1).filter(i=>i>=0);for(let n=0;n<ids.length;n++){const x=320+(n%3)*230,y=315+Math.floor(n/3)*92;if(inRect(x,y,210,72)){archiveEntry=n;clicked=false;return;}}}
+    else{const unlocked=[true,storyChapterComplete(0),storyChapterComplete(1),storyChapterComplete(2)];for(let i=0;i<4;i++){const x=310+(i%2)*362,y=220+Math.floor(i/2)*142;if(unlocked[i]&&inRect(x,y,338,118)){archiveEntry=i;clicked=false;return;}}}
+  }
   clicked=false;
 }
 
@@ -20734,6 +21245,7 @@ function update(){
   if(commercialTransitionTimer>0)commercialTransitionTimer=Math.max(0,commercialTransitionTimer-frameScale);
   if(window.PZCrystalWar&&typeof window.PZCrystalWar.backgroundUpdate==="function")window.PZCrystalWar.backgroundUpdate();
   if(gameMode==="operation"&&window.PZCrystalWar&&typeof window.PZCrystalWar.update==="function"&&window.PZCrystalWar.isCrystalWarActive())window.PZCrystalWar.update();
+  updateAutoFeatureGuideUnlocks();
   if(updateFeatureGuidePrompt()){
     if(cloudMsgTimer>0){ cloudMsgTimer-=frameScale; if(cloudMsgTimer<=0) cloudMsg=''; }
     if(cloudSyncTimer>0){ cloudSyncTimer-=frameScale; if(cloudSyncTimer<=0) cloudSyncStatus=''; }

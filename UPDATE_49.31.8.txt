@@ -1,0 +1,8 @@
+PROJECT ZERO V49.31.8
+
+- Commission enemy totals are reduced to 45-50 per stage, except formal 1-1,
+  which retains its original 100-enemy high-pressure design.
+- Main-story Hard Mode enemies gain 5-10 additional levels based on stage,
+  plus stronger HP, Shield, damage and special-resistance pressure.
+- Executor archives now include identity, affiliation, profession, assignment
+  status and complete combat-role information.

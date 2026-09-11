@@ -1,0 +1,7 @@
+PROJECT ZERO V49.31.7 - COMBAT IMPACT & MOTION
+
+- Added a short visual lunge, body compression and recovery curve to melee attacks.
+- Added layered directional sparks, expanding impact rings and heavy-hit core bursts.
+- Rebalanced screen shake, hit stop and flash so normal hits stay readable while
+  third hits, chain attacks, parries and boss impacts retain strong weight.
+- Combat feedback is visual-only and does not change hitboxes or damage balance.

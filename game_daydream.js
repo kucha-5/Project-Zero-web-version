@@ -254,6 +254,25 @@
     {id:"archiveEcho",zh:"协会回收记录",en:"Association Recovery Log",bodyZh:"每次调查都会留下不同版本的报告。五份结局档案互相矛盾，却都包含一部分真实。",bodyEn:"Each investigation leaves a different report. The five ending files contradict one another, yet each contains part of the truth."},
     {id:"afterimage",zh:"归档后的残响",en:"Echo After Archiving",bodyZh:"任务结束后，记录仪仍偶尔捕捉到刀刃出鞘的声音。案件是否真正结束，取决于调查员带回了什么。",bodyEn:"After the mission, recorders still occasionally capture a blade leaving its scabbard. Whether the case truly ended depends on what the investigator brought back."}
   ];
+  const layerThemes={
+    1:{nameZh:"雨蚀村落",nameEn:"Rain-Eroded Village",top:"#101829",bottom:"#071019",fog:"88,116,158",mark:"#6f91b9"},
+    2:{nameZh:"倒悬神社",nameEn:"Inverted Shrine",top:"#241427",bottom:"#0d0815",fog:"135,76,129",mark:"#bb719e"},
+    3:{nameZh:"无月竹林",nameEn:"Moonless Bamboo Grove",top:"#10231e",bottom:"#06100d",fog:"68,132,107",mark:"#73b292"},
+    4:{nameZh:"日斩内庭",nameEn:"Hizan Inner Court",top:"#281417",bottom:"#0e0709",fog:"156,67,74",mark:"#d06d72"}
+  };
+  const storyExtraZh={
+    reopened:["协会将旧案重新编号时，档案里缺失了整整七页。纸张切口一致，说明它们不是自然遗失，而是曾被某个人有意取走。","进入白日梦前，执行官们被要求记录每一次不合理的细节：倒走的雨、没有影子的灯笼，以及从未发送却能被接收的通讯。","第一道边界闭合后，返回路线从雷达中消失。调查不再只是寻找失踪者，也变成了确认这份档案为何被封存。"],
+    firstTorii:["鸟居表面同时残留新漆与百年风化的痕迹，时间在同一件物体上发生了冲突。","神社后的樱树没有根，花瓣落到刀痕附近时会突然改变方向。调查设备因此标记出第一条隐藏路线。","远处的铃声每响一次，地图上的道路就会移动。队伍只能依靠刚刚留下的标记继续前进。"],
+    scarMap:["墙面、石阶和树干上的刀痕拥有相同起手角度，却来自不同年份。剑客似乎在一次次重现中重复同一个动作。","将所有刀痕叠加后，它们组成了通往深层的路线，也标记出数个被故意避开的房间。","这张地图并不指向出口，而是在引导后来者找到被篡改的任务记录。"],
+    falseVoice:["伪造通讯准确模仿了调查员的语气，却无法回答只有队伍成员知道的验证问题。","声音不断要求队伍离开刀痕路线，并声称前方存在安全出口。与此同时，协会频道只能收到大片静默。","执行官切断外部语音后，伪造声音仍从废弃广播中继续传出，证明异常已经侵入环境本身。"],
+    twoSwordsmen:["两名剑客拥有相同的伤痕、武器与记忆，甚至能同时说出任务开始前的暗号。","其中一人始终站在樱花不会落下的位置；另一人则下意识避开旧伤附近的花瓣。这个细节成为辨认真假的关键。","追猎者的脚步正在接近，队伍没有足够时间同时保护两人，只能继续收集证据。"],
+    missionChange:["原始命令要求剑客护送调查员撤离，覆盖后的命令却变成独自封锁异常核心。两个版本使用了不同权限签名。","剑客在最后时刻察觉任务异常，却已经无法联系协会。他留下的刀痕既是路线，也是给后来者的证词。","白日梦不断重演这个选择，因为当事人从未确认自己究竟违抗了命令，还是完成了真正的任务。"],
+    sakuraTest:["队伍重新制造了落樱环境，让两名剑客分别穿过庭院。梦魇能够复制答案，却复制不了身体形成的旧习惯。","真正的剑客在花瓣靠近肩部旧伤前提前侧身，而复制体直到花瓣触碰身体才作出反应。","测试给出了方向，但异常开始主动修改周围记忆，试图抹去刚刚得到的结果。"],
+    associationChoice:["协会只能提供观测数据，无法替现场调查员承担判断结果。每条线索都可能是真实记忆，也可能是梦魇为了自保制造的证据。","队伍成员的精神状态开始影响观测：污染越高，同一段记录就会出现越多互相矛盾的版本。","最终选择将决定被带回现实的对象，也会决定谁被永远留在日斩。"],
+    truthOfHizan:["日斩最初只是档案柜上的案件编号，后来却成为白日梦对自身的称呼。","被篡改的命令、剑客未完成的职责和调查者的怀疑互相叠加，最终塑造出能够模仿人类的追猎者。","摧毁追猎者并不能结束案件；只有带回完整记录，让现实承认发生过什么，执念才可能停止重现。"],
+    finalGate:["最后的鸟居正在崩塌，出口容量只能维持一次通行。所有未确认的路线都在黑暗中消失。","两名剑客分别给出相反的请求，执行官则等待调查员下达最终命令。","此刻没有可以再次验证的证据。此前走过的节点、保存的线索与承受的污染共同构成唯一答案。"]
+  };
+  function makeScenePages(story,isEvent=false){const body=T(story.bodyZh||"",story.bodyEn||"");if(lang()==="en")return[body,isEvent?"The environment reacts to the team's presence. Details that looked decorative begin to repeat like instructions, while the recorder marks inconsistencies in sound, time, and direction.":"The team compares the recovered record with the changing environment. Every repeated object may be evidence, a warning, or a memory deliberately placed to mislead the investigation.",isEvent?"No option is neutral. The decision will alter Clue, Will, Contamination, or the Pursuer's approach for the remainder of this reconstruction.":"The route ahead emerges only after the record is acknowledged. The investigation continues with this fragment preserved in the Association archive."];const extra=storyExtraZh[story.id]||["周围环境随记录发生变化，远处道路被重新排列，调查设备开始标记时间、声音与方位上的矛盾。","执行官对照现场痕迹复核内容。看似普通的装饰可能是证据，也可能是白日梦为了误导调查制造的重复记忆。","记录确认后，前方道路才从黑暗中显现。该片段将被保存在协会档案中，并影响之后的调查判断。"];return[body,...extra];}
 
   const battlePool = [
     {id:"village", zh:"废弃村落", en:"Abandoned Village", power:38, rewardClue:1, pollution:6},
@@ -291,7 +310,7 @@
     codexScroll:0,
 
     freshState(){
-      return {version:RUN_VERSION,totalRuns:0,bestClue:0,unlockedEndings:{},unlockedNightmares:{},reconstructionExp:0,levelClaimed:{},activeRun:null};
+      return {version:RUN_VERSION,totalRuns:0,bestClue:0,unlockedEndings:{},unlockedNightmares:{},reconstructionExp:0,levelClaimed:{},highestDifficultyRankCleared:0,activeRun:null};
     },
 
     reloadForCurrentAccount(reset=false){
@@ -327,6 +346,7 @@
       this.state.unlockedNightmares=this.state.unlockedNightmares&&typeof this.state.unlockedNightmares==="object"?this.state.unlockedNightmares:{};
       this.state.reconstructionExp=Math.max(0,Number(this.state.reconstructionExp)||0);
       this.state.levelClaimed=this.state.levelClaimed&&typeof this.state.levelClaimed==="object"?this.state.levelClaimed:{};
+      this.state.highestDifficultyRankCleared=Math.max(0,Number(this.state.highestDifficultyRankCleared)||0);
       if(this.state.activeRun&&!this.state.activeRun.completed){
         this.run=this.state.activeRun;
         this.run.dreamShards=Math.max(0,Number(this.run.dreamShards)||0);
@@ -430,9 +450,9 @@
     makeRoute(layer=1){
       const seed = (now()+layer*7919) % 999999;
       const diff=this.runDifficulty();
-      const opening=storyPool[(layer-1)%storyPool.length];
+      const opening=storyPool[Math.floor(rand(seed+layer*113)*storyPool.length)];
       const route=[{type:"story",zh:opening.zh,en:opening.en,story:opening,resolved:false,mapX:110,mapY:330}];
-      const pool=["event","battle","safe","nightmare","event","battle","portal"];
+      const pool=["event","battle","safe","nightmare","event","battle","story"];
       const interiorCount=14+Math.min(8,Math.floor((diff.branches||0)*1.75));
       const bossIndex=layer>=3?Math.max(6,Math.floor(interiorCount*.62)): -1;
       for(let i=1;i<=interiorCount;i++){
@@ -440,7 +460,6 @@
         if(i%5===2) type="battle";
         if(i%7===5) type="story";
         if(i%8===4) type="safe";
-        if(i%9===6) type="portal";
         if(i===bossIndex) type="boss";
         const node={type,resolved:false,mapX:110+i*108,mapY:150+Math.floor(rand(seed+i*43)*320),layer};
         if(type==="event"){
@@ -454,7 +473,6 @@
           const b=battlePool[Math.floor(rand(seed+i*19)*battlePool.length)];node.battle=b;node.zh=b.zh;node.en=b.en;
         }else if(type==="safe"){node.zh="短暂清醒";node.en="Lucid Rest";}
         else if(type==="nightmare"){node.zh="梦魇残响";node.en="Nightmare Echo";}
-        else if(type==="portal"){node.zh="错位门扉";node.en="Displaced Gate";node.portalSteps=2;}
         else if(type==="boss"){node.zh=layer===4?"日斩追猎体":"深层追猎体";node.en=layer===4?"Hizan Pursuer":"Depth Pursuer";node.optionalBoss=true;}
         route.push(node);
       }
@@ -517,11 +535,12 @@
         will:BASE_WILL + Math.min(18, playerLevel())+(trait.will||0)+(diff.will||0),
         nightmares:[],
         dreamShards:4+(diff.shards||0),
-        flags:{combatBuff:(trait.buff||0)+(diff.combatBuff||0), notes:0,reveal:(trait.reveal||0)+(diff.reveal||0)},
+        flags:{combatBuff:(trait.buff||0)+(diff.combatBuff||0), notes:0,reveal:(trait.reveal||0)+(diff.reveal||0),skipCharges:2},
         trait:trait.id,
         squad:(this.setupSquad||[0,1,2]).slice(0,3).map(role=>({role,spirit:clamp(100+(trait.spirit||0),0,110),hp:100})),
         route:this.makeRoute(1),
         layerBossDefeated:false,pursuer:null,pursuerEncounter:false,cameraX:0,cameraY:0,
+        revealAt:now(),revealStep:0,
         activeChoice:-1,
         log:[T("调查开始 · 难度 Project ","Investigation started · Project ")+diff.id],
         completed:false
@@ -546,10 +565,22 @@
       const diff=this.runDifficulty();
       if(this.run.layer>=3&&!this.run.layerBossDefeated&&bossChoice!==undefined&&index!==bossChoice&&!this.run.pursuer)this.run.pursuer={active:true,steps:0,max:Math.max(3,4-(diff.pursuit||0))};
       this.run.currentNode=index;this.run.visitedCount=(this.run.visitedCount||1)+1;this.run.floor=this.run.visitedCount;
+      this.run.revealAt=now();this.run.revealStep=this.run.visitedCount;
       if(this.run.pursuer&&this.run.pursuer.active&&!this.run.layerBossDefeated){
         this.run.pursuer.steps++;
         if(this.run.pursuer.steps>=(this.run.pursuer.max||4)){this.run.pursuerEncounter=true;this.launchPursuerBattle();this.save();return true;}
       }
+      this.resolveCurrentNode();this.save();sfx("ui");return true;
+    },
+
+    skipNextNode(){
+      if(!this.run||(this.run.flags.skipCharges||0)<=0)return false;
+      const options=this.availableNext();if(!options.length)return false;
+      const skipped=options[0],node=this.run.route[skipped],next=(node?.next||[]).filter(i=>i<this.run.route.length);
+      if(!next.length)return false;
+      node.resolved=true;this.run.flags.skipCharges--;this.run.currentNode=next[0];this.run.visitedCount=(this.run.visitedCount||1)+1;this.run.floor=this.run.visitedCount;
+      this.run.revealAt=now();this.run.revealStep=this.run.visitedCount;
+      this.addLog(T("折跃一次，跳过了一个节点。剩余 ","Fold-jump used; one node skipped. Remaining ")+(this.run.flags.skipCharges||0));
       this.resolveCurrentNode();this.save();sfx("ui");return true;
     },
 
@@ -616,12 +647,8 @@
       this.run.activeChoice = -1;
 
       if(node.type === "story"){
-        node.resolved = true;
-        const storyClue=1+(this.runDifficulty().storyClue||0);
-        this.run.clue += storyClue;
         const story=node.story||storyPool[0];
-        this.addLog(T(story.bodyZh,story.bodyEn)+T(" 线索 +"," Clue +")+storyClue+"。");
-        this.save();
+        if(!this.storyScene)this.storyScene={type:"story",nodeIndex:this.run.currentNode,title:T(story.zh,story.en),pages:makeScenePages(story,false),page:0};
         return;
       }
       if(node.type === "safe"){
@@ -667,7 +694,7 @@
         return;
       }
       if(node.type === "event"){
-        this.addLog(T("事件出现：","Event: ") + this.nodeName(node));
+        if(!node.sceneSeen&&!this.storyScene)this.storyScene={type:"event",nodeIndex:this.run.currentNode,title:this.nodeName(node),pages:makeScenePages(node.event,true),page:0};
         return;
       }
       if(node.type === "boss"){
@@ -799,6 +826,7 @@
       this.run.layerBossDefeated=false;this.run.pursuer=null;this.run.pursuerEncounter=false;
       this.run.dreamShards=(this.run.dreamShards||0)+3;
       this.run.cameraX=0;this.run.cameraY=0;
+      this.run.revealAt=now();this.run.revealStep=0;
       const diff=this.runDifficulty();
       this.run.pollution=clamp(this.run.pollution+4+this.run.layer*2+(diff.pollution||0),0,MAX_POLLUTION);
       this.run.will=clamp(this.run.will-3+(diff.floorWill||0),0,120);
@@ -826,6 +854,7 @@
       const diff=this.runDifficulty();
       this.state.reconstructionExp=(this.state.reconstructionExp||0)+Math.round(80*diff.reward);
       this.state.unlockedEndings[ending] = true;
+      this.state.highestDifficultyRankCleared=Math.max(this.state.highestDifficultyRankCleared||0,this.run.difficultyRank||1);
       this.save();
       this.result = {
         ending,
@@ -876,7 +905,7 @@
       if(!this.state) this.init();
       this.updateEntryAnimation();
       if(this.page==="setupDifficulty" || this.page==="setupTraits" || this.page==="setupSquad") this.drawSetup();
-      else if(this.page==="run" && this.run) this.drawRun();
+      else if(this.page==="run" && this.run){this.drawRun();if(this.storyScene)this.drawStoryScene();}
       else if(this.page==="rest" && this.run) this.drawRestStation();
       else if(this.page==="level") this.drawLevelTrack();
       else if(this.page==="codex") this.drawCodex();
@@ -884,6 +913,24 @@
       else if(this.page==="result") this.drawResult();
       else if(this.page==="defeat") this.drawDefeat();
       else this.drawHome();
+    },
+
+    continueStoryScene(){
+      const scene=this.storyScene,node=this.currentNode();if(!scene||!node)return;
+      if((scene.page||0)<(scene.pages?.length||1)-1){scene.page=(scene.page||0)+1;sfx("ui");return;}
+      this.storyScene=null;
+      if(scene.type==="story"&&!node.resolved){const storyClue=1+(this.runDifficulty().storyClue||0);node.resolved=true;this.run.clue+=storyClue;this.addLog((scene.pages?.[0]||"")+T(" 线索 +"," Clue +")+storyClue+"。");}
+      else if(scene.type==="event"){node.sceneSeen=true;this.addLog(T("事件出现：","Event: ")+this.nodeName(node));}
+      this.save();sfx("ui");
+    },
+
+    drawStoryScene(){
+      const ctx=global.ctx,FONT_UI=global.FONT_UI,scene=this.storyScene;if(!scene)return;
+      ctx.save();ctx.fillStyle="rgba(0,0,0,.60)";ctx.fillRect(0,0,global.W||1120,global.H||660);
+      const x=66,y=420,w=(global.W||1120)-132,h=182;ctx.fillStyle="rgba(5,10,20,.98)";ctx.fillRect(x,y,w,h);ctx.strokeStyle=scene.type==="event"?"#ffe066":"#8bcfff";ctx.lineWidth=2;ctx.strokeRect(x,y,w,h);
+      ctx.fillStyle=scene.type==="event"?"#ffe066":"#8bcfff";ctx.font="bold 13px "+FONT_UI;ctx.textAlign="left";ctx.fillText(scene.type==="event"?T("随机异常记录","RANDOM ANOMALY RECORD"):T("白日梦重现记录","DAYDREAM RECONSTRUCTION RECORD"),x+28,y+31);
+      ctx.fillStyle="#fff";ctx.font="bold 22px "+FONT_UI;ctx.fillText(scene.title,x+28,y+64);ctx.fillStyle="rgba(255,255,255,.78)";ctx.font="14px "+FONT_UI;const body=scene.pages?.[scene.page||0]||"";if(global.wrapText)global.wrapText(body,x+28,y+94,w-56,21);else ctx.fillText(body,x+28,y+94);
+      ctx.fillStyle="rgba(255,255,255,.55)";ctx.font="12px "+FONT_UI;ctx.textAlign="right";ctx.fillText(((scene.page||0)+1)+" / "+(scene.pages?.length||1)+"  ·  "+T("点击继续 · 本段记录不可跳过","CLICK TO CONTINUE · THIS RECORD CANNOT BE SKIPPED"),x+w-28,y+h-20);ctx.restore();
     },
 
     drawSetup(){
@@ -896,10 +943,11 @@
       if(this.page==="setupDifficulty"){
         for(let i=0;i<difficultyDefs.length;i++){
           const d=difficultyDefs[i],col=i%5,row=Math.floor(i/5),x=50+col*207,y=158+row*164,w=190,h=146,active=Number(this.selectedDifficulty)===d.id;
-          ctx.fillStyle=active?"rgba(255,224,102,.16)":"rgba(255,255,255,.055)";ctx.fillRect(x,y,w,h);ctx.strokeStyle=active?"#ffe066":"rgba(155,124,255,.28)";ctx.lineWidth=active?3:1;ctx.strokeRect(x,y,w,h);
+          const locked=d.rank>(this.state.highestDifficultyRankCleared||0)+1;ctx.fillStyle=locked?"rgba(0,0,0,.48)":(active?"rgba(255,224,102,.16)":"rgba(255,255,255,.055)");ctx.fillRect(x,y,w,h);ctx.strokeStyle=locked?"rgba(255,255,255,.14)":(active?"#ffe066":"rgba(155,124,255,.28)");ctx.lineWidth=active&&!locked?3:1;ctx.strokeRect(x,y,w,h);
           ctx.fillStyle=active?"#ffe066":"#fff";ctx.font="bold 21px "+FONT_UI;ctx.fillText("PROJECT "+d.id,x+14,y+30);
           ctx.fillStyle="#7cffb2";ctx.font="11px "+FONT_UI;if(global.wrapText)global.wrapText(T(d.posZh,d.posEn),x+14,y+55,w-26,15);else ctx.fillText(T(d.posZh,d.posEn),x+14,y+55);
           ctx.fillStyle="#ff909a";ctx.font="11px "+FONT_UI;if(global.wrapText)global.wrapText(T(d.negZh,d.negEn),x+14,y+102,w-26,15);else ctx.fillText(T(d.negZh,d.negEn),x+14,y+102);
+          if(locked){ctx.fillStyle="rgba(255,255,255,.76)";ctx.font="bold 12px "+FONT_UI;ctx.fillText(T("完成上一难度解锁","CLEAR PREVIOUS TO UNLOCK"),x+14,y+136);}
         }
         global.drawBtn(T("确认难度","CONFIRM DIFFICULTY"),"",W-302,530,240,58,true,"#ffe066");
       }else if(this.page==="setupTraits"){
@@ -1104,6 +1152,9 @@
     visibleRouteIndexes(){
       const route=this.run.route,available=this.availableNext(),set=new Set([this.run.currentNode,...available]);
       route.forEach((n,i)=>{if(n.resolved)set.add(i);});
+      // The fog recedes ahead of the squad: two distant silhouettes are visible,
+      // while only reachable nodes are fully readable.
+      for(let i=this.run.currentNode+1;i<=Math.min(route.length-1,this.run.currentNode+2+(this.run.flags.reveal||0));i++)set.add(i);
       if((this.run.flags.reveal||0)>0)available.forEach(a=>(route[a].next||[]).forEach(i=>set.add(i)));
       return set;
     },
@@ -1124,17 +1175,22 @@
 
     drawRoute(){
       const ctx=global.ctx,FONT_UI=global.FONT_UI,route=this.run.route;this.updateMapPan();
-      const camX=this.run.cameraX||0,camY=this.run.cameraY||0,available=this.availableNext(),visible=this.visibleRouteIndexes();
-      ctx.save();ctx.beginPath();ctx.rect(28,96,812,520);ctx.clip();ctx.fillStyle="#010207";ctx.fillRect(28,96,812,520);
+      const camX=this.run.cameraX||0,camY=this.run.cameraY||0,available=this.availableNext(),visible=this.visibleRouteIndexes(),theme=layerThemes[this.run.layer]||layerThemes[1],elapsed=now()-(this.run.revealAt||0);
+      ctx.save();ctx.beginPath();ctx.rect(28,96,812,520);ctx.clip();const mapGrad=ctx.createLinearGradient(28,96,840,616);mapGrad.addColorStop(0,theme.top);mapGrad.addColorStop(1,theme.bottom);ctx.fillStyle=mapGrad;ctx.fillRect(28,96,812,520);
+      // Each floor has its own discoverable scenery. It is deliberately dim,
+      // but never a featureless black rectangle.
+      ctx.strokeStyle=theme.mark+"33";ctx.lineWidth=1;for(let i=0;i<22;i++){const px=55+((i*137+this.run.layer*61)%760)+camX*.12,py=128+((i*83+this.run.layer*47)%445)+camY*.08;ctx.beginPath();if(this.run.layer===1){ctx.moveTo(px-10,py);ctx.lineTo(px+10,py);ctx.moveTo(px,py-7);ctx.lineTo(px,py+7);}else if(this.run.layer===2){ctx.moveTo(px-12,py+8);ctx.lineTo(px,py-10);ctx.lineTo(px+12,py+8);}else if(this.run.layer===3){ctx.moveTo(px-5,py+14);ctx.lineTo(px,py-16);ctx.lineTo(px+5,py+14);}else{ctx.arc(px,py,7,0,Math.PI*2);ctx.moveTo(px-13,py);ctx.lineTo(px+13,py);}ctx.stroke();}
+      ctx.fillStyle=theme.mark;ctx.globalAlpha=.72;ctx.font="bold 11px "+FONT_UI;ctx.textAlign="left";ctx.fillText(T(theme.nameZh,theme.nameEn)+"  /  FLOOR "+this.run.layer,48,122);ctx.globalAlpha=1;
       const current=route[this.run.currentNode],cx=(current.mapX||110)+camX,cy=(current.mapY||330)+camY;
-      const fog=ctx.createRadialGradient(cx,cy,18,cx,cy,245);fog.addColorStop(0,"rgba(48,55,90,.62)");fog.addColorStop(1,"rgba(0,0,0,0)");ctx.fillStyle=fog;ctx.fillRect(28,96,812,520);
+      const fog=ctx.createRadialGradient(cx,cy,35,cx,cy,300);fog.addColorStop(0,"rgba("+theme.fog+",.62)");fog.addColorStop(.62,"rgba("+theme.fog+",.17)");fog.addColorStop(1,"rgba(0,0,0,0)");ctx.fillStyle=fog;ctx.fillRect(28,96,812,520);
       for(let i=0;i<route.length;i++){
-        if(!visible.has(i))continue;const n=route[i],info=nodeTypes[n.type]||nodeTypes.event,x=(n.mapX||0)+camX,y=(n.mapY||330)+camY;
+        if(!visible.has(i))continue;const n=route[i],info=nodeTypes[n.type]||nodeTypes.event,x=(n.mapX||0)+camX,y=(n.mapY||330)+camY,distance=Math.max(0,i-this.run.currentNode),revealAlpha=n.resolved||i===this.run.currentNode?1:clamp((elapsed-distance*150)/720,0,1);if(revealAlpha<=.02)continue;ctx.save();ctx.globalAlpha=.12+.88*revealAlpha;
         for(let p=0;p<route.length;p++)if(visible.has(p)&&(route[p].next||[]).includes(i)&&(route[p].resolved||p===this.run.currentNode)){const prev=route[p];ctx.strokeStyle=available.includes(i)?"rgba(255,224,102,.70)":"rgba(125,191,220,.34)";ctx.lineWidth=available.includes(i)?3:2;ctx.beginPath();ctx.moveTo((prev.mapX||0)+camX,(prev.mapY||330)+camY);ctx.lineTo(x,y);ctx.stroke();}
-        ctx.beginPath();ctx.arc(x,y,i===this.run.currentNode?22:18,0,Math.PI*2);ctx.fillStyle=i===this.run.currentNode?info.color:(n.resolved?"rgba(125,191,220,.42)":available.includes(i)?"rgba(255,224,102,.28)":"rgba(255,255,255,.10)");ctx.fill();ctx.strokeStyle=i===this.run.currentNode?"#fff":available.includes(i)?"#ffe066":"rgba(255,255,255,.32)";ctx.lineWidth=available.includes(i)?3:2;ctx.stroke();
+        const distant=!n.resolved&&!available.includes(i)&&i!==this.run.currentNode;ctx.beginPath();ctx.arc(x,y,i===this.run.currentNode?22:18,0,Math.PI*2);ctx.fillStyle=i===this.run.currentNode?info.color:(n.resolved?"rgba(125,191,220,.42)":available.includes(i)?"rgba(255,224,102,.28)":distant?"rgba(89,105,150,.16)":"rgba(255,255,255,.10)");ctx.fill();ctx.strokeStyle=i===this.run.currentNode?"#fff":available.includes(i)?"#ffe066":distant?"rgba(126,155,200,.24)":"rgba(255,255,255,.32)";ctx.lineWidth=available.includes(i)?3:2;ctx.stroke();
         ctx.fillStyle=i===this.run.currentNode?"#061018":"#fff";ctx.font="bold 11px "+FONT_UI;ctx.textAlign="center";ctx.fillText(n.type==="portal"?"◇":n.type==="boss"?"B":String(i+1),x,y+4);if(i===this.run.currentNode||available.includes(i)){ctx.fillStyle=available.includes(i)?"#ffe066":"rgba(255,255,255,.72)";ctx.font="10px "+FONT_UI;ctx.fillText(T(info.zh,info.en),x,y+34);}
+        ctx.restore();
       }
-      ctx.fillStyle="rgba(255,255,255,.46)";ctx.font="11px "+FONT_UI;ctx.textAlign="left";ctx.fillText(T("按住左键拖动地图 · 未显现区域不可查看","Hold left mouse to drag · Hidden areas remain locked"),48,596);ctx.restore();
+      ctx.fillStyle="rgba(255,255,255,.46)";ctx.font="11px "+FONT_UI;ctx.textAlign="left";ctx.fillText(T("按住左键拖动地图 · 迷雾会随推进逐步退散","Hold left mouse to drag · Fog recedes as you advance"),48,596);ctx.restore();
     },
 
     drawRun(){
@@ -1163,6 +1219,7 @@
       const roleNames=global.roles||[];
       if(!(node&&node.type==="event"&&!node.resolved))for(let i=0;i<(run.squad||[]).length;i++){const m=run.squad[i],rx=836+i*87,ry=424;ctx.fillStyle="rgba(8,12,22,.90)";ctx.fillRect(rx,ry,79,130);ctx.strokeStyle=i===0?"#9b7cff":"rgba(255,255,255,.25)";ctx.lineWidth=1.5;ctx.strokeRect(rx,ry,79,130);const col=roleNames[m.role]&&roleNames[m.role].color||["#7cc7ff","#ffe066","#c35cff"][i];ctx.fillStyle=col;ctx.beginPath();ctx.arc(rx+39.5,ry+33,24,0,Math.PI*2);ctx.fill();ctx.fillStyle="rgba(255,255,255,.74)";ctx.font="10px "+FONT_UI;ctx.fillText(T("精神","SP")+" "+m.spirit,rx+8,ry+76);ctx.fillStyle="rgba(255,255,255,.12)";ctx.fillRect(rx+8,ry+84,63,7);ctx.fillStyle="#9b7cff";ctx.fillRect(rx+8,ry+84,63*m.spirit/100,7);ctx.fillStyle="rgba(255,255,255,.74)";ctx.fillText("HP "+m.hp,rx+8,ry+106);ctx.fillStyle="rgba(255,255,255,.12)";ctx.fillRect(rx+8,ry+114,63,7);ctx.fillStyle="#ff6b7a";ctx.fillRect(rx+8,ry+114,63*m.hp/100,7);}
       const actionLabel=run.pursuerEncounter?T("迎击追猎者","FACE PURSUER"):(node&&(node.type==="battle"||node.type==="boss")&&!node.resolved?T("进入战斗","ENTER BATTLE"):(this.availableNext().length>1?T("选择发光节点","SELECT A NODE"):T("前往节点","ADVANCE")));
+      const canSkip=(run.flags.skipCharges||0)>0&&this.availableNext().length>0;global.drawBtn(T("折跃跳过 ×","FOLD-JUMP ×")+(run.flags.skipCharges||0),"",836,510,256,42,canSkip,"#5ce1e6");
       global.drawBtn(actionLabel,"",836,566,256,50,true,"#9b7cff");
     },
 
@@ -1257,6 +1314,7 @@
 
     handleClick(){
       if(!this.state) this.init();
+      if(this.storyScene){this.continueStoryScene();global.clicked=false;return true;}
       if(this.page!=="home" && clickRect((global.W||1120)-82,28,54,54)){
         this.handleEscape(); global.clicked=false; return true;
       }
@@ -1268,7 +1326,7 @@
       }else if(this.page==="setupDifficulty"){
         for(let i=0;i<difficultyDefs.length;i++){
           const col=i%5,row=Math.floor(i/5),x=50+col*207,y=158+row*164;
-          if(clickRect(x,y,190,146)){this.selectedDifficulty=difficultyDefs[i].id;sfx("ui");global.clicked=false;return true;}
+          if(clickRect(x,y,190,146)){const d=difficultyDefs[i];if(d.rank>(this.state.highestDifficultyRankCleared||0)+1)safeCenter(T("请先完整通关上一难度","Clear the previous difficulty first"),70);else{this.selectedDifficulty=d.id;sfx("ui");}global.clicked=false;return true;}
         }
         if(clickRect((global.W||1120)-302,530,240,58)){this.page="setupTraits";global.clicked=false;return true;}
       }else if(this.page==="setupTraits"){
@@ -1289,6 +1347,7 @@
             if(clickRect(836,298+i*48,256,40)){ this.chooseEvent(i); global.clicked=false; return true; }
           }
         }
+        if(clickRect(836,510,256,42)){this.skipNextNode();global.clicked=false;return true;}
         if(clickRect(836,566,256,50)){ this.advance(); global.clicked=false; return true; }
       }else if(this.page==="rest"){
         for(let i=0;i<3;i++)if(clickRect(68+i*340,215,308,255)){this.buyRestOffer(i);global.clicked=false;return true;}
@@ -1312,6 +1371,7 @@
     },
 
     handleEscape(){
+      if(this.storyScene){safeCenter(T("剧情记录不可跳过","Story records cannot be skipped"),45);return true;}
       if(this.page==="codex" || this.page==="endings" || this.page==="result" || this.page==="level" || this.page==="defeat"){
         this.page="home";
         return true;

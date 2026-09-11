@@ -1,0 +1,9 @@
+PROJECT ZERO V49.32.2 - STORY & INTEL LOCALIZATION
+
+- Expanded all 43 existing main-story stages from Chapter 0 through Chapter 3.
+- Every stage gains additional environmental narration and an operation record.
+- New field-intelligence entries now remember the language used when collected.
+- English Archive view converts legacy Chinese-only clues into English index text.
+- The original Chinese record is preserved and remains available after switching
+  the game back to Chinese.
+- Added the story expansion module to web loading and offline cache lists.
