@@ -642,6 +642,15 @@ function cloudTx(key){ return L(CLOUD_TEXT, key, key); }
 let audioUnlocked = false;
 let audioResumePromise = null;
 
+function githubSafeAudioUrl(path){
+  try{
+    const url=new URL(path,document.baseURI);
+    const build=window.PZ_UPDATE_INFO&&window.PZ_UPDATE_INFO.build;
+    if(build) url.searchParams.set("pzbuild",String(build));
+    return url.href;
+  }catch(_){ return path; }
+}
+
 function retryActiveBgmAfterUnlock(){
   if(!audioUnlocked) return;
   if(gameMode === "login"){
@@ -655,8 +664,19 @@ function retryActiveBgmAfterUnlock(){
     if(!chapterBgmAudio || chapterBgmKey !== chapterRoute.key) selectChapterBgm(chapterRoute);
     playChapterBgm();
   }else{
-    if(gameMode === "shop") shopBgmUnavailable = false;
-    else worldBgmUnavailable = false;
+    if(gameMode==="battle"&&battleModeSource==="bossKros"){
+      bossKrosBgmUnavailable=false;
+      if(bossKrosBgmAudio&&bossKrosBgmAudio.error){try{bossKrosBgmAudio.pause();}catch(_){}bossKrosBgmAudio=null;}
+      playBossKrosBgm();
+      return;
+    }
+    if(gameMode === "shop"){
+      shopBgmUnavailable = false;
+      if(shopBgmAudio&&shopBgmAudio.error){try{shopBgmAudio.pause();}catch(_){}shopBgmAudio=null;}
+    }else{
+      worldBgmUnavailable = false;
+      if(worldBgmAudio&&worldBgmAudio.error){try{worldBgmAudio.pause();}catch(_){}worldBgmAudio=null;}
+    }
     requestWorldBgmPlay();
   }
 }
@@ -693,12 +713,12 @@ function ensureLoginBgm(){
   if(loginBgmAudio || loginBgmUnavailable) return loginBgmAudio;
   try{
     const src = LOGIN_BGM_PATHS[loginBgmPathIndex] || LOGIN_BGM_PATHS[0];
-    const a = new Audio(src);
+    const a = new Audio(githubSafeAudioUrl(src));
     a.loop = true;
     a.preload = "auto";
     a.volume = 0;
     a.addEventListener("error", () => {
-      loginBgmAudio = null;
+      if(loginBgmAudio===a) loginBgmAudio = null;
       loginBgmPathIndex++;
       if(loginBgmPathIndex >= LOGIN_BGM_PATHS.length){
         loginBgmUnavailable = true;
@@ -730,7 +750,7 @@ function updateLoginBgm(){
   const wantsLoginMusic = gameMode === "login";
   loginBgmTargetVolume = (!audioMuted && wantsLoginMusic) ? clamp(bgmVolume,0,1) : 0;
 
-  if(wantsLoginMusic && loginBgmTargetVolume > 0.001) requestLoginBgmPlay();
+  if(audioUnlocked && wantsLoginMusic && loginBgmTargetVolume > 0.001) requestLoginBgmPlay();
 
   const diff = loginBgmTargetVolume - loginBgmCurrentVolume;
   const step = 0.045 * (frameScale || 1);
@@ -752,13 +772,13 @@ function ensureWorldBgmTrack(kind){
   const current=isShop ? shopBgmAudio : worldBgmAudio;
   if(current) return current;
   try{
-    const a=new Audio(isShop ? SHOP_BGM_PATH : WORLD_BGM_PATH);
+    const a=new Audio(githubSafeAudioUrl(isShop ? SHOP_BGM_PATH : WORLD_BGM_PATH));
     a.loop=true;
     a.preload="auto";
     a.volume=0;
     a.addEventListener("error",()=>{
-      if(isShop) shopBgmUnavailable=true;
-      else worldBgmUnavailable=true;
+      if(isShop){shopBgmUnavailable=true;if(shopBgmAudio===a)shopBgmAudio=null;}
+      else{worldBgmUnavailable=true;if(worldBgmAudio===a)worldBgmAudio=null;}
     },{once:true});
     if(isShop) shopBgmAudio=a;
     else worldBgmAudio=a;
@@ -804,11 +824,11 @@ function ensureBossKrosBgm(){
   if(bossKrosBgmAudio&&bossBattleBgmPath!==desiredPath){try{bossKrosBgmAudio.pause();bossKrosBgmAudio.currentTime=0;}catch(e){}bossKrosBgmAudio=null;bossKrosBgmUnavailable=false;bossKrosBgmPlayPending=false;}
   if(bossKrosBgmAudio || bossKrosBgmUnavailable) return bossKrosBgmAudio;
   try{
-    const a=new Audio(desiredPath);
+    const a=new Audio(githubSafeAudioUrl(desiredPath));
     a.loop=true;
     a.preload="auto";
     a.volume=0;
-    a.addEventListener("error",()=>{if(bossKrosBgmAudio===a)bossKrosBgmUnavailable=true;},{once:true});
+    a.addEventListener("error",()=>{if(bossKrosBgmAudio===a){bossKrosBgmUnavailable=true;bossKrosBgmAudio=null;}},{once:true});
     bossBattleBgmPath=desiredPath;bossKrosBgmAudio=a;
   }catch(e){bossKrosBgmUnavailable=true;}
   return bossKrosBgmAudio;
@@ -862,14 +882,14 @@ function desiredChapterBgm(){
 
 function selectChapterBgm(route){
   const nextKey=route&&route.path?route.key:"";
-  if(nextKey===chapterBgmKey) return;
+  if(nextKey===chapterBgmKey&&chapterBgmAudio) return;
   if(chapterBgmAudio){try{chapterBgmAudio.pause();chapterBgmAudio.currentTime=0;}catch(e){}}
   chapterBgmAudio=null;chapterBgmCurrentVolume=0;chapterBgmPlayPending=false;chapterBgmKey=nextKey;
   if(!nextKey || chapterBgmUnavailable.has(nextKey)) return;
   try{
-    const a=new Audio(route.path);
+    const a=new Audio(githubSafeAudioUrl(route.path));
     a.loop=true;a.preload="auto";a.volume=0;
-    a.addEventListener("error",()=>{chapterBgmUnavailable.add(nextKey);},{once:true});
+    a.addEventListener("error",()=>{chapterBgmUnavailable.add(nextKey);if(chapterBgmAudio===a)chapterBgmAudio=null;},{once:true});
     chapterBgmAudio=a;
   }catch(e){chapterBgmUnavailable.add(nextKey);}
 }

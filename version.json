@@ -1,11 +1,15 @@
 {
-  "version": "49.32.3",
-  "build": "2026091005-protagonist-dialogue-choices",
+  "version": "49.32.4",
+  "build": "2026091006-github-music-recovery",
   "publishedAt": "2026-08-29T12:00:00Z",
   "mandatory": false,
   "minimumLauncherVersion": "1.0.0",
   "saveSchemaVersion": 80,
   "changelog": [
+    "修复 GitHub Pages 登录音乐在首次交互前反复触发自动播放拦截，导致玩家点击后仍无法播放的问题",
+    "所有音乐地址加入当前构建标识，避免 GitHub CDN 与旧 Service Worker 持续返回上一构建音频",
+    "大厅、商店、章节与Boss音乐加载失败后会销毁失败实例，并在下一次玩家交互时真正重建播放器",
+    "网页缓存新增完整音乐清单与 MP3 Range 分段请求支持，改善 Chrome、Edge、Safari 的托管版播放兼容性",
     "所有主线章节中由主角说出的固定台词统一改为2至3项对话选择，选择后先完整演出所选台词再继续剧情",
     "对话选择提供直接、谨慎与坚定三种表达方向，并支持鼠标点击或数字键1至3选择",
     "选择界面沿用新手教程结束后剧情的分支交互风格，且任何一次主角发言都不会超过3个选项",

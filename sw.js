@@ -2,7 +2,7 @@
 
 const params=new URL(self.location.href).searchParams;
 const BUILD=params.get("build")||"stable";
-const CACHE_NAME="project-zero-web-v2-"+BUILD;
+const CACHE_NAME="project-zero-web-v3-"+BUILD;
 const CORE_FILES=[
   "./","./index.html","./style.css","./version.json","./account-config.js","./pz-account-api.js","./update-client.js",
   "./locales.js","./story_scripts.js","./story_events.js","./story_engine.js",
@@ -14,7 +14,8 @@ const CORE_FILES=[
   "./assets/audio/bgm/chapter1_operation.mp3","./assets/audio/bgm/chapter1_battle.mp3","./assets/audio/bgm/chapter1_boss.mp3",
   "./assets/audio/bgm/chapter2_operation.mp3","./assets/audio/bgm/chapter2_battle.mp3",
   "./assets/audio/bgm/chapter3_operation.mp3","./assets/audio/bgm/chapter3_battle.mp3",
-  "./assets/audio/bgm/chapter3_part2_operation.mp3","./assets/audio/bgm/operation_world.mp3"
+  "./assets/audio/bgm/chapter3_part2_operation.mp3","./assets/audio/bgm/operation_world.mp3",
+  "./assets/audio/bgm/last_safe_city.mp3","./assets/audio/bgm/skyglass_bazaar.mp3","./assets/audio/bgm/kros_battle.mp3"
 ];
 
 self.addEventListener("install",event=>{
@@ -30,7 +31,7 @@ self.addEventListener("install",event=>{
 self.addEventListener("activate",event=>{
   event.waitUntil((async()=>{
     const keys=await caches.keys();
-    await Promise.all(keys.filter(key=>(key.startsWith("project-zero-runtime-")||key.startsWith("project-zero-web-v2-"))&&key!==CACHE_NAME).map(key=>caches.delete(key)));
+    await Promise.all(keys.filter(key=>key.startsWith("project-zero-")&&key!==CACHE_NAME).map(key=>caches.delete(key)));
     await self.clients.claim();
   })());
 });
@@ -55,6 +56,25 @@ self.addEventListener("fetch",event=>{
   if(url.origin!==self.location.origin) return;
   if(url.pathname.endsWith("/version.json")){
     event.respondWith(fetch(request,{cache:"no-store"}));
+    return;
+  }
+  if(request.headers.has("range")&&/\.(?:mp3|ogg|wav|m4a)$/i.test(url.pathname)){
+    event.respondWith((async()=>{
+      try{return await fetch(request,{cache:"no-store"});}catch(error){
+        const cache=await caches.open(CACHE_NAME);
+        const full=await cache.match(url.href,{ignoreSearch:true});
+        if(!full) throw error;
+        const bytes=await full.arrayBuffer();
+        const match=/bytes=(\d+)-(\d*)/i.exec(request.headers.get("range")||"");
+        const start=match?Number(match[1]):0;
+        const end=match&&match[2]?Math.min(Number(match[2]),bytes.byteLength-1):bytes.byteLength-1;
+        return new Response(bytes.slice(start,end+1),{status:206,headers:{
+          "Content-Type":full.headers.get("Content-Type")||"audio/mpeg",
+          "Content-Range":"bytes "+start+"-"+end+"/"+bytes.byteLength,
+          "Content-Length":String(end-start+1),"Accept-Ranges":"bytes"
+        }});
+      }
+    })());
     return;
   }
   if(request.mode==="navigate"||/\.(?:js|css|html|json)$/i.test(url.pathname)){

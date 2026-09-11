@@ -1,0 +1,8 @@
+Project Zero V49.32.4
+Build: 2026091006-github-music-recovery
+
+- 修复 GitHub Pages 首次点击后音乐仍被浏览器自动播放策略阻止的问题。
+- 音乐资源使用构建号隔离 GitHub CDN 与旧网页缓存。
+- 加载失败的播放器会被销毁，并在玩家下一次操作时重新建立。
+- Service Worker 支持 MP3 Range 分段响应。
+- 将大厅、商店、Boss及全部章节音乐纳入网页缓存清单。
