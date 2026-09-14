@@ -1,0 +1,4 @@
+Project Zero Mobile V49.36.0
+Build: 2026091302-mobile-ailo-portrait-tuning
+
+Independent Mobile edition. PC/Web source is not modified.
