@@ -13,10 +13,8 @@
 
 
 // Build info for quick debugging
-window.PZ_MOBILE_EDITION = true;
 window.PZ_BUILD_INFO = window.PZ_BUILD_INFO || {
-  build: "V49_36_0_MOBILE_AILO_PORTRAIT_TUNING",
-  edition: "mobile",
+  build: "V49_33_3_PC_GUEST_ENTRY_ICON",
   storyModule: true,
   optimized: true
 };
@@ -24,60 +22,49 @@ window.PZ_BUILD_INFO = window.PZ_BUILD_INFO || {
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
-function pzAssetUrl(path){
-  try{const url=new URL(String(path||"").replace(/^\.\//,""),document.baseURI),build=window.PZ_UPDATE_INFO&&window.PZ_UPDATE_INFO.build;if(build&&/^https?:$/.test(url.protocol))url.searchParams.set("pzbuild",String(build));return url.href;}catch(_){return path;}
-}
-
-function setPzImageSource(img,path){let retried=false;img.decoding="async";img.addEventListener("error",()=>{if(retried)return;retried=true;try{const url=new URL(pzAssetUrl(path));url.searchParams.set("pzretry",String(Date.now()));img.src=url.href;}catch(_){}},{once:false});img.src=pzAssetUrl(path);return img;}
-
 // === PZ Custom Cursor System ===
 const pzCursorImg = new Image();
-setPzImageSource(pzCursorImg,"assets/ui/pz_cursor.png");
+pzCursorImg.src = "assets/ui/pz_cursor.png";
 const lobbyBackgroundImg = new Image();
-setPzImageSource(lobbyBackgroundImg,"assets/ui/lobby_background.png");
+lobbyBackgroundImg.src = "assets/ui/lobby_background.png";
 let lobbyBackgroundReady = false;
 lobbyBackgroundImg.onload = () => { lobbyBackgroundReady = true; };
-queueMicrotask(()=>{if(lobbyBackgroundImg.complete&&lobbyBackgroundImg.naturalWidth)lobbyBackgroundReady=true;});
 const hermitPortraitImg = new Image();
-setPzImageSource(hermitPortraitImg,"assets/ui/hermit_portrait_display.png");
+hermitPortraitImg.src = "assets/ui/hermit_portrait_display.png";
 let hermitPortraitReady = false;
 hermitPortraitImg.onload = () => { hermitPortraitReady = true; };
-queueMicrotask(()=>{if(hermitPortraitImg.complete&&hermitPortraitImg.naturalWidth)hermitPortraitReady=true;});
 const floraPortraitImg = new Image();
-setPzImageSource(floraPortraitImg,"assets/ui/flora_portrait_display.png");
+floraPortraitImg.src = "assets/ui/flora_portrait_display.png";
 let floraPortraitReady = false;
 floraPortraitImg.onload = () => { floraPortraitReady = true; };
-queueMicrotask(()=>{if(floraPortraitImg.complete&&floraPortraitImg.naturalWidth)floraPortraitReady=true;});
 const floraExecutorPortraitImg = new Image();
-setPzImageSource(floraExecutorPortraitImg,"assets/ui/flora_portrait_executor.png");
+floraExecutorPortraitImg.src = "assets/ui/flora_portrait_executor.png";
 let floraExecutorPortraitReady = false;
 floraExecutorPortraitImg.onload = () => { floraExecutorPortraitReady = true; };
-queueMicrotask(()=>{if(floraExecutorPortraitImg.complete&&floraExecutorPortraitImg.naturalWidth)floraExecutorPortraitReady=true;});
 const kanePortraitImg = new Image();
-setPzImageSource(kanePortraitImg,"assets/ui/kane_portrait.png");
+kanePortraitImg.src = "assets/ui/kane_portrait.png";
 let kanePortraitReady = false;
 kanePortraitImg.onload = () => { kanePortraitReady = true; };
-queueMicrotask(()=>{if(kanePortraitImg.complete&&kanePortraitImg.naturalWidth)kanePortraitReady=true;});
 const ailoPortraitImg = new Image();
-setPzImageSource(ailoPortraitImg,"assets/ui/ailo_portrait_display.png");
+ailoPortraitImg.src = "assets/ui/ailo_portrait_display.png";
 let ailoPortraitReady = false;
 ailoPortraitImg.onload = () => { ailoPortraitReady = true; };
-queueMicrotask(()=>{if(ailoPortraitImg.complete&&ailoPortraitImg.naturalWidth)ailoPortraitReady=true;});
+const trainingWeaponImgs={};
+for(const [type,file] of Object.entries({sword:"training_weapon_sword.png",bow:"training_weapon_bow.png",gun:"training_weapon_gun.png",shield:"training_weapon_shield.png",codex:"training_weapon_codex.png"})){
+  const img=new Image();img.src="assets/ui/"+file;trainingWeaponImgs[type]=img;
+}
 const crystalCurrencyImg = new Image();
-setPzImageSource(crystalCurrencyImg,"assets/ui/currency_crystal.png");
+crystalCurrencyImg.src = "assets/ui/currency_crystal.png";
 let crystalCurrencyReady = false;
 crystalCurrencyImg.onload = () => { crystalCurrencyReady = true; };
-queueMicrotask(()=>{if(crystalCurrencyImg.complete&&crystalCurrencyImg.naturalWidth)crystalCurrencyReady=true;});
 const goldCurrencyImg = new Image();
-setPzImageSource(goldCurrencyImg,"assets/ui/currency_gold.png");
+goldCurrencyImg.src = "assets/ui/currency_gold.png";
 let goldCurrencyReady = false;
 goldCurrencyImg.onload = () => { goldCurrencyReady = true; };
-queueMicrotask(()=>{if(goldCurrencyImg.complete&&goldCurrencyImg.naturalWidth)goldCurrencyReady=true;});
 const staminaCurrencyImg = new Image();
-setPzImageSource(staminaCurrencyImg,"assets/ui/currency_stamina.png");
+staminaCurrencyImg.src = "assets/ui/currency_stamina.png";
 let staminaCurrencyReady = false;
 staminaCurrencyImg.onload = () => { staminaCurrencyReady = true; };
-queueMicrotask(()=>{if(staminaCurrencyImg.complete&&staminaCurrencyImg.naturalWidth)staminaCurrencyReady=true;});
 const CRYSTAL_TOPUP_TIERS = [
   {crystals:70,price:"$0.99",image:""},
   {crystals:400,price:"$4.99",image:"assets/ui/crystal_topup_400.png"},
@@ -88,7 +75,7 @@ const CRYSTAL_TOPUP_TIERS = [
 ];
 const crystalTopupTierImgs=CRYSTAL_TOPUP_TIERS.map(t=>{
   if(!t.image)return null;
-  const img=new Image();setPzImageSource(img,t.image);return img;
+  const img=new Image();img.src=t.image;return img;
 });
 let hermitLobbyBorderlessLayer = null;
 let floraLobbyBorderlessLayer = null;
@@ -97,7 +84,6 @@ let ailoLobbyPortraitLayer = null;
 let pzCursorReady = false;
 let pzCursorPulse = 0;
 pzCursorImg.onload = () => { pzCursorReady = true; };
-queueMicrotask(()=>{if(pzCursorImg.complete&&pzCursorImg.naturalWidth)pzCursorReady=true;});
 
 function pzCursorIsHoveringUI(){
   try{
@@ -325,7 +311,7 @@ if(typeof ResizeObserver!=="undefined"){
   if(gameWrap) new ResizeObserver(scheduleAdaptiveResize).observe(gameWrap);
 }
 let audioCtx = null;
-const BUILD_TARGET = "MOBILE";
+const BUILD_TARGET = "PC";
 const I18N_RES = window.PROJECT_ZERO_I18N || {};
 
 const MSG_TEXT = I18N_RES.MSG_TEXT || {
@@ -708,11 +694,11 @@ function retryActiveBgmAfterUnlock(){
 }
 
 function unlockAudio(){
-  audioUnlocked = true;
   if(!audioCtx){
-    try{const AudioContextClass=window.AudioContext||window.webkitAudioContext;if(AudioContextClass)audioCtx=new AudioContextClass();}catch(_){}
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   }
-  if(audioCtx&&audioCtx.state === "suspended"){
+  audioUnlocked = true;
+  if(audioCtx.state === "suspended"){
     if(!audioResumePromise){
       audioResumePromise = Promise.resolve(audioCtx.resume()).catch(()=>null).finally(()=>{
         audioResumePromise = null;
@@ -724,19 +710,6 @@ function unlockAudio(){
   // is otherwise rejected by browser autoplay policy on GitHub Pages.
   retryActiveBgmAfterUnlock();
 }
-
-// Canvas controls, native text fields and PWA chrome can receive different
-// first-touch event paths. Capture every genuine user gesture so iOS/Android
-// get another chance to resume both WebAudio and HTMLMediaElement playback.
-document.addEventListener("pointerdown",unlockAudio,{capture:true,passive:true});
-document.addEventListener("touchstart",unlockAudio,{capture:true,passive:true});
-
-function restoreMobileAudioAfterInterruption(){
-  if(!mobileInput.enabled||!audioUnlocked||document.hidden)return;
-  try{if(audioCtx&&(audioCtx.state==="suspended"||audioCtx.state==="interrupted"))Promise.resolve(audioCtx.resume()).then(retryActiveBgmAfterUnlock).catch(()=>{});else retryActiveBgmAfterUnlock();}catch(_){}
-}
-window.addEventListener("pageshow",()=>setTimeout(restoreMobileAudioAfterInterruption,80),{passive:true});
-document.addEventListener("visibilitychange",()=>{if(!document.hidden)setTimeout(restoreMobileAudioAfterInterruption,80);},{passive:true});
 
 function audioEase01(x){
   x = clamp(Number(x) || 0, 0, 1);
@@ -752,10 +725,9 @@ function ensureLoginBgm(){
   if(loginBgmAudio || loginBgmUnavailable) return loginBgmAudio;
   try{
     const src = LOGIN_BGM_PATHS[loginBgmPathIndex] || LOGIN_BGM_PATHS[0];
-    const a = new Audio();
+    const a = new Audio(githubSafeAudioUrl(src));
     a.loop = true;
     a.preload = "auto";
-    a.playsInline = true;
     a.volume = 0;
     a.addEventListener("error", () => {
       if(loginBgmAudio===a) loginBgmAudio = null;
@@ -764,7 +736,6 @@ function ensureLoginBgm(){
         loginBgmUnavailable = true;
       }
     }, { once:true });
-    a.src=githubSafeAudioUrl(src);a.load();
     loginBgmAudio = a;
   }catch(e){
     loginBgmPathIndex++;
@@ -813,16 +784,14 @@ function ensureWorldBgmTrack(kind){
   const current=isShop ? shopBgmAudio : worldBgmAudio;
   if(current) return current;
   try{
-    const a=new Audio();
+    const a=new Audio(githubSafeAudioUrl(isShop ? SHOP_BGM_PATH : WORLD_BGM_PATH));
     a.loop=true;
     a.preload="auto";
-    a.playsInline=true;
     a.volume=0;
     a.addEventListener("error",()=>{
       if(isShop){shopBgmUnavailable=true;if(shopBgmAudio===a)shopBgmAudio=null;}
       else{worldBgmUnavailable=true;if(worldBgmAudio===a)worldBgmAudio=null;}
     },{once:true});
-    a.src=githubSafeAudioUrl(isShop ? SHOP_BGM_PATH : WORLD_BGM_PATH);a.load();
     if(isShop) shopBgmAudio=a;
     else worldBgmAudio=a;
     return a;
@@ -867,13 +836,11 @@ function ensureBossKrosBgm(){
   if(bossKrosBgmAudio&&bossBattleBgmPath!==desiredPath){try{bossKrosBgmAudio.pause();bossKrosBgmAudio.currentTime=0;}catch(e){}bossKrosBgmAudio=null;bossKrosBgmUnavailable=false;bossKrosBgmPlayPending=false;}
   if(bossKrosBgmAudio || bossKrosBgmUnavailable) return bossKrosBgmAudio;
   try{
-    const a=new Audio();
+    const a=new Audio(githubSafeAudioUrl(desiredPath));
     a.loop=true;
     a.preload="auto";
-    a.playsInline=true;
     a.volume=0;
     a.addEventListener("error",()=>{if(bossKrosBgmAudio===a){bossKrosBgmUnavailable=true;bossKrosBgmAudio=null;}},{once:true});
-    a.src=githubSafeAudioUrl(desiredPath);a.load();
     bossBattleBgmPath=desiredPath;bossKrosBgmAudio=a;
   }catch(e){bossKrosBgmUnavailable=true;}
   return bossKrosBgmAudio;
@@ -932,10 +899,9 @@ function selectChapterBgm(route){
   chapterBgmAudio=null;chapterBgmCurrentVolume=0;chapterBgmPlayPending=false;chapterBgmKey=nextKey;
   if(!nextKey || chapterBgmUnavailable.has(nextKey)) return;
   try{
-    const a=new Audio();
-    a.loop=true;a.preload="auto";a.playsInline=true;a.volume=0;
+    const a=new Audio(githubSafeAudioUrl(route.path));
+    a.loop=true;a.preload="auto";a.volume=0;
     a.addEventListener("error",()=>{chapterBgmUnavailable.add(nextKey);if(chapterBgmAudio===a)chapterBgmAudio=null;},{once:true});
-    a.src=githubSafeAudioUrl(route.path);a.load();
     chapterBgmAudio=a;
   }catch(e){chapterBgmUnavailable.add(nextKey);}
 }
@@ -1287,48 +1253,8 @@ const mobileInput = {
   moveY:0,
   activeButtons:{},
   touchActions:{},
-  ignoreMouseUntil:0,
-  uiStartX:0,uiStartY:0,uiLastX:0,uiLastY:0,uiStartAt:0,uiMoved:false,uiAxis:"",uiDeferredTap:false,scrollAccum:0,
-  floraWheel:{open:false,touchId:null,x:0,y:0,selected:"",timer:0,cooldownUntil:0},
-  chloeAimTouchId:null,
-  touchPoints:{},crystalPinch:{active:false,ids:[],distance:0}
+  ignoreMouseUntil:0
 };
-
-const mobileMotion={x:0,y:0,hasData:false,requested:false,baseBeta:null,baseGamma:null};
-const mobileBattery={level:null,charging:false,supported:false};
-const mobileViewport={width:0,height:0,orientation:"",keyboardOpen:false};
-const mobileImmersive={requested:false,fullscreen:false,orientationLocked:false};
-function isInstalledMobileApp(){return !!(navigator.standalone||window.matchMedia?.("(display-mode: standalone)").matches||window.matchMedia?.("(display-mode: fullscreen)").matches||document.referrer.startsWith("android-app://"));}
-
-function initMobileDeviceSignals(){
-  window.addEventListener("deviceorientation",e=>{
-    if(!mobileInput.enabled||!Number.isFinite(e.gamma)||!Number.isFinite(e.beta))return;
-    if(mobileMotion.baseBeta===null||mobileMotion.baseGamma===null){mobileMotion.baseBeta=e.beta;mobileMotion.baseGamma=e.gamma;return;}
-    const db=e.beta-mobileMotion.baseBeta,dg=e.gamma-mobileMotion.baseGamma,angle=Number(screen.orientation?.angle??window.orientation??0);
-    const tx=Math.abs(angle)===90?clamp((angle>0?db:-db)/14,-1,1):clamp(dg/14,-1,1);
-    const ty=Math.abs(angle)===90?clamp(dg/14,-1,1):clamp(db/14,-1,1);
-    mobileMotion.x+=(tx-mobileMotion.x)*.16;mobileMotion.y+=(ty-mobileMotion.y)*.16;mobileMotion.hasData=true;
-  },{passive:true});
-  window.addEventListener("orientationchange",()=>{mobileMotion.baseBeta=null;mobileMotion.baseGamma=null;mobileMotion.x=0;mobileMotion.y=0;mobileMotion.hasData=false;},{passive:true});
-  if(navigator.getBattery)navigator.getBattery().then(b=>{
-    const sync=()=>{mobileBattery.supported=true;mobileBattery.level=clamp(b.level,0,1);mobileBattery.charging=!!b.charging;};sync();
-    b.addEventListener("levelchange",sync);b.addEventListener("chargingchange",sync);
-  }).catch(()=>{});
-}
-
-function requestMobileImmersiveLandscape(){
-  if(!mobileInput.enabled||!isInstalledMobileApp())return;
-  const lock=()=>{try{const p=screen.orientation?.lock?.("landscape");if(p&&typeof p.then==="function")p.then(()=>{mobileImmersive.orientationLocked=true;}).catch(()=>{});}catch(_){} };
-  if(document.fullscreenElement||document.webkitFullscreenElement){mobileImmersive.fullscreen=true;lock();return;}
-  if(mobileImmersive.requested){lock();return;}mobileImmersive.requested=true;
-  const target=document.getElementById("gameWrap")||document.documentElement,request=target.requestFullscreen||target.webkitRequestFullscreen;
-  if(typeof request==="function"){try{const p=request.call(target,{navigationUI:"hide"});if(p&&typeof p.then==="function")p.then(()=>{mobileImmersive.fullscreen=true;lock();}).catch(()=>lock());else{mobileImmersive.fullscreen=true;lock();}}catch(_){lock();}}else lock();
-}
-
-function requestMobileMotionPermission(){
-  if(mobileMotion.requested)return;mobileMotion.requested=true;
-  try{const fn=window.DeviceOrientationEvent&&DeviceOrientationEvent.requestPermission;if(typeof fn==="function")fn.call(DeviceOrientationEvent).catch(()=>{});}catch(e){}
-}
 
 function isMobileLike(){
   return navigator.maxTouchPoints>0 && ((window.matchMedia&&window.matchMedia("(pointer: coarse)").matches) || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent));
@@ -1337,9 +1263,6 @@ function isMobileLike(){
 function shouldShowMobileControls(){
   return mobileInput.enabled && !battlePaused && (gameMode==="battle" || gameMode==="tutorialBattle");
 }
-
-function isMobileWaitingSpace(){return !!(mobileInput.enabled&&gameMode==="operation"&&selectedTab==="dualCrystal"&&window.PZCrystalWar?.isMobileWaitingSpace?.());}
-function shouldShowMobileJoystick(){return shouldShowMobileControls()||isMobileWaitingSpace();}
 
 function detectPZDevice(){
   const touch=isMobileLike();
@@ -1352,37 +1275,17 @@ function detectPZDevice(){
   return mobileInput.device;
 }
 
-function applyMobileViewportLayout(force=false){
+function applyMobileViewportLayout(){
   const wrap=document.getElementById("gameWrap");if(!wrap)return;
   if(!mobileInput.enabled){wrap.style.removeProperty("width");wrap.style.removeProperty("height");return;}
-  const orientation=(screen.orientation&&screen.orientation.type)||((innerWidth>=innerHeight)?"landscape":"portrait");
-  const innerW=Math.max(1,window.innerWidth),innerH=Math.max(1,window.innerHeight),vv=window.visualViewport;
-  const keyboardLikely=(document.documentElement.dataset.pzKeyboard==="open"||isTypingTarget(document.activeElement))&&vv&&vv.height<innerH*.82;
-  mobileViewport.keyboardOpen=!!keyboardLikely;
-  if(keyboardLikely&&!force&&mobileViewport.width&&mobileViewport.height)return;
-  const vw=Math.max(1,vv&&!keyboardLikely?vv.width:innerW),vh=Math.max(1,vv&&!keyboardLikely?vv.height:innerH);
-  if(!force&&mobileViewport.orientation===orientation&&mobileViewport.width&&Math.abs(vw-mobileViewport.width)<4&&Math.abs(vh-mobileViewport.height)<4)return;
-  mobileViewport.width=vw;mobileViewport.height=vh;mobileViewport.orientation=orientation;
+  const vw=Math.max(1,window.visualViewport?window.visualViewport.width:window.innerWidth);
+  const vh=Math.max(1,window.visualViewport?window.visualViewport.height:window.innerHeight);
   const ratio=W/H;let width=Math.min(vw,vh*ratio),height=width/ratio;
   wrap.style.width=Math.floor(width)+"px";wrap.style.height=Math.floor(height)+"px";
 }
 
 function setKeyVirtual(key, down){
   keys[key] = !!down;
-}
-
-function mobileHasNearbyInteraction(){
-  if(!player||!(gameMode==="battle"||gameMode==="tutorialBattle"))return false;
-  if(battleModeSource==="projectArea"&&Array.isArray(projectAreaObjects))return projectAreaObjects.some(o=>!o.done&&dist(player.x,player.y,o.x,o.y)<55);
-  if(typeof supportsStageExploration==="function"&&supportsStageExploration()&&Array.isArray(battleExploreObjects))return battleExploreObjects.some(o=>!o.done&&o.type!=="crate"&&dist(player.x,player.y,o.x,o.y)<72);
-  return false;
-}
-
-function usesMobileArcanaUI(){return isFloraRole()||player?.role===1;}
-
-function mobileTeamSlotDisabled(slot){
-  const roleId=Array.isArray(team)?team[slot]:null;
-  return !Number.isInteger(roleId)||roleId===player.role||player.switchCd>0||ult.active||(Array.isArray(battleRoleHp)&&(battleRoleHp[roleId]||0)<=0);
 }
 
 function mobileButtonRects(){
@@ -1392,50 +1295,15 @@ function mobileButtonRects(){
   //          E / 技能
   //    R / 切换     ATK / 普攻
   //          DODGE / 冲刺
-  const interact=mobileHasNearbyInteraction(),parry=!interact&&!!findParryEnemy(),slotGap=mobileInput.device==="tablet"?66:58,slotY=50,slotRight=W-104;
   return {
-    attack:{x:W-158,y:H-120,r:62,label:interact?(language==="en"?"INTERACT":"交互"):parry?(language==="en"?"PARRY":"弹刀"):(language==="en"?"ATK":"普攻"),key:interact?"f":parry?" ":"mouse1",kind:interact?"interact":parry?"parry":"main",interact,parry},
-    dash:{x:W-70,y:H-48,r:43,label:language==="en"?"DODGE":"闪避",key:"shift",kind:"dash"},
-    skill:{x:W-246,y:H-236,r:42,label:language==="en"?"SKILL":"技能",key:"e",kind:"skill"},
-    ult:{x:W-125,y:H-274,r:46,label:language==="en"?"ULT":"大招",key:"q",kind:"ult"},
-    swap:{x:W-315,y:H-132,r:39,label:language==="en"?"SWAP":"切换",key:"r",kind:"swap"},
-    team0:{x:slotRight-slotGap*2,y:slotY,r:25,label:"1",key:"1",kind:"team",slot:0},
-    team1:{x:slotRight-slotGap,y:slotY,r:25,label:"2",key:"2",kind:"team",slot:1},
-    team2:{x:slotRight,y:slotY,r:25,label:"3",key:"3",kind:"team",slot:2},
-    menu:{x:W-72,y:18,w:50,h:44,label:"MENU",key:"escape",kind:"menu"}
+    attack:{x:W-158,y:H-145,r:58,label:language==="en"?"ATK":"普攻",key:"mouse1",kind:"main"},
+    dash:{x:W-96,y:H-56,r:42,label:language==="en"?"DODGE":"冲刺",key:"shift",kind:"dash"},
+    skill:{x:W-215,y:H-246,r:38,label:language==="en"?"SKILL":"技能",key:"e",kind:"skill"},
+    ult:{x:W-126,y:H-286,r:42,label:language==="en"?"ULT":"大招",key:"q",kind:"ult"},
+    swap:{x:W-280,y:H-150,r:36,label:language==="en"?"SWAP":"切换",key:"r",kind:"swap"},
+    parry:{x:W-350,y:H-72,r:34,label:language==="en"?"PARRY":"弹刀",key:" ",kind:"parry"},
+    menu:{x:W-52,y:52,r:31,label:"MENU",key:"escape",kind:"menu"}
   };
-}
-
-function floraWheelPick(p){
-  const w=mobileInput.floraWheel,dx=p.x-w.x,dy=p.y-w.y,d=Math.hypot(dx,dy);
-  if(d<42||d>145)return "";
-  return dx<0?"skill":"ult";
-}
-
-function closeFloraWheel(cast){
-  const w=mobileInput.floraWheel,choice=w.selected;w.open=false;w.touchId=null;w.selected="";w.timer=0;w.cooldownUntil=performance.now()+300;slowMo=Math.min(slowMo,7);
-  if(!cast||!choice)return;
-  const target=lockTarget&&lockTarget.alive?lockTarget:nearestEnemy();if(target){mouseX=target.x;mouseY=target.y;lockTarget=target;}
-  if(choice==="skill"&&player.skillCd<=0)skillBuffer=10;
-  if(choice==="ult"&&player.ultCd<=0&&player.ult>=ULT_MAX)ultBuffer=10;
-}
-
-function applyMobileSwipeDelta(dx,dy,p){
-  const delta=Math.abs(dy)>=Math.abs(dx)?-dy:-dx;
-  if(gameMode==="archive"&&archiveEntry>=0&&archiveTab===0)archiveDetailScroll=Math.max(0,archiveDetailScroll+delta);
-  if(gameMode==="operation"&&selectedTab==="combat")operationHandleWheel(delta,p.x,p.y);
-  if(gameMode==="operation"&&selectedTab==="dualCrystal"&&window.PZCrystalWar?.mobileScroll)window.PZCrystalWar.mobileScroll(delta,p.x,p.y);
-  if(gameMode==="operation"&&window.PZDaydream?.handleWheel)window.PZDaydream.handleWheel(delta,p.x,p.y);
-  if(gameMode==="lobby"&&lobbyAssistantSelectorOpen&&lobbyAssistantSelectorTab==="executor")lobbyAssistantExecutorWheelDelta+=delta;
-  if(gameMode==="shop"&&shopTab==="recruit"&&shopSubTab==="limited")shopLimitedWheelDelta+=delta;
-  if(gameMode==="warehouse")warehouseWheelDelta+=delta;
-  if(gameMode==="achievements"){mobileInput.scrollAccum+=delta;if(Math.abs(mobileInput.scrollAccum)>=42){const visible=ACHIEVEMENT_LIST.filter(a=>achievementCategory==="all"||a.cat===achievementCategory);achievementScroll=clamp(achievementScroll+Math.sign(mobileInput.scrollAccum),0,Math.max(0,visible.length-7));mobileInput.scrollAccum=0;}}
-  if(gameMode==="friends"&&friendPanelMode==="list"){const source=friendSocialSection==="blocked"?friendBlocked:friendSocialSection==="requests"?friendIncoming:friendList;friendListScroll=clamp(friendListScroll+(delta>0?1:-1),0,Math.max(0,source.length-5));}
-  if(gameMode==="team")teamRosterWheelDelta+=delta;
-  if(gameMode==="actionRecord")actionRecordWheelDelta+=delta;
-  if(gameMode==="operation"&&selectedTab==="dungeon"&&dungeonPanelMode==="material"&&materialDungeonSelected===3)moduleArchiveWheelDelta+=delta;
-  if(gameMode==="operation"&&selectedTab==="dungeon"&&dungeonPanelMode==="material"&&materialDungeonSelected!==3){const max=Math.max(0,materialDungeonsV42().length*170-910);materialDungeonScroll=clamp(materialDungeonScroll+delta,0,max);}
-  if(gameMode==="operators"&&operatorPageMode==="detail"&&operatorTab==="module"&&moduleWarehouseSlot)moduleWarehouseWheelDelta+=delta;
 }
 
 function canvasPointFromTouch(t){
@@ -1457,12 +1325,12 @@ function pressMobileButton(name){
   const rc = mobileButtonRects()[name];
   if(!rc) return;
   if(name === "attack"){
-    if(rc.interact||rc.parry){setKeyVirtual(rc.key,true);mouseDown=false;mouseAttackConsumed=true;}
-    else{mouseDown = true;clicked = false;}
+    mouseDown = true;
+    clicked = false;
   }else{
     setKeyVirtual(rc.key, true);
   }
-  mobileInput.activeButtons[name] = rc.interact?"interact":rc.parry?"parry":true;
+  mobileInput.activeButtons[name] = true;
 }
 
 function releaseMobileButtons(){
@@ -1470,7 +1338,6 @@ function releaseMobileButtons(){
     const rc = mobileButtonRects()[name];
     if(!rc) continue;
     if(name === "attack"){
-      if(mobileInput.activeButtons[name]==="interact")setKeyVirtual("f",false);else if(mobileInput.activeButtons[name]==="parry")setKeyVirtual(" ",false);
       mouseDown = false;
       mouseAttackConsumed = false;
     }else{
@@ -1483,7 +1350,7 @@ function releaseMobileButtons(){
 function releaseMobileButton(name){
   const rc=mobileButtonRects()[name];
   if(!rc)return;
-  if(name==="attack"){if(mobileInput.activeButtons[name]==="interact")setKeyVirtual("f",false);else if(mobileInput.activeButtons[name]==="parry")setKeyVirtual(" ",false);mouseDown=false;mouseAttackConsumed=false;}
+  if(name==="attack"){mouseDown=false;mouseAttackConsumed=false;}
   else setKeyVirtual(rc.key,false);
   delete mobileInput.activeButtons[name];
 }
@@ -1494,7 +1361,6 @@ function updateMobileMoveKeys(){
   setKeyVirtual("d", mobileInput.moveX > dead);
   setKeyVirtual("w", mobileInput.moveY < -dead);
   setKeyVirtual("s", mobileInput.moveY > dead);
-  window.PZCrystalWar?.setMobileLobbyMove?.(Math.abs(mobileInput.moveX)<dead?0:mobileInput.moveX,Math.abs(mobileInput.moveY)<dead?0:mobileInput.moveY);
 }
 
 function clearMobileMoveKeys(){
@@ -1505,93 +1371,35 @@ function clearMobileMoveKeys(){
 
 function handleMobileTouchStart(e){
   if(!mobileInput.enabled)return;
-  e.preventDefault();requestMobileImmersiveLandscape();requestMobileMotionPermission();unlockAudio();mobileInput.ignoreMouseUntil=performance.now()+800;
-  for(const t of e.changedTouches)mobileInput.touchPoints[t.identifier]=canvasPointFromTouch(t);
-  const pointEntries=Object.entries(mobileInput.touchPoints);
-  if(gameMode==="operation"&&selectedTab==="dualCrystal"&&pointEntries.length>=2){
-    const pair=pointEntries.slice(0,2),a=pair[0][1],b=pair[1][1],cx=(a.x+b.x)/2,cy=(a.y+b.y)/2;
-    if(window.PZCrystalWar?.mobilePinch?.(1,cx,cy)){
-      mobileInput.crystalPinch={active:true,ids:pair.map(v=>Number(v[0])),distance:Math.max(1,Math.hypot(a.x-b.x,a.y-b.y))};
-      for(const id of mobileInput.crystalPinch.ids)mobileInput.touchActions[id]="crystalPinch";
-      window.PZCrystalWar?.cancelMobilePointer?.();mobileInput.uiTouchId=null;clicked=false;mouseDown=false;return;
-    }
-  }
+  e.preventDefault();unlockAudio();mobileInput.ignoreMouseUntil=performance.now()+800;
   for(const t of e.changedTouches){
     const p=canvasPointFromTouch(t);mouseX=p.x;mouseY=p.y;
-    if(gameMode==="boot"){
-      if(bootSkipReady||(performance.now()-bootStartTime)>900){gameMode=bootNextMode||"login";if(gameMode==="login")requestLoginBgmPlay();}
-      mobileInput.touchActions[t.identifier]="boot";continue;
-    }
-    if(tryOpenMobileNativeKeyboardAt(p)){mobileInput.touchActions[t.identifier]="keyboard";continue;}
-    if(tryOpenMobileSupportLinkAt(p)){mobileInput.touchActions[t.identifier]="externalLink";clicked=false;mouseDown=false;continue;}
-    if(gameMode==="tutorialBattle"&&tutorialPanelActive){
-      clicked=true;mouseDown=false;mouseAttackConsumed=false;mobileInput.touchActions[t.identifier]="tutorialPanel";continue;
-    }
-    if((gameMode==="battle"||gameMode==="tutorialBattle")&&chainSelect){
-      chainSelectChoiceRequested=p.x<W/2?0:1;mobileInput.touchActions[t.identifier]="chainChoice";clicked=false;mouseDown=false;continue;
-    }
-    if(shouldShowMobileJoystick()){
+    if(shouldShowMobileControls()){
       if(p.x<390&&p.y>285&&mobileInput.joyId===null){
         mobileInput.joyId=t.identifier;mobileInput.joyBaseX=clamp(p.x,90,260);mobileInput.joyBaseY=clamp(p.y,390,H-95);mobileInput.joyX=p.x;mobileInput.joyY=p.y;mobileInput.touchActions[t.identifier]="joystick";continue;
       }
-      if(shouldShowMobileControls()){
-        const buttons=mobileButtonRects();let hit="";
-        for(const name of Object.keys(buttons)){
-          if(usesMobileArcanaUI()&&((name==="attack"&&!buttons.attack.interact&&!buttons.attack.parry)||name==="skill"||name==="ult"))continue;
-          if(chloeAttackCharge.active&&name!=="attack")continue;
-          if(name.startsWith("team")&&mobileTeamSlotDisabled(buttons[name].slot))continue;
-          if(pointInRect(p,buttons[name])){hit=name;break;}
-        }
-        if(hit){
-          if(hit==="attack"&&!buttons.attack.interact&&!buttons.attack.parry){mouseX=player.x+player.facing*320;mouseY=player.y;if(player.role===5)mobileInput.chloeAimTouchId=t.identifier;}
-          pressMobileButton(hit);mobileInput.touchActions[t.identifier]="button:"+hit;continue;
-        }
-        if(usesMobileArcanaUI()){
-          const w=mobileInput.floraWheel;mobileInput.touchActions[t.identifier]="floraPending";w.touchId=t.identifier;w.x=p.x;w.y=p.y;w.selected="";
-          clearTimeout(w.timer);w.timer=setTimeout(()=>{if(mobileInput.touchActions[t.identifier]==="floraPending"&&performance.now()>=w.cooldownUntil){w.open=true;mobileInput.touchActions[t.identifier]="floraWheel";slowMo=Math.max(slowMo,180);sfx("ui");}},360);
-        }else mobileInput.touchActions[t.identifier]="battlefield";
-        continue;
+      const buttons=mobileButtonRects();let hit="";
+      for(const name of Object.keys(buttons))if(pointInRect(p,buttons[name])){hit=name;break;}
+      if(hit){
+        if(hit==="attack"){mouseX=player.x+player.facing*320;mouseY=player.y;}
+        pressMobileButton(hit);mobileInput.touchActions[t.identifier]="button:"+hit;continue;
       }
+      mobileInput.touchActions[t.identifier]="battlefield";
+      continue;
     }
-    if(mobileInput.uiTouchId===null){
-      const deferTap=gameMode==="operators"||gameMode==="achievements"||gameMode==="warehouse"||gameMode==="actionRecord"||gameMode==="team"||(gameMode==="operation"&&selectedTab==="dualCrystal")||(gameMode==="shop"&&shopTab==="recruit")||(gameMode==="lobby"&&lobbyAssistantSelectorOpen);
-      mobileInput.uiTouchId=t.identifier;mobileInput.pointerActive=true;mouseDown=true;clicked=!deferTap;mobileInput.uiDeferredTap=deferTap;mobileInput.uiStartX=mobileInput.uiLastX=p.x;mobileInput.uiStartY=mobileInput.uiLastY=p.y;mobileInput.uiStartAt=performance.now();mobileInput.uiMoved=false;mobileInput.uiAxis="";mobileInput.scrollAccum=0;mobileInput.touchActions[t.identifier]="ui";if(gameMode==="operation"&&selectedTab==="dualCrystal")window.PZCrystalWar?.pointerDown?.(p.x,p.y);if(gameMode==="match3")window.PZMatch3?.pointerDown?.(p.x,p.y);if(!deferTap)sfx("ui");
-    }
+    if(mobileInput.uiTouchId===null){mobileInput.uiTouchId=t.identifier;mobileInput.pointerActive=true;mouseDown=true;clicked=true;mobileInput.touchActions[t.identifier]="ui";sfx("ui");}
   }
 }
 
 function handleMobileTouchMove(e){
   if(!mobileInput.enabled)return;
   e.preventDefault();mobileInput.ignoreMouseUntil=performance.now()+800;
-  for(const t of e.changedTouches)mobileInput.touchPoints[t.identifier]=canvasPointFromTouch(t);
-  if(mobileInput.crystalPinch.active){
-    const [ia,ib]=mobileInput.crystalPinch.ids,a=mobileInput.touchPoints[ia],b=mobileInput.touchPoints[ib];
-    if(a&&b){const d=Math.max(1,Math.hypot(a.x-b.x,a.y-b.y)),cx=(a.x+b.x)/2,cy=(a.y+b.y)/2;window.PZCrystalWar?.mobilePinch?.(d/mobileInput.crystalPinch.distance,cx,cy);mobileInput.crystalPinch.distance=d;}return;
-  }
   for(const t of e.changedTouches){
     const p=canvasPointFromTouch(t),action=mobileInput.touchActions[t.identifier];
     if(action==="joystick"){
       const dx=p.x-mobileInput.joyBaseX,dy=p.y-mobileInput.joyBaseY,len=Math.hypot(dx,dy)||1,max=72,scale=Math.min(1,max/len);
       mobileInput.joyX=mobileInput.joyBaseX+dx*scale;mobileInput.joyY=mobileInput.joyBaseY+dy*scale;mobileInput.moveX=clamp(dx/max,-1,1);mobileInput.moveY=clamp(dy/max,-1,1);updateMobileMoveKeys();
-    }else if(action==="floraPending"){
-      mouseX=p.x;mouseY=p.y;
-    }else if(action==="floraWheel"){mouseX=p.x;mouseY=p.y;mobileInput.floraWheel.selected=floraWheelPick(p);
-    }else if(action==="button:attack"&&player.role===5){mouseX=p.x;mouseY=p.y;updateChloeAttackCharge();
-    }else if(action==="ui"){
-      const dx=p.x-mobileInput.uiLastX,dy=p.y-mobileInput.uiLastY;mouseX=p.x;mouseY=p.y;
-      const totalX=p.x-mobileInput.uiStartX,totalY=p.y-mobileInput.uiStartY;
-      if(Math.hypot(totalX,totalY)>14){
-        mobileInput.uiMoved=true;clicked=false;if(!mobileInput.uiAxis)mobileInput.uiAxis=Math.abs(totalX)>Math.abs(totalY)*1.15?"x":"y";
-        if(gameMode==="operators"&&operatorPageMode==="list"){
-          const order=executorOrder(),max=Math.max(0,order.length*212-12-(W-84)),step=mobileInput.uiAxis==="x"?-dx:-dy;operatorListScrollX=clamp(operatorListScrollX+step,0,max);
-        }else if(gameMode==="shop"&&shopTab==="recruit"&&shopSubTab==="permanent"&&mobileInput.uiStartY>=230&&mobileInput.uiStartY<=550){
-          if(mobileInput.uiAxis==="x")shopRecruitScrollX=clamp(shopRecruitScrollX-dx,0,permanentRecruitMaxScroll());
-          else shopRecruitWheelDelta+=-dy;
-        }else applyMobileSwipeDelta(dx,dy,p);
-      }
-      mobileInput.uiLastX=p.x;mobileInput.uiLastY=p.y;
-      if(gameMode==="operation"&&selectedTab==="dualCrystal")window.PZCrystalWar?.pointerMove?.(p.x,p.y);if(gameMode==="match3")window.PZMatch3?.pointerMove?.(p.x,p.y);
-    }
+    }else if(action==="ui"){mouseX=p.x;mouseY=p.y;}
   }
 }
 
@@ -1601,26 +1409,19 @@ function handleMobileTouchEnd(e){
   for(const t of e.changedTouches){
     const action=mobileInput.touchActions[t.identifier]||"";
     if(action==="joystick"){mobileInput.joyId=null;clearMobileMoveKeys();}
-    else if(action==="floraPending"){clearTimeout(mobileInput.floraWheel.timer);const p=canvasPointFromTouch(t);mouseX=p.x;mouseY=p.y;attackBuffer=10;mobileInput.floraWheel.touchId=null;}
-    else if(action==="floraWheel")closeFloraWheel(true);
-    else if(action.startsWith("button:")){if(action==="button:attack"&&mobileInput.activeButtons.attack!=="interact"&&mobileInput.activeButtons.attack!=="parry"&&player.role===5&&chloeAttackCharge.active)releaseChloeAttack();releaseMobileButton(action.slice(7));mobileInput.chloeAimTouchId=null;}
-    else if(action==="ui"&&mobileInput.uiTouchId===t.identifier){const p=canvasPointFromTouch(t),travel=Math.hypot(p.x-mobileInput.uiStartX,p.y-mobileInput.uiStartY),tapTime=performance.now()-mobileInput.uiStartAt;if(gameMode==="operation"&&selectedTab==="dualCrystal")window.PZCrystalWar?.pointerUp?.(p.x,p.y);if(gameMode==="match3")window.PZMatch3?.pointerUp?.(p.x,p.y);if(mobileInput.uiDeferredTap&&!mobileInput.uiMoved&&travel<10&&tapTime<500){mouseX=p.x;mouseY=p.y;clicked=true;sfx("ui");}mobileInput.uiTouchId=null;mobileInput.pointerActive=false;mobileInput.uiAxis="";mobileInput.uiDeferredTap=false;mouseDown=false;mouseAttackConsumed=false;}
+    else if(action.startsWith("button:"))releaseMobileButton(action.slice(7));
+    else if(action==="ui"&&mobileInput.uiTouchId===t.identifier){mobileInput.uiTouchId=null;mobileInput.pointerActive=false;mouseDown=false;mouseAttackConsumed=false;}
     delete mobileInput.touchActions[t.identifier];
-    delete mobileInput.touchPoints[t.identifier];
   }
-  if(mobileInput.crystalPinch.active&&mobileInput.crystalPinch.ids.some(id=>!mobileInput.touchPoints[id])){mobileInput.crystalPinch={active:false,ids:[],distance:0};window.PZCrystalWar?.finishMobilePinch?.();clicked=false;mouseDown=false;}
-  if(gameMode==="nameInput"&&!mobileNativeKeyboardTarget)openMobileNativeKeyboard("name");
 }
 
 detectPZDevice();
-initMobileDeviceSignals();
 canvas.addEventListener("touchstart",handleMobileTouchStart,{passive:false});
 canvas.addEventListener("touchmove",handleMobileTouchMove,{passive:false});
 canvas.addEventListener("touchend",handleMobileTouchEnd,{passive:false});
 canvas.addEventListener("touchcancel",handleMobileTouchEnd,{passive:false});
 window.addEventListener("resize",detectPZDevice,{passive:true});
 if(window.visualViewport)window.visualViewport.addEventListener("resize",applyMobileViewportLayout,{passive:true});
-window.addEventListener("orientationchange",()=>setTimeout(()=>{detectPZDevice();applyMobileViewportLayout(true);},220),{passive:true});
 
 
 
@@ -2084,6 +1885,12 @@ function restoreCachedAccountLanguage(uid){
 let language = readUiLanguagePreference();
 rememberUiLanguage(language);
 let audioMuted = false, particlesEnabled = true, damageTextEnabled = true;
+let pcKeyHintsEnabled = true;
+window.PZPcKeyHintsEnabled=()=>pcKeyHintsEnabled;
+window.PZIsCrystalWarBaseVisible=()=>gameMode==="operation"&&selectedTab==="dualCrystal";
+const pcBattleKeyFlash = Object.create(null);
+window.addEventListener("keydown",e=>{if(!e.repeat)pcBattleKeyFlash[e.key.toLowerCase()]=performance.now();});
+window.addEventListener("mousedown",e=>{if(e.button===0)pcBattleKeyFlash.mouse1=performance.now();else if(e.button===2)pcBattleKeyFlash.mouse2=performance.now();});
 // Audio volume defaults: BGM 40%, SFX 100%.
 let bgmVolume = 0.40;
 let sfxVolume = 1.00;
@@ -2276,6 +2083,7 @@ const CRYSTAL_WAR_FIELD_DEVICES=[
   {id:"bio",z:"生态采样器",e:"BIO COLLECTOR",icon:"✣",color:"#c89cff",cost:10,resources:["materials","fiber","herbs","flux","coolant"]}
 ];
 let selectedTab = "main";
+for(const fieldDevice of CRYSTAL_WAR_FIELD_DEVICES)fieldDevice.cost=Math.ceil(fieldDevice.cost*2);
 let mainChapterView = "chapters"; // chapters -> stage map
 let selectedMainChapter = 0;
 let crystals = 0;
@@ -2653,13 +2461,21 @@ async function legacyCloudRegisterAfterProfile(email, password){
   }finally{ cloudBusy = false; }
 }
 function legacyRequestCloudAccountAfterProfile(){
-  accountEmail=cloudEmailInput||"";accountPassword="";openAccountCredentialPanel("register");
-  if(mobileInput.enabled)openMobileNativeKeyboard("email");
+  const regEmail = window.prompt(cloudTx("cloudPromptEmail"), cloudEmailInput || "");
+  if(regEmail === null){ cloudSetMsg(cloudTx("cloudNeedLogin"), 180); return; }
+  const regPass = window.prompt(cloudTx("cloudPromptPassword"), cloudPasswordInput || "");
+  if(regPass === null){ cloudSetMsg(cloudTx("cloudNeedLogin"), 180); return; }
+  cloudRegisterAfterProfile(String(regEmail).trim(), String(regPass));
 }
 function legacyCloudPromptCredentials(){
-  accountEmail=cloudEmailInput||"";accountPassword="";openAccountCredentialPanel("login");
-  if(mobileInput.enabled)openMobileNativeKeyboard("email");
-  return false;
+  const email = window.prompt(cloudTx("cloudPromptEmail"), cloudEmailInput || "");
+  if(email === null) return false;
+  const pass = window.prompt(cloudTx("cloudPromptPassword"), cloudPasswordInput || "");
+  if(pass === null) return false;
+  cloudEmailInput = String(email).trim();
+  cloudPasswordInput = String(pass);
+  if(!cloudEmailInput || !cloudPasswordInput){ cloudSetMsg(cloudTx("cloudEmailMissing")); return false; }
+  return true;
 }
 async function legacyCloudRegister(){
   if(cloudBusy) return; if(!initCloudSave()) return; if(!cloudPromptCredentials()) return; cloudBusy=true;
@@ -3281,9 +3097,14 @@ function openAccountCredentialPanel(mode="login"){
 }
 
 function promptAccountCredentials(mode="login"){
-  openAccountCredentialPanel(mode);
-  if(mobileInput.enabled)openMobileNativeKeyboard("email");
-  return false;
+  const email = window.prompt(accTx("enterEmail"), accountEmail || "");
+  if(email === null) return false;
+  const password = window.prompt(accTx("enterPassword"), "");
+  if(password === null) return false;
+  accountEmail = String(email).trim();
+  accountPassword = String(password);
+  accountMode = mode;
+  return true;
 }
 
 async function bindCurrentLocalSaveToNewAccount(){
@@ -3611,7 +3432,7 @@ function resetRuntimeDefaults(){
     ultimate:1,
     weaponLevel:1,
     weapon:["训练剑","训练长枪","训练双刃","训练法器","灰白核心刃","训练法器","训练盾"][i],
-    equippedWeaponId:["training_sword","training_spear","training_dual","training_codex","gray_core_blade","training_codex","training_shield"][i]
+    equippedWeaponId:["training_sword","training_bow","training_dual","training_codex","gray_core_blade","training_codex","training_shield"][i]
   }));
 
   ownedWeapons = {flora:false};
@@ -3659,7 +3480,7 @@ function resetRuntimeDefaults(){
   skillBooks = 6;
   skillMaterials = {normal:6,skill:4,ultimate:2};
   owned = [true,true,false,false,true,false,false];
-  charData = roles.map((r,i)=>({level:1,breakStage:0,skillPoints:0,normal:1,skill:1,ultimate:1,weaponLevel:1,weapon:["训练剑","训练长枪","训练双刃","训练法器","灰白核心刃","训练法器","训练盾"][i],equippedWeaponId:["training_sword","training_spear","training_dual","training_codex","gray_core_blade","training_codex","training_shield"][i]}));
+  charData = roles.map((r,i)=>({level:1,breakStage:0,skillPoints:0,normal:1,skill:1,ultimate:1,weaponLevel:1,weapon:["训练剑","训练弓","训练双刃","训练法器","灰白核心刃","训练法器","训练盾"][i],equippedWeaponId:["training_sword","training_bow","training_dual","training_codex","gray_core_blade","training_codex","training_shield"][i]}));
   cleared = {};
   achievements = {};
   totalKills = 0; totalParries = 0; totalChains = 0; totalBossKills = 0;
@@ -3884,6 +3705,7 @@ function saveGame(){
       loginRewards, levelRewards, boughtPacks, ownedWeapons, weaponInventory, weaponLevelMigrationDone, crystalExchangePurchases, crystalExchangeWeekKey, dungeonStamina, dungeonWeeklyCrystalLeft, dungeonCrystalWeekKey, dungeonLastStaminaDate, dungeonCandy, dungeonStimulant, dungeonCandyMonthKey, dungeonCandyDailyUsed, dungeonCandyDailyKey, dungeonRewardMultiplier, materialDungeonDifficulty, materialDungeonDifficulties, materialDungeonSelected, materialDungeonScroll, moduleDungeonTarget, audioMuted, bgmVolume, sfxVolume, particlesEnabled, damageTextEnabled, tutorialCompleted, tutorialInProgress, tutorialResumeMode, language, prologueDone, lobbyGuideDone, lobbyGuideStep, achievements, totalKills, totalParries, totalChains, totalBossKills, totalGoldEarned, totalCrystalsEarned, growthGuidePage, growthGuidePageClaimed, growthGuideTaskClaimed, bossMultiplier, bossDifficulty, bossDifficulties, bossKrosWeeklyKey, dragonClaw, crystalHand, elementalFragments, uiGuideSeen, uiNewSeen, actionRecordLevel, actionRecordExp, actionRecordExpNeed, actionRecordPage, actionRecordAdvanced, actionRecordUltimate, actionRecordClaimed, actionRecordWeaponChoice, actionRecordTab, actionRecordTaskTab, actionRecordTaskClaimed, battleManualDailyClaimed,
       battleResume:captureBattleResumeSnapshot()
     };
+    current.pcKeyHintsEnabled=pcKeyHintsEnabled;
     current.projectAreaState=paState;
     current.projectAreaPaused=projectAreaPaused;
     current.crystalModuleInventory = crystalModuleInventory;
@@ -4158,6 +3980,7 @@ function loadGame(){
     if(typeof d.sfxVolume === "number") sfxVolume = clamp(d.sfxVolume, 0, 1);
     if(typeof d.particlesEnabled === "boolean") particlesEnabled = d.particlesEnabled;
     if(typeof d.damageTextEnabled === "boolean") damageTextEnabled = d.damageTextEnabled;
+    if(typeof d.pcKeyHintsEnabled === "boolean") pcKeyHintsEnabled = d.pcKeyHintsEnabled;
     if(typeof d.tutorialCompleted === "boolean") tutorialCompleted = d.tutorialCompleted;
     if(typeof d.tutorialInProgress === "boolean") tutorialInProgress = d.tutorialInProgress;
     if(typeof d.tutorialResumeMode === "string") tutorialResumeMode = d.tutorialResumeMode;
@@ -4838,8 +4661,6 @@ let playerUID = "";
 let nameInput = "";
 let nameError = "";
 let pzHiddenTextInput = null;
-let mobileNativeKeyboardInput = null;
-let mobileNativeKeyboardTarget = "";
 let teamRenamePreset = -1;
 let teamRenameDraft = "";
 let teamRenameReplaceOnType = false;
@@ -4848,61 +4669,6 @@ function isTypingTarget(el) {
   if (!el) return false;
   const tag = el.tagName ? el.tagName.toLowerCase() : "";
   return tag === "input" || tag === "textarea" || el.isContentEditable || !!el.closest?.("input, textarea, [contenteditable='true']");
-}
-
-function ensureMobileNativeKeyboardInput(){
-  if(mobileNativeKeyboardInput)return mobileNativeKeyboardInput;
-  const input=document.createElement("input");
-  input.id="pzMobileNativeKeyboard";input.autocapitalize="off";input.autocorrect="off";input.spellcheck=false;
-  input.setAttribute("aria-label","Project Zero Mobile native text input");
-  input.addEventListener("input",()=>{
-    if(mobileNativeKeyboardTarget==="name"){
-      const candidate=cleanPlayerName(input.value);if(checkWritableText(candidate).ok){nameInput=candidate;nameError="";}else input.value=nameInput;
-    }else if(mobileNativeKeyboardTarget==="email") accountEmail=String(input.value||"").replace(/\s/g,"").slice(0,96);
-    else if(mobileNativeKeyboardTarget==="password") accountPassword=String(input.value||"").slice(0,64);
-  });
-  input.addEventListener("keydown",e=>{
-    if(e.key!=="Enter")return;e.preventDefault();
-    if(mobileNativeKeyboardTarget==="name")confirmNameInput();
-    else if(mobileNativeKeyboardTarget==="email"){accountFocusedField="password";openMobileNativeKeyboard("password");}
-    else if(mobileNativeKeyboardTarget==="password"){if(accountMode==="register")accountRegisterFlow();else accountLoginFlow();}
-  });
-  input.addEventListener("blur",()=>{if(document.activeElement!==input){mobileNativeKeyboardTarget="";document.documentElement.dataset.pzKeyboard="closed";setTimeout(()=>applyMobileViewportLayout(true),420);}});
-  document.body.appendChild(input);mobileNativeKeyboardInput=input;return input;
-}
-
-function mobileKeyboardFieldRect(target){
-  if(target==="name")return{x:W/2-190,y:283,w:380,h:58};
-  const panelY=gameMode==="settings"&&accountCredentialPanelActive?132:165;
-  return target==="email"?{x:W/2-165,y:panelY+103,w:330,h:44}:{x:W/2-165,y:panelY+175,w:330,h:44};
-}
-
-function openMobileNativeKeyboard(target){
-  if(!mobileInput.enabled)return false;
-  const input=ensureMobileNativeKeyboardInput(),rect=mobileKeyboardFieldRect(target),canvasRect=canvas.getBoundingClientRect();
-  mobileNativeKeyboardTarget=target;
-  document.documentElement.dataset.pzKeyboard="open";
-  const codeMode=target==="password"&&accountMode==="register"&&accountRegisterStep==="code";
-  input.type=target==="password"&&!codeMode?"password":target==="email"?"email":"text";
-  input.inputMode=codeMode?"numeric":target==="email"?"email":"text";
-  input.enterKeyHint=target==="email"?"next":"done";
-  input.autocomplete=target==="email"?"email":target==="password"?"current-password":"off";
-  input.maxLength=target==="name"?12:target==="email"?96:codeMode?6:64;
-  input.value=target==="name"?nameInput:target==="email"?accountEmail:accountPassword;
-  input.style.left=(canvasRect.left+rect.x/W*canvasRect.width)+"px";input.style.top=(canvasRect.top+rect.y/H*canvasRect.height)+"px";
-  input.style.width=(rect.w/W*canvasRect.width)+"px";input.style.height=(rect.h/H*canvasRect.height)+"px";
-  try{input.focus({preventScroll:true});const n=input.value.length;input.setSelectionRange(n,n);}catch(_){input.focus();}
-  return true;
-}
-
-function tryOpenMobileNativeKeyboardAt(p){
-  if(!mobileInput.enabled)return false;
-  if(gameMode==="nameInput"&&pointInRect(p,mobileKeyboardFieldRect("name")))return openMobileNativeKeyboard("name");
-  const accountOpen=(gameMode==="login"&&(!cloudUser||guestMode))||(gameMode==="settings"&&accountCredentialPanelActive);
-  if(!accountOpen)return false;
-  if(pointInRect(p,mobileKeyboardFieldRect("email"))){accountFocusedField="email";accountMsg="";return openMobileNativeKeyboard("email");}
-  if(pointInRect(p,mobileKeyboardFieldRect("password"))){accountFocusedField="password";accountMsg="";return openMobileNativeKeyboard("password");}
-  return false;
 }
 
 function ensurePZHiddenTextInput() {
@@ -4968,9 +4734,6 @@ function ensurePZHiddenTextInput() {
 }
 
 function syncNameInputFocus() {
-  // Mobile uses a separate native-keyboard bridge. Do not let the legacy
-  // desktop hidden input steal focus one frame after the user's touch.
-  if(mobileInput.enabled&&mobileNativeKeyboardTarget==="name"&&document.activeElement===mobileNativeKeyboardInput)return;
   const input = ensurePZHiddenTextInput();
   const editingTeamName = gameMode === "team" && teamRenamePreset >= 0;
   const editingSignature=gameMode==="profile"&&profileSignatureEditing;
@@ -6089,7 +5852,7 @@ function spawnAreaLegacyChapterPrototype(){
 }
 
 
-const PLAYER_LEVEL_EXP_GAIN_MULTIPLIER=4.5;
+const PLAYER_LEVEL_EXP_GAIN_MULTIPLIER=6;
 function addPlayerExp(amount){
   // Legacy compatibility: old stage EXP now feeds Action Record EXP.
   if(typeof arAddExp === "function") arAddExp(amount || 0, false);
@@ -8880,23 +8643,6 @@ function drawPrologue(){
 
 // V41.2 Improved Tutorial Helpers
 function tutorialTextPack(){
-  if(mobileInput.enabled)return language === "en" ? {
-    area:"AREA",click:"Tap the screen to continue",
-    area1Title:"MOBILE 01  Movement",area1Text:"Drag the translucent joystick at the lower left and move into the blue marker. You can keep moving while pressing combat controls with another finger.",
-    area2Title:"MOBILE 02  Combat Controls",area2Text:"Use the right-side attack, skill and dodge controls. Tap a teammate portrait to switch directly. During an enemy warning, the attack control becomes PARRY—tap it once.",
-    area3Title:"MOBILE 03  Live Combat",area3Text:"Keep the battlefield visible, watch cooldown states, complete every highlighted touch action, then defeat the training target.",
-    completeTitle:"Mobile Tutorial Complete",completeText:"Mobile combat training complete. Story missions use the same joystick, multi-touch combat buttons, dynamic parry and fixed teammate switching.",
-    moveObj:"Drag the lower-left joystick into the blue marker.",crateObj:"Approach the target and use the right-side controls.",
-    combatObj:"Complete: attack · skill · dynamic parry · dodge · switch, then defeat the target.",parryHint:"Enemy warning! The attack control is now PARRY—tap it.",continueAfter:"Tap to continue the story."
-  } : {
-    area:"AREA",click:"点击屏幕继续",
-    area1Title:"手机版 01  移动操作",area1Text:"拖动左下角半透明摇杆，移动到蓝色光圈。移动过程中可以用另一根手指同时操作右侧战斗按键。",
-    area2Title:"手机版 02  战斗触控",area2Text:"使用右侧普攻、技能与闪避键；点击队友圆形头像可直接切换角色。敌人出现攻击预警时，普攻键会自动变成“弹刀”，此时点击一次。",
-    area3Title:"手机版 03  实战训练",area3Text:"保持战场视野，观察技能冷却，完成所有标记的触控操作后击败训练目标。",
-    completeTitle:"手机版教程完成",completeText:"移动端战斗训练完成。主线同样使用虚拟摇杆、多点触控、动态弹刀键和固定角色切换。",
-    moveObj:"拖动左下角摇杆，进入蓝色光圈。",crateObj:"接近训练目标，使用右侧战斗按键。",
-    combatObj:"完成：普攻 · 技能 · 动态弹刀 · 闪避 · 切换，然后击败目标。",parryHint:"敌人正在预警！普攻键已变为“弹刀”，现在点击。",continueAfter:"点击屏幕继续剧情。"
-  };
   return language === "en" ? {
     area:"AREA",
     click:"Click to continue",
@@ -8970,14 +8716,17 @@ function drawTutorialPanel(){
   ctx.font = "20px " + FONT_UI;
   wrapText(tutorialPanelText, x+32, y+98, w-64, 32);
 
-  if(!mobileInput.enabled){ctx.fillStyle="rgba(124,199,255,.10)";ctx.fillRect(x+32,y+h-56,122,30);ctx.strokeStyle="rgba(124,199,255,.28)";ctx.strokeRect(x+32,y+h-56,122,30);ctx.fillStyle="rgba(255,255,255,.72)";ctx.font="bold 12px "+FONT_UI;ctx.textAlign="center";ctx.fillText(language==="en"?"SKIP TUTORIAL":"跳过教程",x+93,y+h-36);}
+  ctx.fillStyle="rgba(124,199,255,.10)";ctx.fillRect(x+32,y+h-56,122,30);
+  ctx.strokeStyle="rgba(124,199,255,.28)";ctx.strokeRect(x+32,y+h-56,122,30);
+  ctx.fillStyle="rgba(255,255,255,.72)";ctx.font="bold 12px "+FONT_UI;ctx.textAlign="center";
+  ctx.fillText(language==="en"?"SKIP TUTORIAL":"跳过教程",x+93,y+h-36);
   ctx.fillStyle = "rgba(255,224,102,.95)";
   ctx.font = "bold 16px " + FONT_UI;
   ctx.textAlign = "right";
   ctx.fillText(tutorialTextPack().click, x+w-32, y+h-30);
   ctx.restore();
 
-  if(tutorialSkipConfirm&&!mobileInput.enabled){
+  if(tutorialSkipConfirm){
     ctx.save();ctx.fillStyle="rgba(0,0,0,.72)";ctx.fillRect(0,0,W,H);
     const sx=W/2-260,sy=H/2-105;
     ctx.beginPath();ctx.roundRect(sx,sy,520,210,14);ctx.fillStyle="rgba(8,13,28,.98)";ctx.fill();ctx.strokeStyle="#ffe066";ctx.stroke();
@@ -9004,13 +8753,7 @@ function drawTutorialObjective(text){
   ctx.font="bold 16px " + FONT_UI;
   ctx.fillText(text,x+20,y+47);
   if(combat){
-    const items=mobileInput.enabled?[
-      [tutorialUsedAttack,language==="en"?"Attack button":"普攻键"],
-      [tutorialUsedSkill,language==="en"?"Skill button":"技能键"],
-      [tutorialParried,language==="en"?"Dynamic PARRY":"动态弹刀键"],
-      [tutorialUsedDash,language==="en"?"Dodge button":"闪避键"],
-      [tutorialUsedDirectSwitch||tutorialUsedCycleSwitch,language==="en"?"Portrait / Swap":"头像 / 切换键"]
-    ]:[
+    const items=[
       [tutorialUsedAttack,language==="en"?"LMB  Attack":"左键  普攻"],
       [tutorialUsedSkill,language==="en"?"E  Skill":"E  技能"],
       [tutorialParried,language==="en"?"SPACE  Parry":"SPACE  弹刀"],
@@ -9381,7 +9124,6 @@ function restartTutorialCombatCheckpoint(){
 
 function updateTutorialPanelInput(){
   if(!tutorialPanelActive)return false;
-  if(mobileInput.enabled)tutorialSkipConfirm=false;
   if(tutorialSkipConfirm){
     if(justPressed("escape")){tutorialSkipConfirm=false;clicked=false;return true;}
     if(clicked){
@@ -9394,7 +9136,7 @@ function updateTutorialPanelInput(){
     }
     clicked=false;return true;
   }
-  if(clicked&&!mobileInput.enabled){
+  if(clicked){
     const x=W/2-335,y=H/2-125;
     if(inRect(x+32,y+194,122,30)){tutorialSkipConfirm=true;clicked=false;return true;}
   }
@@ -9423,7 +9165,7 @@ function updateTutorialBattle(){
   if(chainReady||chainSelect||chainTarget){chainReady=false;chainTarget=null;chainSelect=false;chainSelectTimer=0;chainSelectDeadline=0;chainSelectChoiceRequested=-1;}
   if(updateTutorialPanelInput()){prev={...keys};return;}
   if(justPressed("escape")||(clicked&&inRect(W-72,18,50,44))){
-    openTutorialPanel(language==="en"?"Training Paused":"训练已暂停",mobileInput.enabled?(language==="en"?"Tap the screen to continue Mobile combat training.":"点击屏幕继续手机版战斗教学。"):language==="en"?"Continue the live combat tutorial, or use Skip Tutorial below.":"继续真实战斗教学，或使用下方的跳过教程。",()=>{});
+    openTutorialPanel(language==="en"?"Training Paused":"训练已暂停",language==="en"?"Continue the live combat tutorial, or use Skip Tutorial below.":"继续真实战斗教学，或使用下方的跳过教程。",()=>{});
     clicked=false;return;
   }
   if(tutorialStep===1&&tutorialTarget&&withinDist(player.x,player.y,tutorialTarget.x,tutorialTarget.y,58)){
@@ -9558,7 +9300,7 @@ function updateLogin(){
       else if(!initCloudSave()) setAccountMsg(language==="en"?"Account service is unavailable.":"账号服务暂时不可用。",180);
       else setAccountMsg(language==="en"?"Password reset will be added to SF Account soon.":"SF Account 密码重置功能将在后续接入。",240);
     }
-    else if(inRect(W/2-120,H-58,240,40)){
+    else if(inRect(W/2-126,H-59,252,43)){
       accountGuestFlow();
     }
   }
@@ -11015,15 +10757,6 @@ const STRIPE_SUPPORT_TIERS=[
   {amount:"$39.99",url:"https://buy.stripe.com/dRm7sL06IczN1wm38kdMI00"},
   {amount:"$49.99",url:"https://buy.stripe.com/cNieVd06IgQ34Iy38kdMI02"}
 ];
-function tryOpenMobileSupportLinkAt(p){
-  if(!mobileInput.enabled||gameMode!=="shop"||shopTab!=="support"||paidContentLockPrompt||pendingGuestSupportTier>=0)return false;
-  for(let i=0;i<STRIPE_SUPPORT_TIERS.length;i++){
-    const x=70+i*163,y=275;
-    if(p.x<x||p.x>x+145||p.y<y||p.y>y+185)continue;
-    const a=document.createElement("a");a.href=STRIPE_SUPPORT_TIERS[i].url;a.target="_blank";a.rel="noopener noreferrer external";a.style.display="none";document.body.appendChild(a);a.click();a.remove();shopMsg=language==="en"?"Stripe checkout opened in your browser.":"Stripe 付款页面已在系统浏览器中打开。";return true;
-  }
-  return false;
-}
 async function openStripeSupportTier(index){
   const tier=STRIPE_SUPPORT_TIERS[index];
   if(!tier)return;
@@ -12423,6 +12156,7 @@ function updateSettings(){
       if(inRect(120,405,220,42)){ particlesEnabled=!particlesEnabled; saveGame(); clicked=false; return; }
       if(inRect(360,405,220,42)){ damageTextEnabled=!damageTextEnabled; saveGame(); clicked=false; return; }
       if(inRect(120,465,220,42)){ language = language==="zh" ? "en" : "zh"; rememberUiLanguage(language); rebuildStoryScripts(); refreshLanguageRuntimeText(); checkAchievements(); saveGame(); clicked=false; return; }
+      if(inRect(360,465,220,42)){pcKeyHintsEnabled=!pcKeyHintsEnabled;saveGame();clicked=false;return;}
     }
 
     if(settingsTab==="audio"){
@@ -12498,6 +12232,7 @@ function drawSettings(){
     drawBtn(tr(ui("particles"),"Particles"),particlesEnabled?tr(ui("on"),"On"):tr(ui("off"),"Off"),120,405,220,42,particlesEnabled,"#7cc7ff");
     drawBtn(tr(ui("damageText"),"Damage Text"),damageTextEnabled?tr(ui("on"),"On"):tr(ui("off"),"Off"),360,405,220,42,damageTextEnabled,"#ffe066");
     drawBtn(tr(ui("language"),"Language"),language==="zh"?"中文":"English",120,465,220,42,true,"#7cc7ff");
+    drawBtn(language==="en"?"Key Hints":"开启按键提示",pcKeyHintsEnabled?(language==="en"?"On":"开启"):(language==="en"?"Off":"关闭"),360,465,220,42,pcKeyHintsEnabled,"#ffe066");
 
     const deviceLoad=estimatedDeviceLoad();
     ctx.fillStyle="rgba(7,12,27,.72)";ctx.fillRect(710,205,350,298);
@@ -13547,6 +13282,23 @@ function drawGuestCloudOverwritePrompt(){
   drawBtn(tr("取消","Cancel"),"ESC",W/2+10,H/2+95,165,48,false,"#9aa7bd");
 }
 
+function drawGuestEntry(){
+  const x=W/2-126,y=H-59,w=252,h=43,hover=inRect(x,y,w,h);
+  ctx.save();
+  ctx.fillStyle=hover?"rgba(124,199,255,.18)":"rgba(124,199,255,.09)";
+  ctx.strokeStyle=hover?"rgba(124,199,255,.78)":"rgba(124,199,255,.42)";
+  ctx.lineWidth=1.5;ctx.beginPath();ctx.roundRect(x,y,w,h,21);ctx.fill();ctx.stroke();
+  const cx=x+34,cy=y+h/2;
+  ctx.shadowColor="#7cc7ff";ctx.shadowBlur=hover?11:5;
+  ctx.strokeStyle="#a7dcff";ctx.lineWidth=1.8;
+  ctx.beginPath();ctx.arc(cx,cy,15,0,Math.PI*2);ctx.stroke();
+  ctx.shadowBlur=0;ctx.fillStyle="#bce7ff";
+  ctx.beginPath();ctx.arc(cx,cy-5,4,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(cx,cy+6,7,Math.PI,0);ctx.fill();
+  ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillStyle="#dceeff";
+  ctx.font="bold 14px "+FONT_UI;ctx.fillText(accTx("guest"),x+145,cy);
+  ctx.restore();
+}
 function drawLogin(){
   const bg = ctx.createLinearGradient(0,0,0,H);
   bg.addColorStop(0,"#070a16");
@@ -13707,9 +13459,7 @@ function drawLogin(){
   ctx.fillStyle="rgba(255,255,255,.58)";
   ctx.font="14px " + FONT_UI;
   ctx.fillText(accountMsg || cloudSyncStatus || "Salt Fish Studio", W/2, H-70);
-  ctx.fillStyle="rgba(255,255,255,.36)";
-  ctx.font="12px " + FONT_UI;
-  ctx.fillText(accTx("guest"), W/2, H-38);
+  drawGuestEntry();
   if(guestCloudOverwritePromptActive)drawGuestCloudOverwritePrompt();
 }
 
@@ -15475,8 +15225,8 @@ function drawLobby(){
   const parallaxNow=performance.now();
   const parallaxDt=lobbyParallaxLastRenderAt?clamp(parallaxNow-lobbyParallaxLastRenderAt,0,50):16.67;
   lobbyParallaxLastRenderAt=parallaxNow;
-  const parallaxTargetX=mobileInput.enabled&&mobileMotion.hasData?mobileMotion.x*4.4:clamp((mouseX-W/2)/(W/2)*2.2,-2.2,2.2);
-  const parallaxTargetY=mobileInput.enabled&&mobileMotion.hasData?mobileMotion.y*2.8:clamp((mouseY-H/2)/(H/2)*1.3,-1.3,1.3);
+  const parallaxTargetX=clamp((mouseX-W/2)/(W/2)*2.2,-2.2,2.2);
+  const parallaxTargetY=clamp((mouseY-H/2)/(H/2)*1.3,-1.3,1.3);
   const parallaxBlend=1-Math.exp(-parallaxDt/165);
   lobbyParallaxX+=(parallaxTargetX-lobbyParallaxX)*parallaxBlend;
   lobbyParallaxY+=(parallaxTargetY-lobbyParallaxY)*parallaxBlend;
@@ -15528,12 +15278,6 @@ function drawLobby(){
   const now=new Date();
   ctx.fillStyle="rgba(255,255,255,.58)";ctx.font="bold 16px Arial";ctx.textAlign="right";
   ctx.fillText(String(now.getHours()).padStart(2,"0")+":"+String(now.getMinutes()).padStart(2,"0"),554,51);
-  if(mobileInput.enabled&&mobileBattery.supported&&mobileBattery.level!==null){
-    const bx=456,by=38,bw=31,bh=14,level=mobileBattery.level;
-    ctx.save();ctx.lineWidth=1.8;ctx.strokeStyle=mobileBattery.charging?"#7cffb2":"rgba(255,255,255,.62)";ctx.strokeRect(bx,by,bw,bh);ctx.fillStyle=ctx.strokeStyle;ctx.fillRect(bx+bw+2,by+4,3,6);
-    ctx.fillRect(bx+2,by+2,(bw-4)*level,bh-4);ctx.font="bold 10px Arial";ctx.textAlign="right";ctx.fillText(Math.round(level*100)+"%",bx-5,by+11);
-    if(mobileBattery.charging){ctx.fillStyle="#07120d";ctx.textAlign="center";ctx.font="bold 11px Arial";ctx.fillText("ϟ",bx+bw/2,by+11);}ctx.restore();
-  }
   drawCompactResourceBar(570,22,494,true);
 
   // Right-side functional card grid based on the supplied layout draft.
@@ -19238,6 +18982,8 @@ function upgradeWeaponSelected(i){
 
 const WEAPON_MASTER=[
   {id:"training_sword",nameZh:"训练剑",nameEn:"Training Sword",rarity:"B",type:"sword",baseAtk:60,crit:0,passiveZh:"训练用单手剑",passiveEn:"Training sword"},
+  {id:"training_bow",nameZh:"训练弓",nameEn:"Training Bow",rarity:"B",type:"bow",baseAtk:58,crit:1,passiveZh:"标准训练弓，艾洛获得时默认装备。",passiveEn:"Standard training bow; Ailo's default weapon.",price:0},
+  {id:"training_gun",nameZh:"训练枪械",nameEn:"Training Firearm",rarity:"B",type:"gun",baseAtk:62,crit:2,passiveZh:"为未来枪械执行官准备的标准训练武器。",passiveEn:"Standard training firearm reserved for future firearm operators.",price:450},
   {id:"training_spear",nameZh:"训练长枪",nameEn:"Training Spear",rarity:"B",type:"spear",baseAtk:58,crit:0,passiveZh:"标准训练长枪。",passiveEn:"Standard training spear.",price:0},
   {id:"training_dual",nameZh:"训练双刃",nameEn:"Training Dual Blades",rarity:"B",type:"dual",baseAtk:56,crit:1,passiveZh:"标准训练双刃。",passiveEn:"Standard training dual blades.",price:0},
   {id:"training_codex",nameZh:"训练法器",nameEn:"Training Codex",rarity:"B",type:"codex",baseAtk:54,crit:0,passiveZh:"标准训练法器。",passiveEn:"Standard training catalyst.",price:0},
@@ -19258,7 +19004,7 @@ function permanentWeaponCatalog(){return WEAPON_MASTER.filter(w=>!w.limited);}
 function roleWeaponType(i){
   if(isProtagonist(i)) return "core";
   if(i===0) return "sword";
-  if(i===1) return "spear";
+  if(i===1) return "bow";
   if(i===2) return "dual";
   if(i===3) return "codex";
   if(i===5) return "codex";
@@ -19266,8 +19012,8 @@ function roleWeaponType(i){
   return "sword";
 }
 function weaponTypeLabel(type){
-  const zh={sword:"单手剑",codex:"法器",dual:"双刃",spear:"长枪",shield:"盾武",core:"专武"};
-  const en={sword:"Sword",codex:"Codex",dual:"Dual Blades",spear:"Spear",shield:"Shield",core:"Exclusive"};
+  const zh={sword:"单手剑",bow:"弓",gun:"枪械",codex:"法器",dual:"双刃",spear:"长枪",shield:"盾武",core:"专武"};
+  const en={sword:"Sword",bow:"Bow",gun:"Firearm",codex:"Codex",dual:"Dual Blades",spear:"Spear",shield:"Shield",core:"Exclusive"};
   return (language==="en"?en:zh)[type]||type;
 }
 function weaponData(id){ return WEAPON_MASTER.find(w=>w.id===id)||WEAPON_MASTER[0]; }
@@ -19277,7 +19023,7 @@ function weaponNameById(id){
 }
 function defaultWeaponIdForRole(i){
   if(i===0) return "training_sword";
-  if(i===1) return "training_spear";
+  if(i===1) return "training_bow";
   if(i===2) return "training_dual";
   if(i===3 || i===5) return "training_codex";
   if(i===6) return "training_shield";
@@ -19300,6 +19046,7 @@ function ensureWeaponBag(){
   if(created)weaponLevelMigrationDone=false;
   for(let i=0;i<charData.length;i++){
     if(!charData[i]) continue;
+    if(i===1&&charData[i].equippedWeaponId==="training_spear")charData[i].equippedWeaponId="training_bow";
     if(!charData[i].equippedWeaponId) charData[i].equippedWeaponId=defaultWeaponIdForRole(i);
     const equippedItem=weaponInventory.find(w=>w.id===charData[i].equippedWeaponId);
     if(equippedItem){
@@ -19546,7 +19293,15 @@ function drawLimitedRecruitShowcase(){
   ctx.fillStyle="rgba(0,0,0,.68)";ctx.fillRect(vx,vy+vh-25,vw,25);ctx.fillStyle="#bfe8ff";ctx.font="bold 10px "+FONT_UI;ctx.textAlign="center";ctx.fillText(scroll<max-4?(language==="en"?"MOUSE WHEEL ↓  VIEW ACCESS DETAILS":"鼠标滚轮向下 · 查看获取详情"):(language==="en"?"DIRECT PURCHASE · NOT A GACHA":"定向直购 · 不是抽卡"),vx+vw/2,vy+vh-8);
 }
 
-function drawArmoryWeaponIcon(type,x,y,scale=1,color="#dbe8ff"){
+function drawTrainingWeaponArt(type,x,y,scale=1,color="#dbe8ff"){
+  const img=trainingWeaponImgs[type],boxes={sword:[769,73,791,1516],bow:[818,167,932,1473],gun:[570,460,1080,819],shield:[741,217,824,859],codex:[632,239,1053,972]},box=boxes[type];
+  if(!img||!img.complete||!img.naturalWidth||!box)return false;
+  const size=122*scale,fit=Math.min(size/box[2],size/box[3]),dw=box[2]*fit,dh=box[3]*fit;
+  ctx.save();ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality="high";ctx.shadowColor=color;ctx.shadowBlur=12*scale;
+  ctx.drawImage(img,box[0],box[1],box[2],box[3],x-dw/2,y-dh/2,dw,dh);ctx.restore();return true;
+}
+function drawArmoryWeaponIcon(type,x,y,scale=1,color="#dbe8ff",weaponId=""){
+  if(String(weaponId).startsWith("training_")&&drawTrainingWeaponArt(type,x,y,scale,color))return;
   ctx.save();ctx.translate(x,y);ctx.scale(scale,scale);ctx.lineCap="round";ctx.lineJoin="round";
   ctx.shadowColor=color;ctx.shadowBlur=10;ctx.strokeStyle=color;ctx.fillStyle=color;ctx.lineWidth=7;
   if(type==="codex"){
@@ -19591,7 +19346,7 @@ function drawShopWeaponArmory(){
   ctx.fillStyle="rgba(8,12,20,.84)";ctx.fillRect(x,y,w,112);
   ctx.strokeStyle="rgba(255,255,255,.16)";ctx.strokeRect(x,y,w,112);
   ctx.fillStyle=selected.rarity==="S"?"#ffe066":"#7cc7ff";ctx.fillRect(x,y,6,112);
-  drawArmoryWeaponIcon(selected.type,x+170,y+57,.72,selected.rarity==="S"?"#ffe066":"#7cc7ff");
+  drawArmoryWeaponIcon(selected.type,x+170,y+57,.72,selected.rarity==="S"?"#ffe066":"#7cc7ff",selected.id);
   ctx.textAlign="left";ctx.fillStyle="rgba(255,255,255,.46)";ctx.font="bold 10px "+FONT_UI;ctx.fillText(language==="en"?"PERMANENT ARMORY":"常驻武器库",x+270,y+27);
   ctx.fillStyle="#fff";ctx.font="bold 25px "+FONT_UI;ctx.fillText(language==="en"?selected.nameEn:selected.nameZh,x+270,y+58);
   ctx.fillStyle="rgba(255,255,255,.64)";ctx.font="12px "+FONT_UI;ctx.fillText(weaponTypeLabel(selected.type)+"  ·  ATK "+selected.baseAtk+"  ·  CRIT "+selected.crit+"%",x+270,y+82);
@@ -19606,7 +19361,7 @@ function drawShopWeaponArmory(){
     ctx.fillStyle=active?"rgba(124,199,255,.14)":"rgba(255,255,255,.055)";ctx.fillRect(cx,cy,cw,ch);
     ctx.strokeStyle=active?"#7cc7ff":"rgba(255,255,255,.13)";ctx.lineWidth=active?2:1;ctx.strokeRect(cx,cy,cw,ch);
     ctx.fillStyle=wd.rarity==="S"?"#ffe066":"#7cc7ff";ctx.fillRect(cx,cy,4,ch);
-    drawArmoryWeaponIcon(wd.type,cx+39,cy+29,.28,wd.rarity==="S"?"#ffe066":"#7cc7ff");
+    drawArmoryWeaponIcon(wd.type,cx+39,cy+29,.28,wd.rarity==="S"?"#ffe066":"#7cc7ff",wd.id);
     ctx.textAlign="left";ctx.fillStyle="#fff";ctx.font="bold 11px "+FONT_UI;ctx.fillText(language==="en"?wd.nameEn:wd.nameZh,cx+73,cy+22);
     ctx.fillStyle="rgba(255,255,255,.50)";ctx.font="9px "+FONT_UI;ctx.fillText(weaponTypeLabel(wd.type)+" · ATK "+wd.baseAtk,cx+73,cy+39);
     ctx.textAlign="right";ctx.fillStyle=owned?"#7cc7ff":"#777";ctx.fillText(owned?(language==="en"?"OWNED":"已拥有"):(language==="en"?"LOCK":"未获得"),cx+cw-10,cy+50);
@@ -19909,7 +19664,7 @@ function drawGiftPack(x,y,w,h,title,desc,price,bought){
   ctx.fillText(bought?"SOLD":"BUY",x+w-22,y+132);
 }
 function drawGrid(){ ctx.strokeStyle="rgba(255,255,255,.035)"; for(let x=0;x<W;x+=80){ctx.beginPath();ctx.moveTo(x,100);ctx.lineTo(x,H);ctx.stroke();} for(let y=100;y<H;y+=80){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();} }
-function drawEnemy(e){ if(!e.alive)return; ctx.save(); ctx.translate(e.x,e.y); if((e.freeze||0)>0){ctx.globalAlpha=.92;} if(e.windup>0){ctx.strokeStyle="#ff3333";ctx.lineWidth=4;ctx.beginPath();ctx.arc(0,0,e.boss?110:82,0,Math.PI*2);ctx.stroke();ctx.fillStyle="#ff3333";ctx.font="bold 13px " + FONT_UI;ctx.textAlign="center";ctx.fillText(mobileInput.enabled?(language==="en"?"PARRY":"弹刀"):"SPACE",0,-e.r-42);} const enemyTypeColor={normal:"#33384f",shield:"#46506b",berserker:"#6a3f46",ranged:"#4b4568",elite:"#55476b",sniper:"#6c4b63",skirmisher:"#355868",support:"#356054",fireCrystal:"#8a3f35"}; ctx.fillStyle=e.hit>0?"#fff":e.boss?"#5b2d42":(enemyTypeColor[e.type]||"#33384f"); ctx.beginPath();ctx.arc(0,0,e.r,0,Math.PI*2);ctx.fill(); const hw=e.boss?105:62; ctx.fillStyle="#fff";ctx.font="bold 10px " + FONT_UI;ctx.textAlign="right";ctx.fillText("Lv."+((e.lv!==undefined)?e.lv:"?"),-hw/2-6,-e.r-18); ctx.fillStyle="#ff4d4d";ctx.fillRect(-hw/2,-e.r-24,hw,6);ctx.fillStyle="#ffe066";ctx.fillRect(-hw/2,-e.r-24,hw*(e.hp/e.maxHp),6);
+function drawEnemy(e){ if(!e.alive)return; ctx.save(); ctx.translate(e.x,e.y); if((e.freeze||0)>0){ctx.globalAlpha=.92;} if(e.windup>0){ctx.strokeStyle="#ff3333";ctx.lineWidth=4;ctx.beginPath();ctx.arc(0,0,e.boss?110:82,0,Math.PI*2);ctx.stroke();ctx.fillStyle="#ff3333";ctx.font="bold 13px " + FONT_UI;ctx.textAlign="center";ctx.fillText("SPACE",0,-e.r-42);} const enemyTypeColor={normal:"#33384f",shield:"#46506b",berserker:"#6a3f46",ranged:"#4b4568",elite:"#55476b",sniper:"#6c4b63",skirmisher:"#355868",support:"#356054",fireCrystal:"#8a3f35"}; ctx.fillStyle=e.hit>0?"#fff":e.boss?"#5b2d42":(enemyTypeColor[e.type]||"#33384f"); ctx.beginPath();ctx.arc(0,0,e.r,0,Math.PI*2);ctx.fill(); const hw=e.boss?105:62; ctx.fillStyle="#fff";ctx.font="bold 10px " + FONT_UI;ctx.textAlign="right";ctx.fillText("Lv."+((e.lv!==undefined)?e.lv:"?"),-hw/2-6,-e.r-18); ctx.fillStyle="#ff4d4d";ctx.fillRect(-hw/2,-e.r-24,hw,6);ctx.fillStyle="#ffe066";ctx.fillRect(-hw/2,-e.r-24,hw*(e.hp/e.maxHp),6);
   if((e.freeze||0)>0){ ctx.strokeStyle="#88d8ff"; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(0,0,e.r+13,0,Math.PI*2); ctx.stroke(); ctx.fillStyle="#88d8ff"; ctx.font="bold 11px " + FONT_UI; ctx.textAlign="center"; ctx.fillText("FROZEN",0,-e.r-45); }
   else if((e.chill||0)>0){ ctx.strokeStyle="rgba(136,216,255,.55)"; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(0,0,e.r+10,0,Math.PI*2); ctx.stroke(); }
   if(e.statuses&&e.statuses.burn){ctx.strokeStyle="#ff785f";ctx.lineWidth=3;ctx.setLineDash([7,5]);ctx.beginPath();ctx.arc(0,0,e.r+16,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);}
@@ -20245,39 +20000,19 @@ function drawEffects(){
 
 
 function drawMobileControls(){
-  if(!shouldShowMobileJoystick()||(gameMode==="tutorialBattle"&&tutorialPanelActive))return;
-  const fullControls=shouldShowMobileControls();
+  if(!shouldShowMobileControls())return;
   const buttons=mobileButtonRects();ctx.save();ctx.textAlign="center";ctx.textBaseline="middle";
   const bx=mobileInput.joyId===null?165:mobileInput.joyBaseX,by=mobileInput.joyId===null?H-120:mobileInput.joyBaseY;
-  ctx.fillStyle="rgba(3,8,18,.30)";ctx.beginPath();ctx.arc(bx,by,78,0,Math.PI*2);ctx.fill();ctx.strokeStyle="rgba(205,228,245,.38)";ctx.lineWidth=2;ctx.stroke();
-  ctx.strokeStyle="rgba(124,199,255,.18)";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(bx-57,by);ctx.lineTo(bx+57,by);ctx.moveTo(bx,by-57);ctx.lineTo(bx,by+57);ctx.stroke();
+  ctx.fillStyle="rgba(5,10,20,.38)";ctx.beginPath();ctx.arc(bx,by,76,0,Math.PI*2);ctx.fill();ctx.strokeStyle="rgba(124,199,255,.42)";ctx.lineWidth=3;ctx.stroke();
   const kx=mobileInput.joyId===null?bx:mobileInput.joyX,ky=mobileInput.joyId===null?by:mobileInput.joyY;
-  ctx.shadowColor="#71cfff";ctx.shadowBlur=9;ctx.fillStyle="rgba(76,173,226,.24)";ctx.beginPath();ctx.arc(kx,ky,31,0,Math.PI*2);ctx.fill();ctx.strokeStyle="rgba(150,221,255,.76)";ctx.lineWidth=2;ctx.stroke();ctx.shadowBlur=0;
-  if(!fullControls){ctx.fillStyle="rgba(225,242,255,.68)";ctx.font="bold 11px "+FONT_UI;ctx.fillText(language==="en"?"MOVE":"移动",bx,by+108);ctx.restore();return;}
-  const mobileColors={main:"#d9a52d",interact:"#69e5d0",skill:"#aa63db",ult:"#e65b67",swap:"#aeb7c5",dash:"#67aeda",parry:"#78badf"};
+  ctx.fillStyle="rgba(124,199,255,.34)";ctx.beginPath();ctx.arc(kx,ky,32,0,Math.PI*2);ctx.fill();ctx.strokeStyle="#9de5ff";ctx.lineWidth=2;ctx.stroke();
   for(const [name,b] of Object.entries(buttons)){
     if(name==="menu")continue;
-    if(name.startsWith("team")){
-      const roleId=Array.isArray(team)?team[b.slot]:null,valid=Number.isInteger(roleId),current=valid&&roleId===player.role,disabled=!valid||mobileTeamSlotDisabled(b.slot),color=valid?(roles[roleId]?.color||"#7cc7ff"):"#667080";
-      ctx.globalAlpha=disabled&&!current?.38:1;ctx.fillStyle="rgba(6,11,22,.58)";ctx.beginPath();ctx.arc(b.x,b.y,current?28:b.r,0,Math.PI*2);ctx.fill();ctx.shadowColor=color;ctx.shadowBlur=current?15:0;ctx.strokeStyle=current?"#fff":color;ctx.lineWidth=current?3:1.5;ctx.stroke();ctx.shadowBlur=0;ctx.fillStyle=color;ctx.beginPath();ctx.arc(b.x,b.y,current?17:15,0,Math.PI*2);ctx.fill();ctx.fillStyle="#07101c";ctx.font="bold 11px "+FONT_UI;ctx.fillText(valid?roleName(roleId).slice(0,1):String(b.slot+1),b.x,b.y);ctx.fillStyle="#fff";ctx.font="bold 8px Arial";ctx.fillText(String(b.slot+1),b.x+18,b.y+18);
-      if(valid&&player.switchCd>0&&!current){ctx.globalAlpha=.72;ctx.fillStyle="rgba(0,0,0,.7)";ctx.beginPath();ctx.arc(b.x,b.y,b.r-2,0,Math.PI*2);ctx.fill();ctx.fillStyle="#fff";ctx.font="bold 9px Arial";ctx.fillText((player.switchCd/60).toFixed(1),b.x,b.y);}ctx.globalAlpha=1;continue;
-    }
-    if(usesMobileArcanaUI()&&((name==="attack"&&!b.interact&&!b.parry)||name==="skill"||name==="ult"))continue;
-    if(chloeAttackCharge.active&&name!=="attack")continue;
     const active=!!mobileInput.activeButtons[name];
     const disabled=name==="skill"?player.skillCd>0||player.energy<SKILL_ENERGY_COST:name==="ult"?player.ultCd>0||player.ult<ULT_MAX:name==="dash"?player.dashCd>0:false;
-    const color=mobileColors[b.kind]||mobileColors[name]||"#7cc7ff";ctx.globalAlpha=disabled?.42:1;ctx.shadowColor=color;ctx.shadowBlur=active?13:5;ctx.fillStyle=active?color:"rgba(7,12,23,.48)";ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;ctx.strokeStyle=active?"rgba(255,255,255,.92)":disabled?"rgba(255,255,255,.20)":color;ctx.lineWidth=active?3:2;ctx.stroke();ctx.strokeStyle="rgba(255,255,255,.10)";ctx.lineWidth=1;ctx.beginPath();ctx.arc(b.x,b.y,b.r-6,0,Math.PI*2);ctx.stroke();ctx.fillStyle=disabled?"#8993a3":"#fff";ctx.font="bold "+(name==="attack"?17:11)+"px "+FONT_UI;ctx.fillText(b.label,b.x,b.y+(disabled?5:0));
+    ctx.globalAlpha=disabled?.42:1;ctx.fillStyle=active?"rgba(255,224,102,.48)":"rgba(8,14,26,.72)";ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,Math.PI*2);ctx.fill();ctx.strokeStyle=active?"#ffe066":disabled?"rgba(255,255,255,.24)":"#7cc7ff";ctx.lineWidth=active?4:2;ctx.stroke();ctx.fillStyle=disabled?"#8993a3":"#fff";ctx.font="bold "+(name==="attack"?17:12)+"px "+FONT_UI;ctx.fillText(b.label,b.x,b.y+(disabled?5:0));
     if(disabled){const cd=name==="skill"?player.skillCd:name==="ult"?player.ultCd:player.dashCd;ctx.font="bold 10px Arial";ctx.fillText(cd>0?(cd/60).toFixed(1)+"s":"—",b.x,b.y-13);}ctx.globalAlpha=1;
   }
-  if(usesMobileArcanaUI()&&!mobileInput.floraWheel.open&&!buttons.attack.interact&&!buttons.attack.parry){ctx.fillStyle="rgba(220,190,255,.58)";ctx.font="bold 10px "+FONT_UI;ctx.fillText(language==="en"?"TAP: ATTACK  ·  HOLD: ARCANA":"点击普攻 · 长按法武",W-190,H-34);}
-  const fw=mobileInput.floraWheel;
-  if(fw.open){
-    ctx.save();ctx.fillStyle="rgba(2,4,12,.42)";ctx.fillRect(0,0,W,H);ctx.shadowColor="#c787ff";ctx.shadowBlur=26;ctx.fillStyle="rgba(12,8,28,.94)";ctx.beginPath();ctx.arc(fw.x,fw.y,138,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;
-    const opts=[{id:"skill",x:fw.x-82,label:language==="en"?"SKILL":"技能",color:"#b75cff",off:player.skillCd>0},{id:"ult",x:fw.x+82,label:language==="en"?"ULT":"大招",color:"#ff5965",off:player.ultCd>0||player.ult<ULT_MAX}];
-    for(const o of opts){const on=fw.selected===o.id;ctx.globalAlpha=o.off?.38:1;ctx.fillStyle=on?o.color:"rgba(20,25,43,.96)";ctx.strokeStyle=on?"#fff":o.color;ctx.lineWidth=on?5:3;ctx.beginPath();ctx.arc(o.x,fw.y,48,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.fillStyle="#fff";ctx.font="bold 14px "+FONT_UI;ctx.fillText(o.label,o.x,fw.y);ctx.globalAlpha=1;}
-    ctx.fillStyle="rgba(255,255,255,.14)";ctx.beginPath();ctx.arc(fw.x,fw.y,38,0,Math.PI*2);ctx.fill();ctx.strokeStyle="rgba(255,255,255,.55)";ctx.lineWidth=2;ctx.stroke();ctx.fillStyle="#fff";ctx.font="11px "+FONT_UI;ctx.fillText(language==="en"?"RELEASE":"松手释放",fw.x,fw.y);ctx.restore();
-  }
-  if(chloeAttackCharge.active){ctx.fillStyle="rgba(11,8,28,.78)";ctx.strokeStyle="#bda7ff";ctx.lineWidth=2;ctx.beginPath();ctx.roundRect(W/2-170,H-52,340,32,16);ctx.fill();ctx.stroke();ctx.fillStyle="#ede8ff";ctx.font="bold 12px "+FONT_UI;ctx.fillText(language==="en"?"DRAG TO SET RANGE · RELEASE TO FIRE":"拖动调整矩形射程 · 松手发动",W/2,H-36);}
   ctx.fillStyle="rgba(124,199,255,.72)";ctx.font="bold 10px "+FONT_UI;ctx.fillText(mobileInput.device.toUpperCase()+" TOUCH",W/2,H-18);ctx.restore();
 }
 
@@ -20396,7 +20131,7 @@ function drawCommonMissionPause(labels,title,subtitle=""){
 }
 
 function drawBattleUI(){
-  if(mobileInput.enabled&&(gameMode==="battle"||gameMode==="tutorialBattle")&&!chainSelect){drawMobileBattleStatus();return;}
+  if(shouldShowMobileControls()){drawMobileBattleStatus();return;}
   if(battleModeSource==="daydream"){drawDaydreamBattleUI();return;}
   syncPlayerHpFromRole();
   const r=roles[player.role];
@@ -20448,8 +20183,8 @@ function drawBattleUI(){
     ctx.textAlign="center";ctx.fillStyle="#ffe066";ctx.font="bold 17px "+FONT_UI;
     ctx.fillText(language==="en"?`CHAIN DECISION  ${seconds}s`:`连携选择  ${seconds}秒`,W/2,H-154);
     ctx.fillStyle="rgba(255,255,255,.68)";ctx.font="12px "+FONT_UI;
-    ctx.fillText(mobileInput.enabled?(language==="en"?"Tap the left or right side to choose":"点击屏幕左侧或右侧选择"):(language==="en"?"Other keys cancel · timeout ends automatically":"按其他键取消 · 超时自动结束"),W/2,H-132);
-    partners.slice(0,2).forEach((roleId,i)=>{const x=W/2-230+i*240,prefix=mobileInput.enabled?(i===0?(language==="en"?"TAP LEFT · ":"点左侧 · "):(language==="en"?"TAP RIGHT · ":"点右侧 · ")):(i===0?(language==="en"?"LEFT · ":"左键 · "):(language==="en"?"RIGHT · ":"右键 · "));ctx.fillStyle="rgba(255,255,255,.07)";ctx.fillRect(x,H-119,220,62);ctx.strokeStyle=roles[roleId].color;ctx.strokeRect(x,H-119,220,62);ctx.fillStyle=roles[roleId].color;ctx.font="bold 16px "+FONT_UI;fitText(prefix+roleName(roleId),190,16,"bold",11);ctx.fillText(prefix+roleName(roleId),x+110,H-82);});
+    ctx.fillText(language==="en"?"Other keys cancel · timeout ends automatically":"按其他键取消 · 超时自动结束",W/2,H-132);
+    partners.slice(0,2).forEach((roleId,i)=>{const x=W/2-230+i*240;ctx.fillStyle="rgba(255,255,255,.07)";ctx.fillRect(x,H-119,220,62);ctx.strokeStyle=roles[roleId].color;ctx.strokeRect(x,H-119,220,62);ctx.fillStyle=roles[roleId].color;ctx.font="bold 16px "+FONT_UI;fitText((i===0?(language==="en"?"LEFT · ":"左键 · "):(language==="en"?"RIGHT · ":"右键 · "))+roleName(roleId),190,16,"bold",11);ctx.fillText((i===0?(language==="en"?"LEFT · ":"左键 · "):(language==="en"?"RIGHT · ":"右键 · "))+roleName(roleId),x+110,H-82);});
   }
 
   drawBar(30,78,280,12,player.hp/playerMaxHp(),"#ff4d4d");
@@ -20732,6 +20467,7 @@ function drawBattle(){ const sx=chainSelect?0:(Math.random()-.5)*shake,sy=chainS
   }
   drawBattlePauseButton();
   drawBattlePauseMenu();
+  drawPcBattleKeyHints();
 }
 
 function bootEaseInOut(x){
@@ -21657,6 +21393,18 @@ function drawCommercialScreenTransition(){
   ctx.restore();
 }
 
+function drawPcBattleKeyHints(){
+  if(!pcKeyHintsEnabled||battlePaused||gameMode!=="battle"||chainSelect)return;
+  const rows=[[["M1","mouse1"],["E","e"],["Q","q"],["SHIFT","shift"],["SPACE"," "],["R","r"],["F","f"]],[["1","1"],["2","2"],["3","3"],["TAB","tab"],["B","b"],["WASD","wasd"],["M2","mouse2"]]],at=performance.now(),x=W-320,y=H-91;
+  ctx.save();ctx.fillStyle="rgba(4,9,20,.69)";ctx.beginPath();ctx.roundRect(x,y,307,78,9);ctx.fill();ctx.strokeStyle="rgba(124,199,255,.24)";ctx.stroke();ctx.textAlign="center";ctx.textBaseline="middle";
+  for(let row=0;row<2;row++)for(let col=0;col<7;col++){const [label,key]=rows[row][col],bx=x+8+col*43,by=y+7+row*34,stamp=key==="wasd"?Math.max(pcBattleKeyFlash.w||0,pcBattleKeyFlash.a||0,pcBattleKeyFlash.s||0,pcBattleKeyFlash.d||0):pcBattleKeyFlash[key]||0,pulse=Math.max(0,1-(at-stamp)/180),down=key==="wasd"?!!(keys.w||keys.a||keys.s||keys.d):!!keys[key];ctx.fillStyle=pulse||down?`rgba(255,224,102,${.15+Math.max(pulse,down?.32:0)*.58})`:"rgba(255,255,255,.05)";ctx.fillRect(bx,by,39,29);ctx.strokeStyle=pulse||down?"#ffe066":"rgba(255,255,255,.20)";ctx.strokeRect(bx,by,39,29);ctx.fillStyle=pulse||down?"#fff":"rgba(225,237,255,.72)";ctx.font="bold "+(label.length>4?8:10)+"px "+FONT_UI;ctx.fillText(label,bx+19.5,by+15);}
+  ctx.restore();
+}
+function drawPcPageKeyHint(){
+  if(!pcKeyHintsEnabled||uiGuidePrompt||window.PZStory?.active)return;
+  const pages={settings:"ESC",operators:"ESC",shop:"ESC",mail:"ESC",profile:"ESC",archive:"ESC",friends:"ESC",friendAdd:"ESC",warehouse:"ESC",team:"ESC",achievements:"ESC",actionRecord:"ESC",growthGuide:"ESC",event:"ESC",operation:"ESC",story:"ENTER / ESC",settlement:"ENTER",defeat:"ENTER"};
+  const label=pages[gameMode];if(!label)return;ctx.save();ctx.fillStyle="rgba(4,9,20,.70)";ctx.beginPath();ctx.roundRect(5,5,label.length>8?94:49,21,5);ctx.fill();ctx.strokeStyle="rgba(124,199,255,.35)";ctx.stroke();ctx.fillStyle="rgba(229,240,255,.78)";ctx.font="bold 9px "+FONT_UI;ctx.textAlign="center";ctx.fillText(label,label.length>8?52:29,19);ctx.restore();
+}
 function draw(){
   if(gameMode==="boot"){ drawBootSequence(); return; }
   ctx.clearRect(0,0,W,H);
@@ -21691,6 +21439,7 @@ function draw(){
   else drawBattle();
 
   drawMobileControls();
+  drawPcPageKeyHint();
   drawAchievementNotice();
   if(window.PZStory && window.PZStory.active) window.PZStory.draw(ctx,W,H);
   drawCommercialScreenTransition();

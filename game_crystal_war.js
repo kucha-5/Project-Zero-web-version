@@ -25,6 +25,8 @@ const DEF={
  ,forge:{z:"晶锭塑形机",e:"Crystal Ingot Former",icon:"▰",descZ:"将稳定复材塑形成可铸造晶锭",descE:"Forms Stable Composite into mint-ready Crystal Ingots",cost:145,max:10,req:3,w:2,h:1,power:16}
  ,mint:{z:"晶体币铸造机",e:"Crystal Coin Mint",icon:"◈",descZ:"将晶锭铸造成晶体币并送回中枢输入端",descE:"Mints Crystal Ingots into Crystal Coins and returns them to the Hub input",cost:175,max:10,req:3,w:2,h:1,power:18}
 };
+const SCREW_COST_MULTIPLIER=2;
+for(const facility of Object.values(DEF))if(facility.cost>0)facility.cost=Math.ceil(facility.cost*SCREW_COST_MULTIPLIER);
 const BUILD_ORDER=["power","relay","material","crusher","synth","forge","mint","crystal","depot","splitter","buffer","manufacturing","battery","coolant","repair","rest","defense","turret","slowTower","artillery","lab"];
 const RECIPES=[{id:"plate",z:"测试合金板",e:"Test Alloy Plate",mat:20,sec:30},{id:"cable",z:"测试晶体线缆",e:"Test Crystal Cable",mat:35,sec:60}];
 const SHOP=[
@@ -237,7 +239,7 @@ const BLUEPRINTS=[
 ];
 function memoryActive11(id){return Array.isArray(S.instances)&&S.instances.some(v=>v.memoryBlueprintId===id&&v.hp>0);}
 function spendScrews11(amount){const n=Math.max(0,Math.ceil(+amount||0));if(!n)return true;if(S.screws<n)return false;S.screws-=n;if(S.stats11)S.stats11.screwsSpent=(+S.stats11.screwsSpent||0)+n;return true;}
-function shopPrice11(it){return Math.max(1,Math.ceil((it?.price||0)*(memoryActive11("supply")?.92:1)));}
+function shopPrice11(it){return Math.max(1,Math.ceil((it?.price||0)*3*(memoryActive11("supply")?.92:1)));}
 let raidLastTick=now(),raidLastSave=0;
 function ensureStrategyV6(){
   S.inventory=S.inventory&&typeof S.inventory==="object"?S.inventory:{};
@@ -280,7 +282,7 @@ function updateRaid6(){
   else if(at-raidLastSave>5000){raidLastSave=at;save();}
 }
 function raidCountdown6(){if(S.raid)return T("袭击进行中","RAID ACTIVE")+" · "+S.raid.enemies.length;const s=Math.max(0,Math.ceil((S.nextRaidAt-now())/1000));return T("下次袭击 ","NEXT RAID ")+String(Math.floor(s/60)).padStart(2,"0")+":"+String(s%60).padStart(2,"0");}
-function repairFacility6(id){const max=facilityMaxHp6(id),hp=Math.max(0,+S.facilityHP[id]||0);if(hp>=max)return note(T("设施无需维修","Facility does not need repair"));const cost=Math.max(10,Math.ceil(2*Math.ceil((max-hp)/10)*(hasSkill6("autoRepair")?.7:1)*(hasSkill6("maintenanceNetwork")?.85:1)));if(S.screws<cost)return note(T("螺丝不足","Not enough screws"));S.screws-=cost;S.facilityHP[id]=max;S.buildings[id].status="normal";note(T("设施维修完成","Facility repaired"));}
+function repairFacility6(id){const max=facilityMaxHp6(id),hp=Math.max(0,+S.facilityHP[id]||0);if(hp>=max)return note(T("设施无需维修","Facility does not need repair"));const cost=Math.max(10,Math.ceil(2*Math.ceil((max-hp)/10)*SCREW_COST_MULTIPLIER*(hasSkill6("autoRepair")?.7:1)*(hasSkill6("maintenanceNetwork")?.85:1)));if(S.screws<cost)return note(T("螺丝不足","Not enough screws"));S.screws-=cost;S.facilityHP[id]=max;S.buildings[id].status="normal";note(T("设施维修完成","Facility repaired"));}
 function drawRaid6(){
   if(!S.raid)return;const c=g.ctx;c.save();c.beginPath();c.rect(VIEW.x,VIEW.y,VIEW.w,VIEW.h);c.clip();for(const id of ["turret","slowTower","artillery"]){if(!S.layout[id]||!powered5(id))continue;const q=S.layout[id],d=DEF[id],wx=q.x+d.w/2,wy=q.y+d.h/2,o=center5(id),target=S.raid.enemies.slice().sort((a,b)=>Math.hypot(a.x-wx,a.y-wy)-Math.hypot(b.x-wx,b.y-wy))[0];if(target&&Math.hypot(target.x-wx,target.y-wy)<=(d.range||4)){const p=screen5(target.x,target.y);c.strokeStyle=id==="slowTower"?"rgba(155,124,255,.55)":"rgba(255,224,102,.72)";c.lineWidth=id==="artillery"?3:1.5;c.beginPath();c.moveTo(o.x,o.y);c.lineTo(p.x,p.y);c.stroke();}}for(const e of S.raid.enemies){const p=screen5(e.x,e.y);c.fillStyle="#ff6f7d";c.beginPath();c.arc(p.x,p.y,Math.max(4,6*S.zoom),0,Math.PI*2);c.fill();c.strokeStyle="#fff";c.stroke();c.fillStyle="rgba(0,0,0,.55)";c.fillRect(p.x-13,p.y-13,26,3);c.fillStyle="#ff6f7d";c.fillRect(p.x-13,p.y-13,26*Math.max(0,e.hp/e.maxHp),3);}c.restore();
 }
@@ -312,7 +314,7 @@ function drawBlueprints6(){bg();txt(T("制造记忆 / 蓝图库","MANUFACTURING 
 function applyCrystalBlueprint6(){
   if(!S.blueprints.includes("crystalCoin"))return note(T("尚未取得该制造记忆","Memory not acquired"));const pos={power:{x:12,y:8},material:{x:9,y:12},crystal:{x:12,y:13},depot:{x:17,y:13}},missing=Object.keys(pos).filter(id=>!S.layout[id]),cost=missing.reduce((n,id)=>n+DEF[id].cost,0);if(S.screws<cost)return note(T("套用蓝图所需螺丝不足","Not enough screws to apply blueprint"));for(const id of missing){const p=pos[id];if(!canPlace(id,p.x,p.y))return note(T("蓝图区域被占用，请清理中枢周边空间","Blueprint area is obstructed near the Hub"));}S.screws-=cost;for(const id of missing){S.layout[id]=pos[id];S.buildings[id].status="offline";S.buildings[id].lastAt=now();S.facilityHP[id]=facilityMaxHp6(id);}const wirePairs=[["command","power"],["power","material"],["power","crystal"],["power","depot"]],routes=[["material","crystal"],["crystal","depot"]];for(const e of wirePairs)if(!S.powerLinks.some(v=>(v[0]===e[0]&&v[1]===e[1])||(v[0]===e[1]&&v[1]===e[0])))S.powerLinks.push(e);for(const e of routes)if(!hasLink(e[0],e[1]))S.links.push(e);S.industryStep=10;S.page="baseBuild";note(T("晶体币自动产线已部署","Crystal Coin auto-line deployed"));}
 function drawBaseBuild6(){drawBaseBuild5();drawRaid6();panel(840,544,238,38,"#82ffe2","rgba(5,12,23,.98)");txt(T("制造记忆 / 蓝图","MEMORIES / BLUEPRINTS"),959,568,11,"#fff","center",true);panel(588,76,220,42,S.raid?"#ff758a":"#7cffb2","rgba(5,11,20,.94)");txt(raidCountdown6(),698,102,10,S.raid?"#ff8b96":"#7cffb2","center",true);}
-function drawDetail6(){detail();const id=S.selected;if(!id||!DEF[id])return;const max=facilityMaxHp6(id),hp=Math.max(0,+S.facilityHP[id]||0),cost=Math.max(10,Math.ceil(2*Math.ceil((max-hp)/10)*(hasSkill6("autoRepair")?.7:1)*(hasSkill6("maintenanceNetwork")?.85:1)));txt(T("设施耐久：","DURABILITY: ")+Math.floor(hp)+" / "+Math.floor(max),520,360,15,hp<=0?"#ff758a":"#7cffb2");btn(hp<max?T("维修 🔩 ","REPAIR 🔩 ")+cost:T("耐久正常","DURABILITY OK"),520,390,250,44,hp<max&&S.screws>=cost,"#7cffb2");}
+function drawDetail6(){detail();const id=S.selected;if(!id||!DEF[id])return;const max=facilityMaxHp6(id),hp=Math.max(0,+S.facilityHP[id]||0),cost=Math.max(10,Math.ceil(2*Math.ceil((max-hp)/10)*SCREW_COST_MULTIPLIER*(hasSkill6("autoRepair")?.7:1)*(hasSkill6("maintenanceNetwork")?.85:1)));txt(T("设施耐久：","DURABILITY: ")+Math.floor(hp)+" / "+Math.floor(max),520,360,15,hp<=0?"#ff758a":"#7cffb2");btn(hp<max?T("维修 🔩 ","REPAIR 🔩 ")+cost:T("耐久正常","DURABILITY OK"),520,390,250,44,hp<max&&S.screws>=cost,"#7cffb2");}
 function drawBattlefield6(showBack=true){bg();txt(T("进入战场","ENTER THE FRONT"),560,82,36,"#fff","center",true);txt(T("战斗沿用主线编队、角色模型与战斗模组","USES MAIN-STORY SQUAD, MODELS AND COMBAT MODULES"),560,112,12,"rgba(255,255,255,.5)","center");const a=[{x:70,col:"#ff7f92",icon:"⚔",z:"无限战区",e:"ENDLESS FRONT",subZ:"编队后进入连续区段，B键部署采矿设备",subE:"Form a squad, advance endlessly, press B to deploy miners"},{x:575,col:"#6ed8ff",icon:"◆",z:"进入基地",e:"ENTER BASE",subZ:"工业、蓝图、电网与基地防守",subE:"Industry, blueprints, power and base defense"}];for(const q of a){panel(q.x,165,475,350,q.col,"rgba(9,15,29,.94)");txt(q.icon,q.x+238,290,66,q.col,"center",true);txt(T(q.z,q.e),q.x+238,365,25,"#fff","center",true);txt(T(q.subZ,q.subE),q.x+238,402,11,"rgba(255,255,255,.52)","center");btn(T("进入","ENTER"),q.x+88,445,300,48,true,q.col);}if(showBack)btn(T("返回晶体战争","BACK TO CRYSTAL WAR"),430,555,260,42,true,"#fff");}
 function draw6(){if(S.page==="base")drawBase6();else if(S.page==="skillTree")drawSkillTree6();else if(S.page==="deviceTutorials")drawTutorials6();else if(S.page==="deviceTutorial")drawDeviceTutorial6();else if(S.page==="blueprints")drawBlueprints6();else if(S.page==="baseBuild")drawBaseBuild6();else if(S.page==="detail")drawDetail6();else if(S.page==="battlefield")drawBattlefield6();else draw5();notice();}
 function click6(){
@@ -1014,4 +1016,23 @@ function click17(){if(S.page==="memoryEditV17")return clickMemoryEditor18();if(S
 const wheelBase17=wheel8;function wheel17(delta,x,y){if(S.page==="myMemoriesV17"){memoryListScroll17=Math.max(0,Math.min(Math.max(0,memories16().length-6),memoryListScroll17+Math.sign(delta)));return true;}return wheelBase17(delta,x,y);}
 const escapeBase17=escape8;function escape17(){if(S.page==="memoryEditV17"){const page=memorySearch17?"sharedBlueprintsV16":"baseBuild";memoryEditor17=null;memorySearch17=false;closeMemoryInput17();S.page=page;return true;}if(S.page==="myMemoriesV17"){S.page="sharedBlueprintsV16";return true;}if(S.page==="sharedBlueprintsV16"){S.page="blueprints";return true;}return escapeBase17();}
 g.PZCrystalWar.update=update17;g.PZCrystalWar.draw=draw17;g.PZCrystalWar.handleClick=click17;g.PZCrystalWar.handleEscape=escape17;g.PZCrystalWar.handleWheel=wheel17;g.PZCrystalWar.pointerDown=pointerDown17;g.PZCrystalWar.pointerMove=pointerMove17;g.PZCrystalWar.pointerUp=pointerUp17;
+function drawPcCrystalBaseKeys(){
+ if(S.page!=="baseBuild"||S.guideStep7<99||!g.PZIsCrystalWarBaseVisible?.()||!g.PZPcKeyHintsEnabled?.())return;
+ const c=g.ctx,items=[["W",T("电线","WIRE")],["T",T("轨道","TRACK")],["C",T("领取","COLLECT")],["M",T("制造","MANUFACTURE")],["V",T("记忆","MEMORIES")],["CAPS",T("框选","SELECT")],["F",T("删除","DELETE")],["G",T("保存","SAVE")]],x=28,y=580;
+ c.save();c.fillStyle="rgba(4,9,19,.86)";c.beginPath();c.roundRect(x,y,842,24,5);c.fill();c.strokeStyle="rgba(124,199,255,.35)";c.stroke();c.font="bold 9px "+g.FONT_UI;c.textAlign="left";for(let i=0;i<items.length;i++){const [key,name]=items[i],px=x+10+i*103;c.fillStyle="#ffe066";c.fillText(key,px,y+16);c.fillStyle="rgba(231,242,255,.68)";c.fillText(name,px+(key==="CAPS"?31:16),y+16);}c.restore();
+}
+const drawCrystalBeforePcHints=g.PZCrystalWar.draw;
+g.PZCrystalWar.draw=()=>{drawCrystalBeforePcHints();drawPcCrystalBaseKeys();};
+g.addEventListener("keydown",event=>{
+ if(event.repeat||event.altKey||event.ctrlKey||event.metaKey||S.page!=="baseBuild"||S.guideStep7<99||!g.PZIsCrystalWarBaseVisible?.()||multiSelect16)return;
+ if(event.target?.closest?.("input,textarea,[contenteditable='true']"))return;
+ const code=event.code;
+ if(code==="KeyW"||code==="KeyT"){
+  const wire=code==="KeyW",wasOn=wire?S.wireMode:S.linkMode;S.wireMode=wire&&!wasOn;S.linkMode=!wire&&!wasOn;S.wireStart=null;S.linkStart=null;S.buildMode=null;S.blueprintPlacement=null;
+  note(wasOn?T("已退出连接模式","Connection mode closed"):wire?T("电线模式：拖动端口连接","Wire mode: drag between ports"):T("轨道模式：拖动端口连接","Track mode: drag between ports"));event.preventDefault();return;
+ }
+ if(code==="KeyC"){collectAll();event.preventDefault();return;}
+ if(code==="KeyM"){S.page="manufactureTree";save();event.preventDefault();return;}
+ if(code==="KeyV"){S.page="blueprints";save();event.preventDefault();return;}
+});
 })(window);

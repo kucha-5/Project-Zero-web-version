@@ -2,8 +2,8 @@
   "use strict";
 
   const VERSION_URL="version.json";
-  const LOCAL_VERSION="49.36.0";
-  const LOCAL_BUILD="2026091302-mobile-ailo-portrait-tuning";
+  const LOCAL_VERSION="49.33.3";
+  const LOCAL_BUILD="2026091503-pc-guest-entry-icon";
   const FILE_RUNTIME=location.protocol==="file:";
   const BUILD_KEY="pz_runtime_build";
   const VERSION_KEY="pz_runtime_version";
@@ -34,14 +34,6 @@
   const actions=document.getElementById("bootActions");
   const retryButton=document.getElementById("bootRetry");
   const resetButton=document.getElementById("bootReset");
-  const installGate=document.getElementById("installGate");
-  const installSteps=document.getElementById("installSteps");
-  const installButton=document.getElementById("installAppButton");
-  let deferredInstallPrompt=null;
-
-  function mobileBrowserNeedsInstall(){const mobile=navigator.maxTouchPoints>0&&((window.matchMedia&&window.matchMedia("(pointer: coarse)").matches)||/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent));const installed=!!(navigator.standalone||window.matchMedia?.("(display-mode: standalone)").matches||window.matchMedia?.("(display-mode: fullscreen)").matches||document.referrer.startsWith("android-app://"));return mobile&&!installed&&!FILE_RUNTIME;}
-  function showInstallGate(){if(screen)screen.hidden=true;if(installGate)installGate.hidden=false;const ios=/iPhone|iPad|iPod/i.test(navigator.userAgent);if(installSteps)installSteps.innerHTML=ios?'<div class="install-step"><b>1</b>点击 Safari 底部或顶部的“分享”按钮</div><div class="install-step"><b>2</b>选择“添加到主屏幕”</div><div class="install-step"><b>3</b>回到主屏幕，点击 PZ Mobile 图标启动</div>':'<div class="install-step"><b>1</b>点击下方“添加到主屏幕”或浏览器菜单中的“安装应用”</div><div class="install-step"><b>2</b>确认安装 PZ Mobile</div><div class="install-step"><b>3</b>从主屏幕图标启动，不要从浏览器标签页进入</div>';if(installButton){installButton.textContent=ios?'打开分享菜单并选择“添加到主屏幕”':'添加到主屏幕';installButton.classList.toggle("install-manual",ios);installButton.onclick=async()=>{if(deferredInstallPrompt){deferredInstallPrompt.prompt();try{await deferredInstallPrompt.userChoice;}catch(_){}deferredInstallPrompt=null;}else if(ios){installButton.textContent='请使用 Safari 的“分享”→“添加到主屏幕”';}else installButton.textContent='请打开浏览器菜单 → 安装应用';};}}
-  window.addEventListener("beforeinstallprompt",event=>{event.preventDefault();deferredInstallPrompt=event;if(installButton){installButton.textContent="添加到主屏幕";installButton.classList.remove("install-manual");}});
 
   const setStatus=(text,state="")=>{
     if(status) status.textContent=text;
@@ -234,5 +226,5 @@
     location.reload();
   });
 
-  if(mobileBrowserNeedsInstall())showInstallGate();else start();
+  start();
 })();
