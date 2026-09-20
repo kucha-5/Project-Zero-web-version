@@ -14,7 +14,7 @@
 
 // Build info for quick debugging
 window.PZ_BUILD_INFO = window.PZ_BUILD_INFO || {
-  build: "V49_33_3_PC_RAVEN_FX_TUNING",
+  build: "V49_33_3_PC_RAVEN_BREAK_BALANCE",
   storyModule: true,
   optimized: true
 };
@@ -1238,6 +1238,7 @@ const W = LOGICAL_W, H = LOGICAL_H;
 
 const keys = {};
 let mouseX = 0, mouseY = 0, mouseDown = false, clicked = false, mouseAttackConsumed = false, attackInputLock = 0, prev = {};
+let desktopUiDrag = null;
 
 const mobileInput = {
   enabled:false,
@@ -1602,6 +1603,7 @@ canvas.addEventListener("mousemove", e => {
     shopRecruitScrollX=clamp(shopRecruitDrag.startScroll-dx,0,permanentRecruitMaxScroll());
     clicked=false;
   }
+  if(desktopUiDrag){const dx=mouseX-desktopUiDrag.x,dy=mouseY-desktopUiDrag.y;if(Math.hypot(dx,dy)>5)desktopUiDrag.moved=true;if(desktopUiDrag.type==="operators")operatorListScrollX=Math.max(0,desktopUiDrag.scroll-dx);else if(desktopUiDrag.type==="warehouse")warehouseScroll=Math.max(0,desktopUiDrag.scroll-dy);else if(desktopUiDrag.type==="achievements")achievementScroll=Math.max(0,desktopUiDrag.scroll+Math.round(-dy/46));else if(desktopUiDrag.type==="actionRecord")actionRecordTaskScroll=Math.max(0,desktopUiDrag.scroll-dy);if(desktopUiDrag.moved)clicked=false;}
   if(gameMode==="operation"&&selectedTab==="dualCrystal"&&window.PZCrystalWar&&typeof window.PZCrystalWar.pointerMove==="function")window.PZCrystalWar.pointerMove(mouseX,mouseY);
   if(gameMode === "match3" && mouseDown && window.PZMatch3) window.PZMatch3.pointerMove(mouseX,mouseY);
 });
@@ -1618,6 +1620,7 @@ canvas.addEventListener("mousedown", e => {
   const r = canvas.getBoundingClientRect();
   mouseX = (e.clientX - r.left) * W / r.width;
   mouseY = (e.clientY - r.top) * H / r.height;
+  if(e.button===0){let type="",scroll=0;if(gameMode==="operators"&&operatorPageMode==="list"){type="operators";scroll=operatorListScrollX;}else if(gameMode==="warehouse"){type="warehouse";scroll=warehouseScroll;}else if(gameMode==="achievements"){type="achievements";scroll=achievementScroll;}else if(gameMode==="actionRecord"&&actionRecordTab==="tasks"){type="actionRecord";scroll=actionRecordTaskScroll;}if(type)desktopUiDrag={type,x:mouseX,y:mouseY,scroll,moved:false};}
   if(gameMode==="shop"&&shopTab==="recruit"&&shopSubTab==="permanent"&&e.button===0&&mouseY>=238&&mouseY<=548){
     const contentY=mouseY+shopRecruitScrollY;
     if(contentY>=245&&contentY<=545){
@@ -1655,7 +1658,7 @@ canvas.addEventListener("mousedown", e => {
   if (e.button === 0) { unlockAudio(); mouseDown = true; clicked = true; sfx("ui"); }
   if (e.button === 2) { unlockAudio(); keys["mouse2"] = true; }
 });
-canvas.addEventListener("mouseup", e => { if(mobileInput.enabled&&performance.now()<mobileInput.ignoreMouseUntil)return; if(e.button===0) { const recruitDrag=shopRecruitDrag;shopRecruitDrag=null;if(recruitDrag&&!recruitDrag.moved){clicked=true;sfx("ui");}else if(recruitDrag){clicked=false;} crystalWarRackDrag=null; if(gameMode==="operation"&&selectedTab==="dualCrystal"&&window.PZCrystalWar&&typeof window.PZCrystalWar.pointerUp==="function")window.PZCrystalWar.pointerUp(mouseX,mouseY); if(gameMode==="match3" && window.PZMatch3) window.PZMatch3.pointerUp(mouseX,mouseY); mouseDown = false; mouseAttackConsumed = false; } if(e.button===2) keys["mouse2"]=false; });
+canvas.addEventListener("mouseup", e => { if(mobileInput.enabled&&performance.now()<mobileInput.ignoreMouseUntil)return; if(e.button===0) { const recruitDrag=shopRecruitDrag;shopRecruitDrag=null;if(recruitDrag&&!recruitDrag.moved){clicked=true;sfx("ui");}else if(recruitDrag){clicked=false;} const uiDrag=desktopUiDrag;desktopUiDrag=null;if(uiDrag&&uiDrag.moved)clicked=false; crystalWarRackDrag=null; if(gameMode==="operation"&&selectedTab==="dualCrystal"&&window.PZCrystalWar&&typeof window.PZCrystalWar.pointerUp==="function")window.PZCrystalWar.pointerUp(mouseX,mouseY); if(gameMode==="match3" && window.PZMatch3) window.PZMatch3.pointerUp(mouseX,mouseY); mouseDown = false; mouseAttackConsumed = false; } if(e.button===2) keys["mouse2"]=false; });
 canvas.addEventListener("contextmenu", e => e.preventDefault());
 canvas.addEventListener("wheel", e => {
   if(gameMode==="archive"&&archiveEntry>=0&&archiveTab===0){archiveDetailScroll=Math.max(0,archiveDetailScroll+Math.sign(e.deltaY||0)*72);e.preventDefault();}
@@ -1678,6 +1681,7 @@ canvas.addEventListener("wheel", e => {
     shopLimitedWheelDelta += (e.deltaY || e.deltaX || 0);
     e.preventDefault();
   }
+  if(gameMode === "shop" && shopTab === "weapon" && shopSubTab === "permanent" && mouseY>=350 && mouseY<=550){shopWeaponWheelDelta+=(e.deltaY||e.deltaX||0);e.preventDefault();}
   if(gameMode === "warehouse"){
     warehouseWheelDelta += (e.deltaY || e.deltaX || 0);
     e.preventDefault();
@@ -3711,12 +3715,13 @@ function saveGame(){
       accountUid:(!guestMode && cloudUser) ? cloudUser.uid : "",
       crystals, gold, expBooks, weaponOre, skillBooks, skillMaterials, playerLevel, playerExp, playerExpNeed, protagonistStoryLevel, playerName, playerUID, hasCreatedProfile, profileAvatarRole, profileAvatarFrame, profileShowcase, profileStyle, profileOverviewMode, profileSignature,
       owned, cleared, hardCleared, projectAreaCleared, projectAreaMapClears, storyIntelRecords, oneTimeExploreClaims, charData, lobbyExecutor, lobbyBackgroundTheme, team, teamPresets, teamPresetNames, borrowedSupport, renderQuality, targetFPS, monthlyOwned, monthlyClaimed, monthlyClaimDate, mailClaimed, mailDeleted, eventClaimed, lastLoginClaimDate, loginClaimIndex, monthlyLoginCheckin, versionLoginCheckin,
-      loginRewards, levelRewards, boughtPacks, ownedWeapons, weaponInventory, weaponLevelMigrationDone, crystalExchangePurchases, crystalExchangeWeekKey, dungeonStamina, dungeonWeeklyCrystalLeft, dungeonCrystalWeekKey, dungeonLastStaminaDate, dungeonCandy, dungeonStimulant, dungeonCandyMonthKey, dungeonCandyDailyUsed, dungeonCandyDailyKey, dungeonRewardMultiplier, materialDungeonDifficulty, materialDungeonDifficulties, materialDungeonSelected, materialDungeonScroll, moduleDungeonTarget, audioMuted, bgmVolume, sfxVolume, particlesEnabled, damageTextEnabled, tutorialCompleted, tutorialInProgress, tutorialResumeMode, language, prologueDone, lobbyGuideDone, lobbyGuideStep, achievements, totalKills, totalParries, totalChains, totalBossKills, totalGoldEarned, totalCrystalsEarned, growthGuidePage, growthGuidePageClaimed, growthGuideTaskClaimed, bossMultiplier, bossDifficulty, bossDifficulties, bossKrosWeeklyKey, dragonClaw, crystalHand, elementalFragments, uiGuideSeen, uiNewSeen, actionRecordLevel, actionRecordExp, actionRecordExpNeed, actionRecordPage, actionRecordAdvanced, actionRecordUltimate, actionRecordClaimed, actionRecordWeaponChoice, actionRecordTab, actionRecordTaskTab, actionRecordTaskClaimed, battleManualDailyClaimed,
+      loginRewards, levelRewards, boughtPacks, ownedWeapons, weaponInventory, weaponLevelMigrationDone, crystalExchangePurchases, crystalExchangeWeekKey, shopTokens, shopTokenPurchases, shopScrewPurchases, shopTokenMonthKey, shopScrewWeekKey, dungeonStamina, dungeonWeeklyCrystalLeft, dungeonCrystalWeekKey, dungeonLastStaminaDate, dungeonCandy, dungeonStimulant, dungeonCandyMonthKey, dungeonCandyDailyUsed, dungeonCandyDailyKey, dungeonRewardMultiplier, materialDungeonDifficulty, materialDungeonDifficulties, materialDungeonSelected, materialDungeonScroll, moduleDungeonTarget, audioMuted, bgmVolume, sfxVolume, particlesEnabled, damageTextEnabled, tutorialCompleted, tutorialInProgress, tutorialResumeMode, language, prologueDone, lobbyGuideDone, lobbyGuideStep, achievements, totalKills, totalParries, totalChains, totalBossKills, totalGoldEarned, totalCrystalsEarned, growthGuidePage, growthGuidePageClaimed, growthGuideTaskClaimed, bossMultiplier, bossDifficulty, bossDifficulties, bossKrosWeeklyKey, dragonClaw, crystalHand, elementalFragments, uiGuideSeen, uiNewSeen, actionRecordLevel, actionRecordExp, actionRecordExpNeed, actionRecordPage, actionRecordAdvanced, actionRecordUltimate, actionRecordClaimed, actionRecordWeaponChoice, actionRecordTab, actionRecordTaskTab, actionRecordTaskClaimed, battleManualDailyClaimed,
       battleResume:captureBattleResumeSnapshot()
     };
     current.pcKeyHintsEnabled=pcKeyHintsEnabled;
     current.projectAreaState=paState;
     current.projectAreaPaused=projectAreaPaused;
+    if(window.PZCrystalWar&&typeof window.PZCrystalWar.exportPersistentState==="function")current.crystalWarState=window.PZCrystalWar.exportPersistentState();
     current.crystalModuleInventory = crystalModuleInventory;
     current.externalProgress = collectExternalProgress(key);
     // Save updates are merged into the current record. Existing extension fields
@@ -3780,6 +3785,12 @@ function migrateSaveData(d){
   addMissing("profileOverviewMode", "achievements");
   addMissing("profileSignature", "");
   addMissing("crystalExchangeWeekKey", "");
+  addMissing("shopTokens", 0);
+  addMissing("shopTokenPurchases", {});
+  addMissing("shopScrewPurchases", {});
+  addMissing("shopTokenMonthKey", "");
+  addMissing("shopScrewWeekKey", "");
+  addMissing("crystalWarState", null);
   if(!Array.isArray(d.owned)){ d.owned=[true,true,false,false,true,false,false]; changed=true; }
   while(d.owned.length<roles.length){ d.owned.push(false); changed=true; }
   for(const roleId of [0,1,PROTAGONIST_ROLE]){
@@ -3898,6 +3909,10 @@ function loadGame(){
     if(d.projectAreaMapClears&&typeof d.projectAreaMapClears==="object")projectAreaMapClears=Object.assign({},d.projectAreaMapClears);
     if(d.projectAreaState&&typeof d.projectAreaState==="object")paState=cloneBattleResumeValue(d.projectAreaState,null);
     if(typeof d.projectAreaPaused==="boolean")projectAreaPaused=d.projectAreaPaused;
+    if(d.crystalWarState&&typeof d.crystalWarState==="object"){
+      window.PZ_PENDING_CRYSTAL_WAR_STATE=cloneBattleResumeValue(d.crystalWarState,null);
+      if(window.PZCrystalWar&&typeof window.PZCrystalWar.importPersistentState==="function")window.PZCrystalWar.importPersistentState(window.PZ_PENDING_CRYSTAL_WAR_STATE,false);
+    }
     if(Array.isArray(d.charData)) charData = d.charData;
     while(charData.length<roles.length){
       const roleId=charData.length;
@@ -3917,6 +3932,11 @@ function loadGame(){
     if(typeof d.monthlyOwned === "boolean") monthlyOwned = d.monthlyOwned;
     if(typeof d.monthlyClaimed === "boolean") monthlyClaimed = d.monthlyClaimed;
     if(typeof d.monthlyClaimDate === "string") monthlyClaimDate = d.monthlyClaimDate;
+    if(typeof d.shopTokens === "number") shopTokens = Math.max(0,Math.floor(d.shopTokens));
+    if(d.shopTokenPurchases && typeof d.shopTokenPurchases === "object") shopTokenPurchases = {...d.shopTokenPurchases};
+    if(d.shopScrewPurchases && typeof d.shopScrewPurchases === "object") shopScrewPurchases = {...d.shopScrewPurchases};
+    if(typeof d.shopTokenMonthKey === "string") shopTokenMonthKey = d.shopTokenMonthKey;
+    if(typeof d.shopScrewWeekKey === "string") shopScrewWeekKey = d.shopScrewWeekKey;
     normalizeMonthlyCardRuntime();
     if(typeof d.mailClaimed === "boolean") mailClaimed = d.mailClaimed;
     if(typeof d.mailDeleted === "boolean") mailDeleted = d.mailDeleted;
@@ -4607,7 +4627,7 @@ const roles = [
   {name:"主角", element:"monochrome", color:"#dfe6ef", sub:"#313846", atk:[15,20,38], skill:72, speed:3.05, style:"单体输出", line:"灰白之间，斩开前路。"},
   {name:"克洛伊", element:"wind", color:"#bda7ff", sub:"#78f0c3", atk:[9,12,20], skill:58, speed:3.15, style:"风系治疗辅助", line:"别离开我的治疗范围。"},
   {name:"阿贝其·富兰克琳", element:"physical", color:"#5db8ff", sub:"#d9f2ff", atk:[12,16,34], skill:62, speed:2.65, style:"物理盾卫", line:"防线不会在我身后崩塌。"},
-  {name:"拉文", element:"crystal", color:"#65e6ff", sub:"#d9fbff", atk:[17,22,29,52], skill:76, speed:3.65, style:"晶属性击破", line:"刀锋所至，结晶亦会断裂。"}
+  {name:"拉文", element:"crystal", color:"#65e6ff", sub:"#d9fbff", atk:[12,15,18,34], skill:68, speed:3.65, style:"晶属性击破", line:"刀锋所至，结晶亦会断裂。"}
 ];
 let owned = [true,true,true,false,true,false,false,false];
 let charData = roles.map((r,i)=>({
@@ -4624,6 +4644,13 @@ let shopMsg = msg("shopDefault");
 let shopTab = "recommend";
 let shopRecommendIndex = 0;
 let shopPackCategory = 0;
+let shopPackPage = "monthly";
+let shopExchangeSection = "token";
+let shopTokens = 0;
+let shopTokenPurchases = {};
+let shopScrewPurchases = {};
+let shopWeaponScrollY = 0;
+let shopWeaponWheelDelta = 0;
 let crystalExchangePurchases = {};
 let crystalExchangeWeekKey = "";
 let monthlyOwned = false;
@@ -5249,6 +5276,22 @@ function selectStoryReply(index){
 let settlement = {stage:1, reward:0, stars:3};
 
 const player = {x:W/2,y:H/2+115,vx:0,vy:0,r:20,hp:100,energy:80,ult:1600,role:0,facing:1,attackCd:0,skillCd:0,ultCd:0,dashCd:0,inv:0,chain:0,chainTimer:0,guardTimer:0,parryReady:0,parryTarget:null,perfectBuff:0,switchCd:0};
+const executorIdle={role:-1,quiet:0,animation:"",timer:0,duration:0,next:180};
+function resetExecutorIdle(){executorIdle.role=player.role;executorIdle.quiet=0;executorIdle.animation="";executorIdle.timer=0;executorIdle.duration=0;executorIdle.next=150+Math.random()*180;}
+function updateExecutorIdle(active){
+  if(executorIdle.role!==player.role)resetExecutorIdle();
+  if(active){resetExecutorIdle();return;}
+  if(executorIdle.timer>0){executorIdle.timer=Math.max(0,executorIdle.timer-frameScale);if(executorIdle.timer<=0){executorIdle.animation="";executorIdle.quiet=0;executorIdle.next=180+Math.random()*240;}return;}
+  executorIdle.quiet+=frameScale;
+  if(executorIdle.quiet<executorIdle.next)return;
+  const sets=[["bladeCheck","shoulderRoll","lookAround"],["bowTune","hairFix","lookAround"],["dualSpin","hoodCheck","lookAround"],["focusOrb","sleeveFix","lookAround"],["coatFix","bladeCheck","lookAround"],["staffBalance","medicalCheck","lookAround"],["shieldBrace","gauntletCheck","lookAround"],["katanaSheath","crystalCheck","lookAround"]];
+  const list=sets[player.role]||sets[4];executorIdle.animation=list[Math.floor(Math.random()*list.length)];executorIdle.duration=120+Math.random()*100;executorIdle.timer=executorIdle.duration;
+}
+function executorIdlePose(){
+  if(!executorIdle.animation||executorIdle.duration<=0)return{name:"",phase:0,lift:0,turn:0,weapon:0};
+  const progress=1-executorIdle.timer/executorIdle.duration,ease=Math.sin(progress*Math.PI),wave=Math.sin(progress*Math.PI*2);
+  return{name:executorIdle.animation,phase:progress,lift:ease,turn:wave,weapon:ease};
+}
 let enemies = [], particles = [], slashes = [], texts = [], projectiles = [], frostFields = [];
 let enemySerial = 0;
 let ult = {active:false,timer:0,role:0,hitDone:false};
@@ -7154,7 +7197,7 @@ function releaseChloeAttack(){
     if(lateral<=halfW+e.r&&forward>=-e.r&&forward<=len+e.r){
       if(!raven)e.weathering=Math.max(e.weathering||0,300);
       const exclusive=raven&&roleEquippedWeaponId(7)==="aminos_blade",armorBonus=(raven&&ravenCombat.thrustTimer>0?1.30:1)*(exclusive?1.15:1);
-      hitEnemy(e,panelDamage(raven?7:5,raven?1.28*(exclusive?1.12:1):.68,"normal",Math.random()*9),raven?16:4,panelShieldDamage(raven?7:5,raven?52:15,"normal")*armorBonus,color,raven?"THRUST":"WEATHERING");
+      hitEnemy(e,panelDamage(raven?7:5,raven?.82*(exclusive?1.06:1):.68,"normal",Math.random()*9),raven?16:4,panelShieldDamage(raven?7:5,raven?78:15,"normal")*armorBonus,color,raven?"THRUST":"WEATHERING");
     }
   }
   if(raven){player.x=clamp(player.x+ux*Math.min(len,260),50,W-50);player.y=clamp(player.y+uy*Math.min(len,260),95,H-55);player.chain=0;player.chainTimer=0;}
@@ -7357,6 +7400,7 @@ function hitEnemy(e,dmg,knock=8,stunDmg=16,color="#fff",label=null,sourceKind="b
   if(!periodicImpact) sfx("hit");
   sfxElementImpact(player.role,label||"");
   let final=dmg, crit=false;
+  if(sourceRole===7&&(sourceKind==="skill"||sourceKind==="ultimate")){final*=.60;stunDmg*=1.60;}
 
   let shieldDmg = stunDmg;
   if(label==="PARRY!" || label==="CHAIN") shieldDmg *= 2.3;
@@ -7809,7 +7853,7 @@ function attack(){
   for(const e of enemies){
     if(e.alive && withinDist(sx,player.y,e.x,e.y,range)){
       spawnMetalImpact(e.x,e.y,step===3?16:9,step===3?7:4,!!e.boss);
-      let damageScale=1,shieldDamage=step===3?panelShieldDamage(player.role,46,"normal"):panelShieldDamage(player.role,18,"normal"),label=step===3?"3rd HIT":null;
+      let damageScale=1,shieldDamage=step===3?panelShieldDamage(player.role,player.role===7?72:46,"normal"):panelShieldDamage(player.role,player.role===7?25:18,"normal"),label=step===3?"3rd HIT":null;
       if(player.role===0 || (step===3&&isPhysicalRole(player.role))){
         const triggered=step===3 && isPhysicalRole(player.role) && (e.physicalPain||0)>0;
         if(triggered){
@@ -10818,6 +10862,24 @@ function buyCrystalExchange(index){
   shopMsg=(language==="en"?"Exchanged: ":"兑换成功：")+(language==="en"?item.en:item.zh);
   saveGame();autoCloudSaveNow(true);
 }
+const SHOP_TOKEN_ITEMS=[
+  {id:"crystal",zh:"水晶补给",en:"Crystal Supply",cost:30,max:3,descZh:"水晶 ×60",descEn:"Crystal ×60",apply:()=>{crystals+=60;}},
+  {id:"gold",zh:"金币补给",en:"Gold Supply",cost:25,max:5,descZh:"金币 ×5000",descEn:"Gold ×5000",apply:()=>{gold+=5000;totalGoldEarned+=5000;}},
+  {id:"books",zh:"成长记录",en:"Growth Records",cost:20,max:6,descZh:"经验书 ×5",descEn:"EXP Books ×5",apply:()=>{expBooks+=5;}},
+  {id:"ore",zh:"武器素材",en:"Weapon Material",cost:20,max:6,descZh:"武器矿 ×3",descEn:"Weapon Ore ×3",apply:()=>{weaponOre+=3;}},
+  {id:"break",zh:"突破材料",en:"Breakthrough Kit",cost:45,max:4,descZh:"突破材料 ×2",descEn:"Breakthrough ×2",apply:()=>{skillBooks+=2;}}
+];
+const SHOP_SCREW_ITEMS=[
+  {id:"gold",zh:"大型金币箱",en:"Large Gold Crate",cost:2000,max:8,descZh:"金币 ×50000",descEn:"Gold ×50000",apply:()=>{gold+=50000;totalGoldEarned+=50000;}},
+  {id:"books",zh:"执行官训练箱",en:"Executor Training Crate",cost:3500,max:6,descZh:"经验书 ×40",descEn:"EXP Books ×40",apply:()=>{expBooks+=40;}},
+  {id:"ore",zh:"武装强化箱",en:"Armory Upgrade Crate",cost:4000,max:6,descZh:"武器矿 ×25",descEn:"Weapon Ore ×25",apply:()=>{weaponOre+=25;}},
+  {id:"skills",zh:"技能培养箱",en:"Skill Training Crate",cost:5000,max:4,descZh:"技能材料各 ×10",descEn:"Skill materials ×10 each",apply:()=>{skillMaterials.normal+=10;skillMaterials.skill+=10;skillMaterials.ultimate+=10;}},
+  {id:"break",zh:"高级突破箱",en:"Advanced Breakthrough Crate",cost:8000,max:3,descZh:"突破材料 ×12",descEn:"Breakthrough ×12",apply:()=>{skillBooks+=12;}}
+];
+function grantShopTokens(amount){shopTokens+=Math.max(0,Math.floor(amount||0));}
+function shopScrewBalance(){return Math.max(0,Math.floor(window.PZCrystalWar?.getResourceSnapshot?.()?.screws||0));}
+function normalizeShopExchangeCycles(){const mk=currentMonthKey(),wk=currentWeekKey();if(shopTokenMonthKey!==mk){shopTokenMonthKey=mk;shopTokenPurchases={};}if(shopScrewWeekKey!==wk){shopScrewWeekKey=wk;shopScrewPurchases={};}}
+function buyShopExchange(index){const screw=shopExchangeSection==="screw",list=screw?SHOP_SCREW_ITEMS:SHOP_TOKEN_ITEMS,item=list[index],ledger=screw?shopScrewPurchases:shopTokenPurchases;if(!item)return;const bought=Math.max(0,Number(ledger[item.id])||0);if(bought>=item.max){shopMsg=language==="en"?"Exchange limit reached.":"该物品已达到兑换上限。";return;}if(screw){if(!window.PZCrystalWar?.spendScrews?.(item.cost)){shopMsg=language==="en"?"Not enough Screws.":"螺丝不足。";return;}}else{if(shopTokens<item.cost){shopMsg=language==="en"?"Not enough Tokens.":"信物不足。";return;}shopTokens-=item.cost;}item.apply();ledger[item.id]=bought+1;sfx("buy");shopMsg=(language==="en"?"Exchanged: ":"兑换成功：")+(language==="en"?item.en:item.zh);saveGame();autoCloudSaveNow(true);}
 function updateShop(){
   menuPulse++;
   normalizeMonthlyCardRuntime();
@@ -10831,6 +10893,7 @@ function updateShop(){
     if(shopLimitedWheelDelta){shopLimitedScrollY=clamp(shopLimitedScrollY+shopLimitedWheelDelta*.70,0,330);shopLimitedWheelDelta=0;}
     shopLimitedScrollY=clamp(shopLimitedScrollY,0,330);
   }else shopLimitedWheelDelta=0;
+  if(shopTab==="weapon"&&shopSubTab==="permanent"){if(shopWeaponWheelDelta){shopWeaponScrollY=clamp(shopWeaponScrollY+shopWeaponWheelDelta*.55,0,Math.max(0,Math.ceil(permanentWeaponCatalog().length/4)*68-190));shopWeaponWheelDelta=0;}}else shopWeaponWheelDelta=0;
   if(paidContentLockPrompt){
     if(justPressed("escape")||justPressed("enter")||clicked) paidContentLockPrompt=false;
     clicked=false;
@@ -10867,7 +10930,7 @@ function updateShop(){
     const tabs = ["recommend","recruit","weapon","skin","crystal","monthly","packs","support"];
     for(let i=0;i<tabs.length;i++){
       if(inRect(40+i*132,135,122,42)){
-        if(["crystal","monthly","packs"].includes(tabs[i])){
+        if(["crystal","packs"].includes(tabs[i])){
           paidContentLockPrompt=true;
           shopMsg=language==="en"?"Paid content is unavailable during the first test.":"一测期间目前不开放充值内容。";
           clicked=false;
@@ -10908,7 +10971,7 @@ function updateShop(){
           if(x+cardW>=startX&&x<=W-56&&inRect(x+224,y+226,182,42)){
             const it=items[n];
             if(owned[it.i]) shopMsg=roleName(it.i)+mt("alreadyOwnedSuffix");
-            else if(crystals>=it.price){ crystals-=it.price; owned[it.i]=true; if(charData[it.i])charData[it.i].equippedWeaponId=defaultWeaponIdForRole(it.i); shopMsg=roleName(it.i)+mt("recruitedSuffix"); sfx("buy"); saveGame(); autoCloudSaveNow(true); }
+            else if(crystals>=it.price){ crystals-=it.price; owned[it.i]=true; grantShopTokens(Math.max(25,Math.floor(it.price/40))); if(charData[it.i])charData[it.i].equippedWeaponId=defaultWeaponIdForRole(it.i); shopMsg=roleName(it.i)+mt("recruitedSuffix"); sfx("buy"); saveGame(); autoCloudSaveNow(true); }
             else shopMsg=mt("notEnoughCrystal");
           }
         }
@@ -10931,23 +10994,23 @@ function updateShop(){
       if(shopSubTab==="permanent"){
         const catalog=permanentWeaponCatalog();
         for(let n=0;n<catalog.length;n++){
-          const col=n%4,row=Math.floor(n/4),cx=70+col*245,cy=366+row*68;
+          const col=n%4,row=Math.floor(n/4),cx=70+col*245,cy=366+row*68-shopWeaponScrollY;
           if(inRect(cx,cy,230,58)){shopWeaponSelectedId=catalog[n].id;shopMsg=language==="en"?"Weapon details selected.":"已切换武器详情。";break;}
         }
         const selected=weaponData(shopWeaponSelectedId),item=weaponInventory.find(v=>v.id===selected.id);
         if(selected.price>0&&!item?.owned&&inRect(840,292,180,42)){
           if(crystals<selected.price) shopMsg=mt("notEnoughCrystal");
-          else{crystals-=selected.price;item.owned=true;shopMsg=(language==="en"?"Purchased: ":"购买成功：")+weaponNameById(selected.id);sfx("buy");saveGame();autoCloudSaveNow(true);}
+          else{crystals-=selected.price;item.owned=true;grantShopTokens(Math.max(15,Math.floor(selected.price/45)));shopMsg=(language==="en"?"Purchased: ":"购买成功：")+weaponNameById(selected.id);sfx("buy");saveGame();autoCloudSaveNow(true);}
         }
       }
     }
 
 
     if(shopTab==="monthly"){
-      if(inRect(570,305,240,72)){
-        paidContentLockPrompt=true;
-        shopMsg=language==="en"?"Paid content is unavailable during the first test.":"一测期间目前不开放充值内容。";
-      }
+      if(inRect(55,205,190,52))shopExchangeSection="token";
+      if(inRect(55,269,190,52))shopExchangeSection="screw";
+      const list=shopExchangeSection==="screw"?SHOP_SCREW_ITEMS:SHOP_TOKEN_ITEMS;
+      for(let i=0;i<list.length;i++){const col=i%3,row=Math.floor(i/3),x=270+col*250,y=215+row*142;if(inRect(x,y,226,122)){buyShopExchange(i);break;}}
     }
 
     if(shopTab==="crystal"){
@@ -10958,6 +11021,10 @@ function updateShop(){
     }
 
     if(shopTab==="packs"){
+      if(inRect(270,188,170,34)){shopPackPage="monthly";clicked=false;return;}
+      if(inRect(450,188,170,34)){shopPackPage="packs";clicked=false;return;}
+      if(shopPackPage==="monthly"&&inRect(570,305,240,72)){paidContentLockPrompt=true;shopMsg=language==="en"?"Paid content is unavailable during the first test.":"一测期间目前不开放充值内容。";clicked=false;return;}
+      if(shopPackPage!=="packs"){clicked=false;return;}
       for(let i=0;i<5;i++) if(inRect(60,223+i*54,180,42)){shopPackCategory=i;shopMsg=language==="en"?"Pack category selected.":"已切换礼包分类。";}
       const packList=visibleShopPacks();
       for(let i=0;i<Math.min(6,packList.length);i++){
@@ -11113,6 +11180,7 @@ function updateBattle(){
   if(!emoteKeyHandled){if(justPressed("1"))switchRoleByTeamSlot(0);if(justPressed("2"))switchRoleByTeamSlot(1);if(justPressed("3"))switchRoleByTeamSlot(2);}
   if(justPressed("tab")){const used=battleModeSource==="crystalWar"&&window.PZCrystalWar&&typeof window.PZCrystalWar.toggleBattleEmotes==="function"&&window.PZCrystalWar.toggleBattleEmotes();if(!used)toggleLock();} if(justPressed("f")){ if(!battleExploreInteract() && !projectAreaInteract()) chainAttack(); }
   let dx=0,dy=0; if(keys.w)dy-=1; if(keys.s)dy+=1; if(keys.a)dx-=1; if(keys.d)dx+=1;if(battleModeSource==="commission"&&operationRun?.stun>0){dx=0;dy=0;}
+  updateExecutorIdle(!!(dx||dy||mouseDown||attackBuffer>0||skillBuffer>0||ultBuffer>0||dashBuffer>0||player.attackMotion>0||ravenCombat.mode));
   const role=roles[player.role];
   if(dx||dy){ const l=Math.hypot(dx,dy),operationSpeed=battleModeSource==="commission"&&operationRun?.config?.player==="rapid"?1.18:1; dx/=l; dy/=l; player.vx+=dx*role.speed*MOVE_SPEED_MULT*.35*operationSpeed*frameScale; player.vy+=dy*role.speed*MOVE_SPEED_MULT*.35*operationSpeed*frameScale; if(Math.abs(dx)>.1)player.facing=dx>0?1:-1; }
   if(lockTarget&&lockTarget.alive) player.facing=lockTarget.x>player.x?1:-1; else if(lockTarget&&!lockTarget.alive) lockTarget=null;
@@ -13564,7 +13632,7 @@ function normalizeBorrowedSupport(value){
 }
 
 function supportProfession(roleId){
-  return["swordguard","arcane","shieldguard","arcane","leader","assist","shieldguard"][roleId]||"leader";
+  return["swordguard","arcane","breaker","arcane","leader","assist","shieldguard","breaker"][roleId]||"leader";
 }
 
 function supportCategoryOptions(){
@@ -19037,7 +19105,7 @@ const WEAPON_MASTER=[
   {id:"starlight_spear",nameZh:"流光长枪",nameEn:"Starlight Spear",rarity:"S",type:"spear",baseAtk:125,crit:7,passiveZh:"命中回复少量能量。",passiveEn:"Gain a small amount of energy on hit.",price:1150},
   {id:"lavender",nameZh:"拉文德",nameEn:"Lavender",rarity:"S",type:"codex",baseAtk:112,crit:5,passiveZh:"风化持续时间提高。",passiveEn:"Extends Weathering duration.",price:1200},
   {id:"franklin_shield",nameZh:"弗兰克琳之盾",nameEn:"Franklin's Shield",rarity:"S",type:"shield",baseAtk:0,crit:0,passiveZh:"护盾值提升5%；大招充能效率+3%；满级攻击加成300。",passiveEn:"Shield value +5%; Ultimate charge +3%; grants 300 ATK at max level.",price:1350},
-  {id:"aminos_blade",nameZh:"阿米诺斯之刃",nameEn:"Blade of Aminos",rarity:"S",type:"katana",baseAtk:132,crit:9,exclusiveRole:7,passiveZh:"拉文专属：突刺破甲提高15%，击破伤害提高12%。",passiveEn:"Raven exclusive: thrust armor break +15% and break damage +12%.",price:1380}
+  {id:"aminos_blade",nameZh:"阿米诺斯之刃",nameEn:"Blade of Aminos",rarity:"S",type:"katana",baseAtk:132,crit:9,exclusiveRole:7,passiveZh:"拉文专属：突刺破甲提高15%，突刺伤害提高6%。",passiveEn:"Raven exclusive: thrust armor break +15% and thrust damage +6%.",price:1380}
 ];
 function permanentWeaponCatalog(){return WEAPON_MASTER.filter(w=>!w.limited);}
 
@@ -19397,8 +19465,8 @@ function drawShopWeaponArmory(){
   drawInsetLabel(ownedItem?(language==="en"?"OWNED":"已拥有"):(language==="en"?"LOCKED":"未获得"),x+w-122,y+22,92,30,ownedItem?"#7cc7ff":"#888","rgba(255,255,255,.05)","rgba(255,255,255,.16)",11,true,"center");
   if(selected.price>0&&!ownedItem) drawBtn(language==="en"?"Purchase":"购买","◆ "+selected.price,840,292,180,42,true,"#ffe066");
 
-  for(let n=0;n<catalog.length;n++){
-    const wd=catalog[n],col=n%4,row=Math.floor(n/4),cx=x+col*245,cy=366+row*68,cw=230,ch=58,active=wd.id===shopWeaponSelectedId;
+  ctx.save();ctx.beginPath();ctx.rect(x,358,w,190);ctx.clip();for(let n=0;n<catalog.length;n++){
+    const wd=catalog[n],col=n%4,row=Math.floor(n/4),cx=x+col*245,cy=366+row*68-shopWeaponScrollY,cw=230,ch=58,active=wd.id===shopWeaponSelectedId;
     const owned=(weaponInventory||[]).some(v=>v.id===wd.id&&v.owned);
     ctx.fillStyle=active?"rgba(124,199,255,.14)":"rgba(255,255,255,.055)";ctx.fillRect(cx,cy,cw,ch);
     ctx.strokeStyle=active?"#7cc7ff":"rgba(255,255,255,.13)";ctx.lineWidth=active?2:1;ctx.strokeRect(cx,cy,cw,ch);
@@ -19408,6 +19476,7 @@ function drawShopWeaponArmory(){
     ctx.fillStyle="rgba(255,255,255,.50)";ctx.font="9px "+FONT_UI;ctx.fillText(weaponTypeLabel(wd.type)+" · ATK "+wd.baseAtk,cx+73,cy+39);
     ctx.textAlign="right";ctx.fillStyle=owned?"#7cc7ff":"#777";ctx.fillText(owned?(language==="en"?"OWNED":"已拥有"):(language==="en"?"LOCK":"未获得"),cx+cw-10,cy+50);
   }
+  ctx.restore();ctx.fillStyle="rgba(255,255,255,.5)";ctx.font="10px "+FONT_UI;ctx.textAlign="left";ctx.fillText(language==="en"?"Mouse wheel to browse the armory":"滚轮滑动查看完整武器库",x,558);
 }
 
 function drawShopPackArt(pack,x,y,w,h){
@@ -19477,7 +19546,7 @@ function drawShop(){
     ["weapon",ui("weaponDepot")],
     ["skin",ui("skin")],
     ["crystal",(language==="en"?"Crystals":"水晶")+" LOCK"],
-    ["monthly",ui("monthly")+" LOCK"],
+    ["monthly",language==="en"?"Store":"商铺"],
     ["packs",ui("packs")+" LOCK"],
     ["support",ui("developerSupport")]
   ];
@@ -19595,25 +19664,18 @@ function drawShop(){
   }
 
   if(shopTab==="monthly"){
-    const mg=ctx.createLinearGradient(80,220,860,470);mg.addColorStop(0,"rgba(27,47,86,.98)");mg.addColorStop(.5,"rgba(62,36,93,.96)");mg.addColorStop(1,"rgba(8,11,22,.99)");
-    ctx.beginPath();ctx.roundRect(80,220,780,250,18);ctx.fillStyle=mg;ctx.fill();ctx.strokeStyle="rgba(185,152,255,.45)";ctx.lineWidth=2;ctx.stroke();
-    ctx.fillStyle="#b998ff";ctx.fillRect(80,220,7,250);
-    ctx.fillStyle="rgba(255,255,255,.42)";ctx.font="bold 11px "+FONT_UI;ctx.textAlign="left";ctx.fillText("PROJECT ZERO / 30 DAYS",110,254);
-    ctx.fillStyle="#fff";ctx.font="bold 30px "+FONT_UI;ctx.fillText(language==="en"?"Monthly Supply Card":"月度补给卡",110,300);
-    ctx.fillStyle="rgba(255,255,255,.72)";ctx.font="14px "+FONT_UI;ctx.fillText(language==="en"?"Instant: 300 Crystal":"立即获得：水晶 300",110,338);
-    ctx.fillText(language==="en"?"Daily: 90 Crystal + 30 Stamina":"每日可领：水晶 90 + 体力 30",110,366);
-    ctx.fillStyle="#ffe066";ctx.font="bold 24px Arial";ctx.fillText("$4.99",110,412);
-    normalizeMonthlyCardRuntime();
-    ctx.fillStyle=canClaimMonthlyCard()?"#7cffb2":"rgba(255,255,255,.52)";
-    ctx.font="bold 14px " + FONT_UI;
-    ctx.fillText(canClaimMonthlyCard() ? (language==="en"?"Available today":"今日可领取") : (monthlyOwned ? (language==="en"?"Claimed today":"今日已领取") : (language==="en"?"Not active":"未开启")),110,445);
-    drawBtn(monthlyOwned?(canClaimMonthlyCard()?mt("dailyClaim"):(language==="en"?"Claimed":"已领取")):(language==="en"?"Activate":"开启月卡"),monthlyOwned?"":"$4.99",570,305,240,72,!monthlyOwned||canClaimMonthlyCard(),"#ffe066");
+    const screw=shopExchangeSection==="screw",list=screw?SHOP_SCREW_ITEMS:SHOP_TOKEN_ITEMS,ledger=screw?shopScrewPurchases:shopTokenPurchases;
+    ctx.fillStyle="rgba(6,10,20,.76)";ctx.fillRect(45,195,210,310);ctx.textAlign="left";ctx.strokeStyle="rgba(255,255,255,.14)";ctx.strokeRect(45,195,210,310);[["token",language==="en"?"Token Exchange":"信物兑换"],["screw",language==="en"?"Screw Exchange":"螺丝商店"]].forEach((v,i)=>{const y=205+i*64,a=shopExchangeSection===v[0];ctx.fillStyle=a?"rgba(255,224,102,.14)":"rgba(255,255,255,.035)";ctx.fillRect(55,y,190,52);ctx.fillStyle=a?"#ffe066":"rgba(255,255,255,.18)";ctx.fillRect(55,y,4,52);ctx.fillStyle=a?"#fff":"rgba(255,255,255,.7)";ctx.font="bold 14px "+FONT_UI;ctx.fillText(v[1],73,y+31);});ctx.textAlign="left";ctx.fillStyle="rgba(255,255,255,.48)";ctx.font="11px "+FONT_UI;ctx.fillText(language==="en"?"Token stock resets monthly":"信物商店 · 每月刷新",73,352);ctx.fillText(language==="en"?"Screw stock resets weekly":"螺丝商店 · 每周刷新",73,374);ctx.textAlign="right";ctx.fillStyle="#ffe066";ctx.font="bold 14px "+FONT_UI;ctx.fillText((language==="en"?"TOKENS ":"信物：")+shopTokens,825,202);ctx.fillStyle="#dfe5ec";ctx.fillText((language==="en"?"SCREWS ":"螺丝：")+shopScrewBalance(),1040,202);ctx.textAlign="left";for(let i=0;i<list.length;i++){const it=list[i],col=i%3,row=Math.floor(i/3),x=270+col*250,y=215+row*142,w=226,h=122,b=Math.max(0,Number(ledger[it.id])||0),sold=b>=it.max;ctx.fillStyle=sold?"rgba(255,255,255,.035)":"rgba(18,28,45,.96)";ctx.fillRect(x,y,w,h);ctx.strokeStyle=sold?"rgba(255,255,255,.1)":(screw?"rgba(201,208,218,.42)":"rgba(255,224,102,.42)");ctx.strokeRect(x,y,w,h);ctx.fillStyle=screw?"#c9d0da":"#ffe066";ctx.fillRect(x,y,5,h);ctx.fillStyle=sold?"#777":"#fff";ctx.font="bold 14px "+FONT_UI;ctx.fillText(language==="en"?it.en:it.zh,x+16,y+29);ctx.fillStyle="rgba(255,255,255,.58)";ctx.font="11px "+FONT_UI;ctx.fillText(language==="en"?it.descEn:it.descZh,x+16,y+57);ctx.fillStyle=sold?"#666":(screw?"#dfe5ec":"#ffe066");ctx.font="bold 13px "+FONT_UI;ctx.fillText((screw?(language==="en"?"SCREWS ":"螺丝 "):(language==="en"?"TOKENS ":"信物 "))+it.cost,x+16,y+94);ctx.textAlign="right";ctx.fillText((it.max-b)+" / "+it.max,x+w-15,y+94);ctx.textAlign="left";}
   }
 
   if(shopTab==="packs"){
+    drawBtn(language==="en"?"Monthly Card":"月卡","",270,188,170,34,shopPackPage==="monthly","#b998ff");drawBtn(language==="en"?"Gift Packs":"礼包","",450,188,170,34,shopPackPage==="packs","#ffe066");
+    if(shopPackPage==="monthly"){
+      const mg=ctx.createLinearGradient(80,235,860,485);mg.addColorStop(0,"rgba(27,47,86,.98)");mg.addColorStop(.5,"rgba(62,36,93,.96)");mg.addColorStop(1,"rgba(8,11,22,.99)");ctx.beginPath();ctx.roundRect(80,235,780,250,18);ctx.fillStyle=mg;ctx.fill();ctx.strokeStyle="rgba(185,152,255,.45)";ctx.stroke();ctx.fillStyle="#b998ff";ctx.fillRect(80,235,7,250);ctx.fillStyle="#fff";ctx.font="bold 30px "+FONT_UI;ctx.fillText(language==="en"?"Monthly Supply Card":"月度补给卡",110,310);ctx.fillStyle="rgba(255,255,255,.72)";ctx.font="14px "+FONT_UI;ctx.fillText(language==="en"?"Instant: 300 Crystal":"立即获得：水晶 300",110,348);ctx.fillText(language==="en"?"Daily: 90 Crystal + 30 Stamina":"每日可领：水晶 90 + 体力 30",110,376);ctx.fillStyle="#ffe066";ctx.font="bold 24px Arial";ctx.fillText("$4.99",110,422);drawBtn(monthlyOwned?(canClaimMonthlyCard()?mt("dailyClaim"):(language==="en"?"Claimed":"已领取")):(language==="en"?"Activate":"开启月卡"),monthlyOwned?"":"$4.99",570,305,240,72,!monthlyOwned||canClaimMonthlyCard(),"#ffe066");
+    }else{
     const cats=language==="en"?["All Packs","Starter","Limited","Standard","Monthly"]:["全部礼包","启程礼包","限时礼包","标准礼包","月度礼包"];
     const packs=visibleShopPacks();
-    ctx.fillStyle="rgba(6,10,20,.70)";ctx.fillRect(45,195,210,310);ctx.strokeStyle="rgba(255,255,255,.14)";ctx.strokeRect(45,195,210,310);
+    ctx.fillStyle="rgba(6,10,20,.70)";ctx.fillRect(45,195,210,310);ctx.textAlign="left";ctx.strokeStyle="rgba(255,255,255,.14)";ctx.strokeRect(45,195,210,310);
     ctx.fillStyle="rgba(255,255,255,.40)";ctx.font="bold 10px "+FONT_UI;ctx.textAlign="left";ctx.fillText(language==="en"?"PACK CATEGORIES":"礼包分类",60,211);
     for(let i=0;i<cats.length;i++){
       const y=223+i*54,active=i===shopPackCategory;
@@ -19633,6 +19695,7 @@ function drawShop(){
       ctx.fillStyle="rgba(255,255,255,.58)";ctx.font="9px "+FONT_UI;ctx.fillText(language==="en"?pack.descEn:pack.descZh,x+14,y+108);
       ctx.textAlign="right";ctx.fillStyle="#ffe066";ctx.font="bold 9px "+FONT_UI;ctx.fillText(language==="en"?pack.limitEn:pack.limitZh,x+w-12,y+17);ctx.textAlign="left";
       if(pack.price){ctx.textAlign="right";ctx.fillStyle="#fff";ctx.font="bold 12px Arial";ctx.fillText(pack.price,x+w-12,y+91);ctx.textAlign="left";}
+    }
     }
   }
 
@@ -19728,18 +19791,85 @@ function drawEnemy(e){ if(!e.alive)return; ctx.save(); ctx.translate(e.x,e.y); i
   ctx.textAlign="center";
   const enemyLabel=e.type==="fireCrystal"?(language==="en"?"FIRE CRYSTAL":"火焰晶体"):e.type.toUpperCase();
   ctx.fillText(e.boss?"BOSS":enemyLabel,0,e.r+18); if(lockTarget===e){ctx.strokeStyle="#ffe066";ctx.lineWidth=3;ctx.beginPath();ctx.arc(0,0,e.r+10,0,Math.PI*2);ctx.stroke();} ctx.restore(); }
+function drawPortraitBasedBattleModel(roleId,radius,direction,moving,weaponSwing,idlePose={name:"",phase:0,lift:0,turn:0,weapon:0}){
+  const presets={
+    0:{skin:"#efd3c5",hair:"#6d4731",outer:"#17191f",outerShade:"#090b10",inner:"#b59660",innerShade:"#785c38",accent:"#8f2724",trim:"#d8dbe2",boot:"#5b2b24",weapon:"#e9edf3",edge:"#ffbe5c"},
+    1:{skin:"#efd5c6",hair:"#26c7b5",outer:"#278f7c",outerShade:"#145449",inner:"#788f8b",innerShade:"#354a48",accent:"#b18562",trim:"#dce8e5",boot:"#172f2e",weapon:"#d9a735",edge:"#74ffb7"},
+    2:{skin:"#e8c9bd",hair:"#342f45",outer:"#302744",outerShade:"#15121f",inner:"#5f526d",innerShade:"#282331",accent:"#b47cff",trim:"#b8a6d8",boot:"#17131e",weapon:"#d8c7ff",edge:"#b47cff"},
+    3:{skin:"#efd8cf",hair:"#5554a4",outer:"#f2f4f8",outerShade:"#b9c4d5",inner:"#f8fafc",innerShade:"#25364a",accent:"#1d2f45",trim:"#ffffff",boot:"#6d4028",weapon:"#88d8ff",edge:"#d9f4ff"},
+    4:{skin:"#e7d2c8",hair:"#111318",outer:"#17191d",outerShade:"#07080b",inner:"#eef1f4",innerShade:"#6d727b",accent:"#2a2e35",trim:"#ffffff",boot:"#111318",weapon:"#dfe6ef",edge:"#939aa5"},
+    5:{skin:"#eed1c6",hair:"#d9e2ec",outer:"#29384a",outerShade:"#111a25",inner:"#d8e4ed",innerShade:"#637487",accent:"#78f0c3",trim:"#eaf7ff",boot:"#172330",weapon:"#bdebdc",edge:"#78f0c3"},
+    6:{skin:"#eacdbf",hair:"#d8b16a",outer:"#315a78",outerShade:"#152b3d",inner:"#8fb8cd",innerShade:"#36576b",accent:"#5db8ff",trim:"#d9f2ff",boot:"#1b3040",weapon:"#dcebf4",edge:"#5db8ff"},
+    7:{skin:"#ead0c5",hair:"#161b23",outer:"#243741",outerShade:"#0d171d",inner:"#6b8791",innerShade:"#2a414a",accent:"#65e6ff",trim:"#d9fbff",boot:"#111c22",weapon:"#e7fbff",edge:"#65e6ff"}
+  };
+  const p=presets[roleId];
+  if(!p)return false;
+  const s=radius/20,dir=direction<0?-1:1,baseAlpha=ctx.globalAlpha;
+  ctx.save();ctx.scale(s,s);
+  if(idlePose.name){ctx.translate(idlePose.turn*1.2,-idlePose.lift*.8);ctx.rotate(idlePose.turn*.025);}
+  // Layered coat silhouette; the asymmetric panels follow the supplied portraits.
+  ctx.fillStyle=p.outerShade;ctx.beginPath();ctx.moveTo(-18,-4);ctx.quadraticCurveTo(-25,10,-19,22);ctx.lineTo(-4,18);ctx.lineTo(0,4);ctx.closePath();ctx.fill();
+  ctx.fillStyle=p.outer;ctx.beginPath();ctx.moveTo(-17,-7);ctx.quadraticCurveTo(-23,6,-17,19);ctx.lineTo(-3,15);ctx.lineTo(0,1);ctx.closePath();ctx.fill();
+  ctx.fillStyle=p.outer;ctx.beginPath();ctx.moveTo(3,-8);ctx.quadraticCurveTo(18,-5,21,13);ctx.lineTo(12,20);ctx.lineTo(2,13);ctx.closePath();ctx.fill();
+  ctx.fillStyle=p.outerShade;ctx.beginPath();ctx.moveTo(10,-3);ctx.quadraticCurveTo(20,3,21,14);ctx.lineTo(13,20);ctx.lineTo(8,9);ctx.closePath();ctx.fill();
+  // Inner garment, belt and strong readable shadow blocks.
+  ctx.fillStyle=p.inner;ctx.beginPath();ctx.moveTo(-8,-9);ctx.lineTo(9,-9);ctx.lineTo(11,13);ctx.lineTo(-9,13);ctx.closePath();ctx.fill();
+  ctx.fillStyle=p.innerShade;ctx.beginPath();ctx.moveTo(1,-8);ctx.lineTo(9,-8);ctx.lineTo(10,12);ctx.lineTo(2,8);ctx.closePath();ctx.fill();
+  ctx.fillStyle=p.accent;ctx.fillRect(-10,7,20,4);ctx.fillStyle=p.trim;ctx.fillRect(-2,-9,4,13);
+  ctx.globalAlpha=baseAlpha*.25;ctx.fillStyle="#000";ctx.beginPath();ctx.moveTo(-16,8);ctx.lineTo(-4,12);ctx.lineTo(-7,19);ctx.lineTo(-18,16);ctx.closePath();ctx.fill();ctx.globalAlpha=baseAlpha;
+  // Legs and boots remain separated while moving, improving silhouette readability.
+  const step=moving?2.2:0;ctx.fillStyle=p.innerShade;ctx.fillRect(-10,13,8,8+step);ctx.fillRect(3,13,8,8-step);
+  ctx.fillStyle=p.boot;ctx.fillRect(-11,19+step,9,5);ctx.fillRect(3,19-step,9,5);
+  // Head, hair mass and portrait-specific accessories.
+  ctx.fillStyle=p.skin;ctx.beginPath();ctx.arc(0,-15,9,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle=p.hair;ctx.beginPath();ctx.arc(0,-18,10,Math.PI,Math.PI*2);ctx.lineTo(8,-13);ctx.lineTo(3,-15);ctx.lineTo(-1,-12);ctx.lineTo(-5,-15);ctx.lineTo(-9,-13);ctx.closePath();ctx.fill();
+  ctx.fillStyle="rgba(0,0,0,.28)";ctx.beginPath();ctx.arc(3,-18,7,Math.PI*1.1,Math.PI*1.9);ctx.lineTo(8,-14);ctx.closePath();ctx.fill();
+  if(roleId===0){ctx.fillStyle="#d9dde5";ctx.beginPath();ctx.moveTo(-10,-8);ctx.lineTo(-3,-5);ctx.lineTo(-8,1);ctx.closePath();ctx.fill();ctx.fillStyle=p.accent;ctx.fillRect(-18,-2,8,4);}
+  if(roleId===1){ctx.fillStyle="#394746";ctx.fillRect(-9,-28,18,5);ctx.fillStyle=p.accent;for(let i=-2;i<=2;i++){ctx.beginPath();ctx.arc(i*3,-7,2.1,0,Math.PI*2);ctx.fill();}}
+  if(roleId===3){ctx.fillStyle="#f7f8fb";ctx.beginPath();ctx.moveTo(-8,-26);ctx.lineTo(-3,-32);ctx.lineTo(0,-25);ctx.lineTo(4,-32);ctx.lineTo(9,-25);ctx.closePath();ctx.fill();ctx.fillStyle="#202a3a";ctx.fillRect(-9,5,18,3);}
+  if(roleId===4){ctx.fillStyle="#fff";ctx.beginPath();ctx.moveTo(-5,-9);ctx.lineTo(0,-3);ctx.lineTo(5,-9);ctx.closePath();ctx.fill();ctx.fillStyle="#111318";ctx.fillRect(-2,-8,4,9);}
+  if(roleId===2){ctx.fillStyle="#191522";ctx.beginPath();ctx.moveTo(-11,-22);ctx.quadraticCurveTo(0,-34,11,-22);ctx.lineTo(8,-12);ctx.lineTo(-8,-12);ctx.closePath();ctx.fill();ctx.strokeStyle="#b47cff";ctx.stroke();}
+  if(roleId===5){ctx.fillStyle="#eaf7ff";ctx.fillRect(-11,-10,22,4);ctx.fillStyle="#78f0c3";ctx.beginPath();ctx.arc(10,-5,3,0,Math.PI*2);ctx.fill();}
+  if(roleId===6){ctx.fillStyle="#8ecdf1";ctx.beginPath();ctx.moveTo(-18,-8);ctx.lineTo(-9,-14);ctx.lineTo(-5,-3);ctx.lineTo(-17,3);ctx.closePath();ctx.fill();ctx.fillStyle="#d9f2ff";ctx.fillRect(11,-8,7,18);}
+  if(roleId===7){ctx.strokeStyle="#65e6ff";ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(-8,-28);ctx.lineTo(-13,-34);ctx.moveTo(8,-28);ctx.lineTo(13,-34);ctx.stroke();ctx.fillStyle="#49636c";ctx.fillRect(-10,-28,20,4);}
+  // Profession silhouettes: swordguard armor, support robes, caster mantle and leader coat tails.
+  if(roleId===0){ctx.fillStyle="#5f2020";ctx.beginPath();ctx.moveTo(-19,-8);ctx.lineTo(-10,-13);ctx.lineTo(-7,-5);ctx.lineTo(-16,1);ctx.closePath();ctx.fill();ctx.strokeStyle="#d29a54";ctx.lineWidth=1.5;ctx.stroke();ctx.fillStyle="#2b3038";ctx.fillRect(9,-4,8,13);}
+  if(roleId===1){ctx.fillStyle=p.outer;ctx.beginPath();ctx.moveTo(-15,-5);ctx.quadraticCurveTo(-29,2,-25,14);ctx.lineTo(-15,18);ctx.lineTo(-8,1);ctx.closePath();ctx.fill();ctx.beginPath();ctx.moveTo(13,-5);ctx.quadraticCurveTo(29,2,26,15);ctx.lineTo(16,18);ctx.lineTo(8,1);ctx.closePath();ctx.fill();ctx.strokeStyle="#74ffb7";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(-22,9);ctx.lineTo(-16,14);ctx.moveTo(22,9);ctx.lineTo(16,14);ctx.stroke();}
+  if(roleId===3){ctx.fillStyle="rgba(242,244,248,.94)";ctx.beginPath();ctx.moveTo(-13,-9);ctx.quadraticCurveTo(-27,5,-21,23);ctx.lineTo(-8,17);ctx.lineTo(0,2);ctx.lineTo(9,17);ctx.lineTo(21,22);ctx.quadraticCurveTo(27,4,13,-9);ctx.closePath();ctx.fill();ctx.strokeStyle="#9acdec";ctx.lineWidth=1.2;ctx.stroke();ctx.fillStyle="#6e65bb";ctx.beginPath();ctx.arc(0,4,5,0,Math.PI*2);ctx.fill();}
+  if(roleId===4){ctx.fillStyle="#0b0d11";ctx.beginPath();ctx.moveTo(-13,7);ctx.lineTo(-17,29);ctx.lineTo(-3,23);ctx.lineTo(0,10);ctx.closePath();ctx.fill();ctx.beginPath();ctx.moveTo(3,8);ctx.lineTo(17,29);ctx.lineTo(15,11);ctx.lineTo(8,3);ctx.closePath();ctx.fill();ctx.strokeStyle="#747a84";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(-11,9);ctx.lineTo(-14,25);ctx.moveTo(7,8);ctx.lineTo(14,25);ctx.stroke();}
+  if(roleId===2){ctx.fillStyle="#211a30";ctx.beginPath();ctx.moveTo(-18,-5);ctx.lineTo(-24,18);ctx.lineTo(-8,23);ctx.lineTo(-2,5);ctx.closePath();ctx.fill();ctx.fillStyle="#b47cff";ctx.fillRect(-20,2,3,14);}
+  if(roleId===5){ctx.fillStyle="#213648";ctx.beginPath();ctx.moveTo(-16,-6);ctx.lineTo(-20,19);ctx.lineTo(-7,23);ctx.lineTo(-2,5);ctx.closePath();ctx.fill();ctx.strokeStyle="#78f0c3";ctx.stroke();ctx.fillStyle="#eef8ff";ctx.fillRect(7,-2,8,15);}
+  if(roleId===6){ctx.fillStyle="#234c68";ctx.beginPath();ctx.moveTo(-20,-4);ctx.lineTo(-25,16);ctx.lineTo(-13,23);ctx.lineTo(-5,4);ctx.closePath();ctx.fill();ctx.beginPath();ctx.moveTo(13,-7);ctx.lineTo(24,5);ctx.lineTo(22,20);ctx.lineTo(8,11);ctx.closePath();ctx.fill();}
+  if(roleId===7){ctx.fillStyle="#13252d";ctx.beginPath();ctx.moveTo(-15,4);ctx.lineTo(-19,27);ctx.lineTo(-3,20);ctx.lineTo(0,8);ctx.closePath();ctx.fill();ctx.beginPath();ctx.moveTo(4,7);ctx.lineTo(18,26);ctx.lineTo(15,8);ctx.closePath();ctx.fill();ctx.strokeStyle="#65e6ff";ctx.stroke();}
+  // Fine seams, highlights and coat-edge lighting.
+  ctx.strokeStyle=p.edge;ctx.globalAlpha=baseAlpha*.72;ctx.lineWidth=1.2;ctx.beginPath();ctx.moveTo(-16,-5);ctx.lineTo(-17,16);ctx.moveTo(11,-5);ctx.lineTo(14,17);ctx.stroke();
+  ctx.strokeStyle="rgba(255,255,255,.38)";ctx.globalAlpha=baseAlpha;ctx.beginPath();ctx.moveTo(-7,-6);ctx.lineTo(-7,8);ctx.moveTo(6,-5);ctx.lineTo(7,7);ctx.stroke();
+  // Weapon profile follows each profession instead of sharing one blade silhouette.
+  ctx.save();ctx.rotate(dir*(weaponSwing+(idlePose.name&&idlePose.name!=="lookAround"?idlePose.weapon*.32:0)));
+  if(roleId===1){ctx.strokeStyle="#74572e";ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(dir*7,4);ctx.lineTo(dir*30,-9);ctx.stroke();ctx.fillStyle="#d9a735";ctx.beginPath();ctx.arc(dir*33,-11,6,0,Math.PI*2);ctx.fill();ctx.strokeStyle="#74ffb7";ctx.lineWidth=2;ctx.beginPath();ctx.arc(dir*33,-11,10,0,Math.PI*2);ctx.stroke();}
+  else if(roleId===3){ctx.strokeStyle="#d9e7f2";ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(dir*7,5);ctx.lineTo(dir*30,-13);ctx.stroke();ctx.fillStyle="#705fc7";ctx.beginPath();ctx.moveTo(dir*28,-18);ctx.lineTo(dir*39,-13);ctx.lineTo(dir*29,-7);ctx.closePath();ctx.fill();ctx.shadowColor="#88d8ff";ctx.shadowBlur=10;ctx.strokeStyle="#d9f4ff";ctx.stroke();ctx.shadowBlur=0;}
+  else if(roleId===4){ctx.strokeStyle="#151820";ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(dir*7,2);ctx.lineTo(dir*14,0);ctx.moveTo(-dir*5,5);ctx.lineTo(-dir*14,10);ctx.stroke();ctx.strokeStyle="#dfe6ef";ctx.lineWidth=2.5;ctx.beginPath();ctx.moveTo(dir*13,0);ctx.lineTo(dir*32,-5);ctx.moveTo(-dir*13,10);ctx.lineTo(-dir*25,17);ctx.stroke();}
+  else if(roleId===2){ctx.strokeStyle="#d8c7ff";ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(dir*8,1);ctx.lineTo(dir*34,-13);ctx.moveTo(-dir*7,4);ctx.lineTo(-dir*29,16);ctx.stroke();ctx.fillStyle="#b47cff";ctx.beginPath();ctx.arc(dir*35,-14,3,0,Math.PI*2);ctx.fill();}
+  else if(roleId===5){ctx.strokeStyle="#bdebdc";ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(dir*6,5);ctx.lineTo(dir*32,-7);ctx.stroke();ctx.fillStyle="#78f0c3";ctx.beginPath();ctx.arc(dir*34,-8,6,0,Math.PI*2);ctx.fill();ctx.fillStyle="#fff";ctx.fillRect(dir>0?30:-38,-10,8,4);}
+  else if(roleId===6){ctx.fillStyle="#315a78";ctx.beginPath();ctx.arc(dir*22,1,15,0,Math.PI*2);ctx.fill();ctx.strokeStyle="#d9f2ff";ctx.lineWidth=3;ctx.stroke();ctx.fillStyle="#5db8ff";ctx.fillRect(dir>0?18:-25,-12,7,24);}
+  else if(roleId===7){ctx.strokeStyle="#18262d";ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(dir*7,3);ctx.lineTo(dir*17,1);ctx.stroke();ctx.strokeStyle="#e7fbff";ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(dir*15,0);ctx.lineTo(dir*43,-5);ctx.stroke();ctx.strokeStyle="#65e6ff";ctx.lineWidth=1;ctx.moveTo(dir*19,-2);ctx.lineTo(dir*43,-7);ctx.stroke();}
+  else{ctx.strokeStyle="#151820";ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(dir*8,2);ctx.lineTo(dir*17,1);ctx.stroke();ctx.strokeStyle=p.weapon;ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(dir*15,0);ctx.lineTo(dir*37,-3);ctx.stroke();ctx.strokeStyle=p.edge;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(dir*18,-2);ctx.lineTo(dir*36,-5);ctx.stroke();}
+  ctx.restore();
+  ctx.restore();return true;
+}
 function drawPlayer(){
   const r=roles[player.role];
   const moving=Math.hypot(player.vx||0,player.vy||0)>.12;
   const animTime=performance.now()/1000;
-  const bob=moving?Math.sin(animTime*12)*2.4:Math.sin(animTime*3.2)*.8;
+  const idlePose=executorIdlePose();
+  const bob=moving?Math.sin(animTime*12)*2.4:Math.sin(animTime*3.2)*.8-idlePose.lift*1.2;
   const lean=clamp((player.vx||0)*.035,-.12,.12);
   const weaponSwing=player.attackCd>0?Math.sin(clamp(player.attackCd/18,0,1)*Math.PI)*.65:0;
   const motionMax=Math.max(1,player.attackMotionMax||1),motion=clamp((player.attackMotion||0)/motionMax,0,1);
   const strikeCurve=Math.sin((1-motion)*Math.PI),lunge=player.facing*strikeCurve*((player.attackMotionStep||1)===3?16:10);
   ctx.save();
   ctx.translate(player.x+lunge,player.y+bob-strikeCurve*2);
-  ctx.rotate(lean+player.facing*strikeCurve*.055);
+  ctx.rotate(lean+player.facing*strikeCurve*.055+idlePose.turn*.018);
   ctx.scale(1+strikeCurve*.08,1-strikeCurve*.055);
 
   if(playerStatuses.burn){ctx.strokeStyle="#ff785f";ctx.lineWidth=3;ctx.setLineDash([8,5]);ctx.beginPath();ctx.arc(0,0,player.r+14,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);}
@@ -19765,28 +19895,13 @@ function drawPlayer(){
   ctx.ellipse(0,player.r+13,player.r*1.1,player.r*.25,0,0,Math.PI*2);
   ctx.fill();
 
-  ctx.fillStyle=r.color;
-  ctx.beginPath();
-  ctx.ellipse(0,0,player.r*(moving?1.06:1),player.r*(moving?.94:1),0,0,Math.PI*2);
-  ctx.fill();
-
+  const portraitModel=drawPortraitBasedBattleModel(player.role,player.r,player.facing,moving,weaponSwing,idlePose);
   ctx.shadowBlur=0;
-  ctx.save();
-  ctx.rotate(player.facing*weaponSwing);
-  ctx.fillStyle=r.sub;
-  ctx.beginPath();
-  ctx.moveTo(player.facing*33,0);
-  ctx.lineTo(player.facing*10,-11);
-  ctx.lineTo(player.facing*10,11);
-  ctx.closePath();
-  ctx.fill();
-  ctx.restore();
-
-  // Small block-color posture accents keep the established style while
-  // making direction changes and attack recovery easier to read.
-  ctx.fillStyle="rgba(255,255,255,.36)";
-  ctx.fillRect(-9,-player.r+4,18,5);
-  if(moving){ctx.fillStyle=r.sub;ctx.fillRect(-12,player.r-2,8,8);ctx.fillRect(4,player.r-2,8,8);}
+  if(!portraitModel){
+    ctx.fillStyle=r.color;ctx.beginPath();ctx.ellipse(0,0,player.r*(moving?1.06:1),player.r*(moving?.94:1),0,0,Math.PI*2);ctx.fill();
+    ctx.save();ctx.rotate(player.facing*weaponSwing);ctx.fillStyle=r.sub;ctx.beginPath();ctx.moveTo(player.facing*33,0);ctx.lineTo(player.facing*10,-11);ctx.lineTo(player.facing*10,11);ctx.closePath();ctx.fill();ctx.restore();
+    ctx.fillStyle="rgba(255,255,255,.36)";ctx.fillRect(-9,-player.r+4,18,5);if(moving){ctx.fillStyle=r.sub;ctx.fillRect(-12,player.r-2,8,8);ctx.fillRect(4,player.r-2,8,8);}
+  }
 
   ctx.globalAlpha=1;
   ctx.fillStyle="#fff";
@@ -19822,9 +19937,8 @@ function drawCrystalWarRemotePlayer(member){
   ctx.save();ctx.translate(x,y+bob);ctx.rotate(lean);ctx.globalAlpha=member.hp<=0?.42:1;
   if(charging||skillCasting||ultCasting){ctx.strokeStyle=ultCasting?r.color:charging?"#78f0c3":r.sub;ctx.lineWidth=ultCasting?4:3;ctx.globalAlpha=.55+.25*Math.sin(at/65);ctx.beginPath();ctx.arc(0,0,radius+(ultCasting?18:charging?16:13),0,Math.PI*2);ctx.stroke();ctx.globalAlpha=member.hp<=0?.42:1;}
   ctx.shadowBlur=14;ctx.shadowColor=r.color;ctx.fillStyle="rgba(0,0,0,.26)";ctx.beginPath();ctx.ellipse(0,radius+13,radius*1.1,radius*.25,0,0,Math.PI*2);ctx.fill();
-  ctx.fillStyle=r.color;ctx.beginPath();ctx.ellipse(0,0,radius*(moving?1.06:1),radius*(moving?.94:1),0,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;
-  ctx.save();ctx.rotate(direction*weaponSwing);ctx.fillStyle=r.sub;ctx.beginPath();ctx.moveTo(direction*33,0);ctx.lineTo(direction*10,-11);ctx.lineTo(direction*10,11);ctx.closePath();ctx.fill();ctx.restore();
-  ctx.fillStyle="rgba(255,255,255,.36)";ctx.fillRect(-9,-radius+4,18,5);if(moving){ctx.fillStyle=r.sub;ctx.fillRect(-12,radius-2,8,8);ctx.fillRect(4,radius-2,8,8);}
+  const portraitModel=drawPortraitBasedBattleModel(roleId,radius,direction,moving,weaponSwing);ctx.shadowBlur=0;
+  if(!portraitModel){ctx.fillStyle=r.color;ctx.beginPath();ctx.ellipse(0,0,radius*(moving?1.06:1),radius*(moving?.94:1),0,0,Math.PI*2);ctx.fill();ctx.save();ctx.rotate(direction*weaponSwing);ctx.fillStyle=r.sub;ctx.beginPath();ctx.moveTo(direction*33,0);ctx.lineTo(direction*10,-11);ctx.lineTo(direction*10,11);ctx.closePath();ctx.fill();ctx.restore();ctx.fillStyle="rgba(255,255,255,.36)";ctx.fillRect(-9,-radius+4,18,5);if(moving){ctx.fillStyle=r.sub;ctx.fillRect(-12,radius-2,8,8);ctx.fillRect(4,radius-2,8,8);}}
   ctx.globalAlpha=1;ctx.fillStyle="#fff";ctx.font="bold 12px "+FONT_UI;ctx.textAlign="center";ctx.fillText(member.displayName||roleName(roleId),0,-30);ctx.restore();drawCrystalWarEmoteBubble(member,x,y+bob);
 }
 window.drawPZCoopExecutorModel=drawCrystalWarRemotePlayer;
@@ -21104,22 +21218,19 @@ function updateProjectArea(){
 }
 function paDrawRectEntity(e){
   const r=paRect(e);
-  if(e.type==="wall"){
-    ctx.fillStyle="rgba(82,98,116,.92)";
-    ctx.strokeStyle="rgba(210,230,245,.35)";
-  }else if(e.type==="machine"){
-    ctx.fillStyle="rgba(46,58,68,.96)";
-    ctx.strokeStyle="rgba(124,199,255,.28)";
-  }else if(e.type==="pipe"){
-    ctx.fillStyle="rgba(80,118,128,.88)";
-    ctx.strokeStyle="rgba(124,255,178,.28)";
-  }else{
-    ctx.fillStyle="rgba(130,125,115,.72)";
-    ctx.strokeStyle="rgba(255,255,255,.16)";
-  }
-  ctx.lineWidth=3;
-  ctx.fillRect(r.x,r.y,r.w,r.h);
-  ctx.strokeRect(r.x,r.y,r.w,r.h);
+  const depth=Math.max(8,Math.min(18,r.h*.18)),isPipe=e.type==="pipe",isMachine=e.type==="machine";
+  const face=e.type==="wall"?"#526274":isMachine?"#2e3a44":isPipe?"#507680":"#827d73";
+  const top=e.type==="wall"?"#8394a6":isMachine?"#536775":isPipe?"#78a4aa":"#aaa398";
+  const side=e.type==="wall"?"#303b49":isMachine?"#18232c":isPipe?"#294b52":"#554f48";
+  ctx.save();ctx.shadowColor="rgba(0,0,0,.62)";ctx.shadowBlur=12;ctx.shadowOffsetY=8;
+  ctx.fillStyle=face;ctx.fillRect(r.x,r.y,r.w,r.h);ctx.shadowBlur=0;ctx.shadowOffsetY=0;
+  ctx.fillStyle=top;ctx.beginPath();ctx.moveTo(r.x,r.y);ctx.lineTo(r.x+depth,r.y-depth);ctx.lineTo(r.x+r.w+depth,r.y-depth);ctx.lineTo(r.x+r.w,r.y);ctx.closePath();ctx.fill();
+  ctx.fillStyle=side;ctx.beginPath();ctx.moveTo(r.x+r.w,r.y);ctx.lineTo(r.x+r.w+depth,r.y-depth);ctx.lineTo(r.x+r.w+depth,r.y+r.h-depth);ctx.lineTo(r.x+r.w,r.y+r.h);ctx.closePath();ctx.fill();
+  ctx.strokeStyle=isMachine?"rgba(124,199,255,.55)":isPipe?"rgba(124,255,178,.48)":"rgba(226,238,248,.38)";ctx.lineWidth=2;ctx.strokeRect(r.x,r.y,r.w,r.h);
+  if(isMachine){ctx.fillStyle="rgba(5,15,24,.75)";ctx.fillRect(r.x+12,r.y+12,Math.max(20,r.w*.42),Math.max(12,r.h*.25));ctx.fillStyle="#7cc7ff";ctx.fillRect(r.x+17,r.y+17,Math.max(10,r.w*.22),3);for(let bx=r.x+14;bx<r.x+r.w-8;bx+=24){ctx.fillStyle="rgba(205,230,245,.45)";ctx.beginPath();ctx.arc(bx,r.y+r.h-11,3,0,Math.PI*2);ctx.fill();}}
+  else if(isPipe){ctx.fillStyle="rgba(8,24,29,.34)";for(let px=r.x+20;px<r.x+r.w;px+=54)ctx.fillRect(px,r.y,8,r.h);ctx.strokeStyle="rgba(205,255,240,.30)";ctx.beginPath();ctx.moveTo(r.x+8,r.y+7);ctx.lineTo(r.x+r.w-8,r.y+7);ctx.stroke();}
+  else{ctx.fillStyle="rgba(255,214,86,.52)";for(let px=r.x+10;px<r.x+r.w-10;px+=38){ctx.beginPath();ctx.moveTo(px,r.y+r.h);ctx.lineTo(px+14,r.y+r.h-12);ctx.lineTo(px+21,r.y+r.h);ctx.closePath();ctx.fill();}ctx.strokeStyle="rgba(255,255,255,.16)";for(let px=r.x+28;px<r.x+r.w;px+=52){ctx.beginPath();ctx.moveTo(px,r.y+5);ctx.lineTo(px,r.y+r.h-15);ctx.stroke();}}
+  ctx.restore();
 }
 
 function paDrawObject(o){
