@@ -19378,6 +19378,16 @@ function drawFloraLimitedFullPortrait(x,y,w,h,alpha=1){
   ctx.drawImage(floraExecutorPortraitImg,sx,sy,sw,sh,x+(w-dw)/2,y+h-dh,dw,dh);ctx.restore();return true;
 }
 
+function recruitModelIdlePose(roleId){
+  const phase=(menuPulse*.012+roleId*.71)%(Math.PI*2),lift=.5+.5*Math.sin(phase),turn=Math.sin(phase*.72);
+  const names=["bladeCheck","bowTune","dualSpin","focusOrb","coatFix","medicalCheck","shieldBrace","katanaSheath"];
+  return{name:names[roleId]||"lookAround",phase:phase/(Math.PI*2),lift,turn,weapon:lift};
+}
+function drawRecruitModelStand(roleId,cx,cy,scale=1){
+  const r=roles[roleId]||roles[0],pulse=.5+.5*Math.sin(menuPulse*.045+roleId);
+  ctx.save();ctx.translate(cx,cy);ctx.fillStyle="rgba(3,8,15,.72)";ctx.beginPath();ctx.ellipse(0,27,43*scale,12*scale,0,0,Math.PI*2);ctx.fill();ctx.strokeStyle=r.color;ctx.globalAlpha=.45+.3*pulse;ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(0,27,39*scale,9*scale,0,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1;ctx.scale(scale,scale);ctx.shadowColor=r.color;ctx.shadowBlur=13;drawPortraitBasedBattleModel(roleId,25,1,false,0,recruitModelIdlePose(roleId));ctx.shadowBlur=0;ctx.restore();
+}
+
 function drawLimitedRecruitShowcase(){
   const vx=55,vy=235,vw=1010,vh=310,scroll=shopLimitedScrollY,pulse=.5+.5*Math.sin(menuPulse*.045),ownedNow=!!owned[3];
   ctx.save();ctx.beginPath();ctx.rect(vx,vy,vw,vh);ctx.clip();ctx.translate(0,-scroll);
@@ -19391,6 +19401,7 @@ function drawLimitedRecruitShowcase(){
   ctx.fillStyle="#fff";ctx.font="bold 46px "+FONT_UI;ctx.fillText(tx("floraDisplayFull"),86,y+102);
   ctx.fillStyle="#bfe8ff";ctx.font="bold 16px "+FONT_UI;ctx.fillText(mt("floraShopRank"),88,y+137);
   ctx.fillStyle="rgba(255,255,255,.76)";ctx.font="14px "+FONT_UI;drawUIText(mt("floraShopFeature"),88,y+174,350,{size:14,maxLines:3,lineH:24});
+  drawRecruitModelStand(3,260,y+226,1.22);
   ctx.fillStyle="rgba(4,10,18,.72)";ctx.fillRect(78,y+272,390,70);ctx.strokeStyle="rgba(136,216,255,.35)";ctx.strokeRect(78,y+272,390,70);ctx.fillStyle="#ffe066";ctx.font="bold 12px "+FONT_UI;ctx.fillText(language==="en"?"FIXED PRICE · NO ODDS · NO GACHA":"固定价格 · 无概率 · 非抽卡",96,y+300);ctx.fillStyle="rgba(255,255,255,.58)";ctx.font="11px "+FONT_UI;ctx.fillText(language==="en"?"Purchase once to permanently recruit Flora":"购买一次即可永久获得芙洛拉",96,y+325);
   ctx.strokeStyle=`rgba(136,216,255,${.55+pulse*.3})`;ctx.lineWidth=2;ctx.strokeRect(x,y,w,h);
   const dy=645;ctx.fillStyle="rgba(8,14,27,.98)";ctx.fillRect(x,dy,w,205);ctx.strokeStyle="rgba(136,216,255,.35)";ctx.strokeRect(x,dy,w,205);ctx.fillStyle="#88d8ff";ctx.fillRect(x,dy,7,205);
@@ -19516,6 +19527,7 @@ function drawPermanentRecruitCard(it,x,y,w=430,h=290){
   ctx.fillStyle="rgba(255,255,255,.66)";ctx.font="11px "+FONT_UI;ctx.fillText(fitTextToWidth(r.line,182,11,false),x+224,y+143);
   ctx.fillStyle="rgba(255,255,255,.38)";ctx.font="9px "+FONT_UI;ctx.fillText(language==="en"?"Fixed price · permanent unlock":"明码直购 · 永久获得",x+224,y+170);
   ctx.fillStyle=ownedNow?"#7cc7ff":"#ffe066";ctx.font="bold 17px Arial";ctx.fillText(ownedNow?(language==="en"?"RECRUITED":"已获得"):("◆ "+it.price),x+224,y+206);
+  drawRecruitModelStand(i,x+360,y+181,.88);
   drawBtn(ownedNow?(language==="en"?"Owned":"已拥有"):(language==="en"?"Recruit":"确认招募"),ownedNow?"✓":("◆ "+it.price),x+224,y+226,182,42,!ownedNow,ownedNow?"#7cc7ff":"#ffe066");
 }
 
