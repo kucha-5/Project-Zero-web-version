@@ -18267,6 +18267,7 @@ function drawStory(){
   const bg=ctx.createLinearGradient(0,0,0,H); bg.addColorStop(0,"#11172d"); bg.addColorStop(.55,"#070912"); bg.addColorStop(1,"#03040a"); ctx.fillStyle=bg; ctx.fillRect(0,0,W,H);
   ctx.fillStyle="rgba(255,255,255,.70)"; ctx.font="14px " + FONT_UI; ctx.textAlign="left"; ctx.fillText(stageCode(selectedStage)+" "+stageDisplayName(st),90,78);
   const replyOptions=currentStoryReplyOptions();
+  if(!replyOptions&&window.PZStory?.drawPortraitCast){const cast=[];for(const row of currentStory){if(Array.isArray(row)&&row[0]&&!cast.includes(row[0]))cast.push(row[0]);}window.PZStory.drawPortraitCast(ctx,W,H,line[0],cast);}
   ctx.fillStyle="rgba(0,0,0,.72)"; ctx.fillRect(65,H-190,W-130,150); ctx.strokeStyle="rgba(255,255,255,.16)"; ctx.strokeRect(65,H-190,W-130,150); ctx.fillStyle="#ffe066"; ctx.font="bold 24px " + FONT_UI; ctx.fillText(replyOptions?protagonistName():speaker,95,H-146); ctx.fillStyle="#fff"; ctx.font="22px " + FONT_UI; wrapText(replyOptions?tr("选择你的回应","Choose your response"):text,95,H-102,W-230,32);
   if(replyOptions){
     ctx.fillStyle="rgba(124,199,255,.82)"; ctx.font="bold 15px "+FONT_UI; ctx.fillText(tr("对话选择 · 最多3项","DIALOGUE CHOICE · UP TO 3"),155,178);

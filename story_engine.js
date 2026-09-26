@@ -9,6 +9,15 @@
     return value[lang] || value.zh || value.en || "";
   }
 
+  const portraitSources={
+    "player":"assets/ui/hermit_portrait_display.png",
+    "凯恩":"assets/ui/kane_portrait.png","Kane":"assets/ui/kane_portrait.png","艾洛":"assets/ui/ailo_portrait_display.png","Ailo":"assets/ui/ailo_portrait_display.png",
+    "芙洛拉":"assets/ui/flora_portrait_display.png","Flora":"assets/ui/flora_portrait_display.png"
+  },portraitCache={};
+  function portraitKey(name){const n=String(name||"").trim();if(n==="{playerName}"||n==="隐者"||n==="Hermit"||n==="主角"||n==="Protagonist")return "player";return n;}
+  function portraitFor(name){const src=portraitSources[portraitKey(name)];if(!src)return null;if(!portraitCache[src]){const img=new Image();img.src=src;portraitCache[src]=img;}return portraitCache[src];}
+  Object.values(portraitSources).forEach(src=>{if(!portraitCache[src]){const img=new Image();img.src=src;portraitCache[src]=img;}});
+
   const Story = {
     active:false,
     id:null,
@@ -110,6 +119,18 @@
       ctx.fillRect(0,0,W,H);
     },
 
+    drawPortraits(ctx,W,H,activeSpeaker){
+      const scripts=global.PZ_STORY_SCRIPTS||{},arr=scripts[this.id]||[],step=this.current()||{},cast=[];
+      for(const s of arr){const n=s&&(s.portrait||s.speaker),key=portraitKey(pick(n,this.lang));if(portraitFor(key)&&!cast.includes(key))cast.push(key);}
+      this.drawPortraitCast(ctx,W,H,pick(step.portrait,this.lang)||activeSpeaker,cast);
+    },
+    drawPortraitCast(ctx,W,H,activeSpeaker,sceneCast=[]){
+      const activeKey=portraitKey(activeSpeaker),cast=[];
+      for(const name of [...sceneCast,activeKey]){const key=portraitKey(name);if(portraitFor(key)&&!cast.includes(key))cast.push(key);}
+      if(!cast.length)return;const shown=cast.slice(0,4),slots=shown.length===1?[.5]:shown.length===2?[.24,.76]:shown.length===3?[.14,.5,.86]:[.08,.35,.65,.92];
+      ctx.save();ctx.beginPath();ctx.rect(0,24,W,H-204);ctx.clip();shown.forEach((name,i)=>{const img=portraitFor(name);if(!img||!img.complete||!img.naturalWidth)return;const active=name===activeKey,targetH=H*(shown.length>2?.88:1.02),scale=targetH/img.naturalHeight,dw=img.naturalWidth*scale,dh=targetH,x=W*slots[i]-dw/2,y=30;ctx.save();ctx.globalAlpha=active?1:.28;ctx.filter=active?"brightness(1.12) saturate(1.08) drop-shadow(0 0 22px rgba(124,199,255,.34))":"brightness(.34) saturate(.48)";ctx.drawImage(img,x,y,dw,dh);ctx.restore();});ctx.restore();
+    },
+
     wrap(ctx,text,x,y,maxWidth,lineHeight){
       const words = String(text).split("");
       let line = "";
@@ -151,6 +172,9 @@
       this.lastBg = bg;
       this.drawBg(ctx,W,H,bg);
 
+      const activeSpeaker=pick(step.speaker,this.lang);
+      this.drawPortraits(ctx,W,H,activeSpeaker);
+
       ctx.fillStyle="rgba(0,0,0,.74)";
       ctx.fillRect(65,H-190,W-130,150);
       ctx.strokeStyle="rgba(255,255,255,.16)";
@@ -159,7 +183,7 @@
       ctx.textAlign="left";
       ctx.fillStyle="#ffe066";
       ctx.font="bold 24px Arial, Microsoft YaHei, sans-serif";
-      ctx.fillText(pick(step.speaker,this.lang),95,H-146);
+      ctx.fillText(activeSpeaker,95,H-146);
 
       ctx.fillStyle = step.keyword ? "#7cc7ff" : "#fff";
       ctx.font = (step.keyword ? "bold 32px " : "22px ") + "Arial, Microsoft YaHei, sans-serif";

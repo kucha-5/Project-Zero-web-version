@@ -23,17 +23,17 @@
     tutorial_after_battle: [
       { speaker:{zh:"旁白", en:"Narrator"}, text:{zh:"最后一只晶体兽倒下。街道慢慢安静下来。", en:"The last crystal beast falls. The street slowly returns to silence."}, bg:"after" },
       { speaker:{zh:"旁白", en:"Narrator"}, text:{zh:"脚步声从身后靠近。", en:"Footsteps approach from behind."}, bg:"after" },
-      { speaker:{zh:"？？？", en:"???"}, text:{zh:"……是你解决的？", en:"...You handled this?"}, bg:"after" },
+      { speaker:{zh:"？？？", en:"???"}, portrait:{zh:"凯恩",en:"Kane"}, text:{zh:"……是你解决的？", en:"...You handled this?"}, bg:"after" },
       { speaker:{zh:"旁白", en:"Narrator"}, text:{zh:"你沉默了。", en:"You remain silent."}, bg:"after" },
       { speaker:{zh:"旁白", en:"Narrator"}, text:{zh:"对方看了一眼你手中的战斗许可。", en:"The person glances at the combat permit in your hand."}, bg:"after" },
-      { speaker:{zh:"？？？", en:"???"}, text:{zh:"刚领取许可，就敢直接冲到最前面。", en:"You just received your permit, and you still ran to the front line."}, bg:"after" },
-      { speaker:{zh:"？？？", en:"???"}, text:{zh:"如果可以，我需要你跟我一起去西区。", en:"If possible, I need you to come with me to the west district."}, bg:"after" },
-      { speaker:{zh:"？？？", en:"???"}, text:{zh:"那里出现了大量晶体兽。", en:"A large number of crystal beasts have appeared there."}, bg:"after" },
-      { speaker:{zh:"？？？", en:"???"}, text:{zh:"现在部门的人手严重不足。", en:"The department is seriously short-handed right now."}, bg:"after" },
+      { speaker:{zh:"？？？", en:"???"}, portrait:{zh:"凯恩",en:"Kane"}, text:{zh:"刚领取许可，就敢直接冲到最前面。", en:"You just received your permit, and you still ran to the front line."}, bg:"after" },
+      { speaker:{zh:"？？？", en:"???"}, portrait:{zh:"凯恩",en:"Kane"}, text:{zh:"如果可以，我需要你跟我一起去西区。", en:"If possible, I need you to come with me to the west district."}, bg:"after" },
+      { speaker:{zh:"？？？", en:"???"}, portrait:{zh:"凯恩",en:"Kane"}, text:{zh:"那里出现了大量晶体兽。", en:"A large number of crystal beasts have appeared there."}, bg:"after" },
+      { speaker:{zh:"？？？", en:"???"}, portrait:{zh:"凯恩",en:"Kane"}, text:{zh:"现在部门的人手严重不足。", en:"The department is seriously short-handed right now."}, bg:"after" },
       {
         choice:true,
         bg:"after",
-        speaker:{zh:"？？？", en:"???"},
+        speaker:{zh:"？？？", en:"???"}, portrait:{zh:"凯恩",en:"Kane"},
         text:{zh:"你愿意一起去吗？", en:"Will you come with me?"},
         choices:[
           { text:{zh:"可以", en:"Accept"}, next:"tutorial_choice_accept" },
@@ -43,14 +43,14 @@
     ],
 
     tutorial_choice_accept: [
-      { speaker:{zh:"？？？", en:"???"}, text:{zh:"谢谢。", en:"Thank you."}, bg:"after" },
-      { speaker:{zh:"？？？", en:"???"}, text:{zh:"正式行动之前，先回大厅准备一下。", en:"Before the operation, return to the lobby and prepare."}, bg:"after" },
+      { speaker:{zh:"？？？", en:"???"}, portrait:{zh:"凯恩",en:"Kane"}, text:{zh:"谢谢。", en:"Thank you."}, bg:"after" },
+      { speaker:{zh:"？？？", en:"???"}, portrait:{zh:"凯恩",en:"Kane"}, text:{zh:"正式行动之前，先回大厅准备一下。", en:"Before the operation, return to the lobby and prepare."}, bg:"after" },
       { event:"finishPrologueReturnLobby" }
     ],
 
     tutorial_choice_reward: [
-      { speaker:{zh:"？？？", en:"???"}, text:{zh:"当然。事务处不会让执行官白白战斗。", en:"Of course. The Affairs Office does not let executors fight for nothing."}, bg:"after" },
-      { speaker:{zh:"？？？", en:"???"}, text:{zh:"正式行动之前，先回大厅准备一下。", en:"Before the operation, return to the lobby and prepare."}, bg:"after" },
+      { speaker:{zh:"？？？", en:"???"}, portrait:{zh:"凯恩",en:"Kane"}, text:{zh:"当然。事务处不会让执行官白白战斗。", en:"Of course. The Affairs Office does not let executors fight for nothing."}, bg:"after" },
+      { speaker:{zh:"？？？", en:"???"}, portrait:{zh:"凯恩",en:"Kane"}, text:{zh:"正式行动之前，先回大厅准备一下。", en:"Before the operation, return to the lobby and prepare."}, bg:"after" },
       { event:"finishPrologueReturnLobby" }
     ]
   };
