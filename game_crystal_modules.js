@@ -159,7 +159,7 @@
     const used={};(chars||[]).forEach(c=>{c.crystalModuleSlots=Object.assign(emptySlots(),c.crystalModuleSlots||{});SLOTS.forEach(s=>{const id=c.crystalModuleSlots[s],d=item(id);if(!d||d.slot!==s||(used[id]||0)>=(available[id]||0))c.crystalModuleSlots[s]=null;else used[id]=(used[id]||0)+1;});});
     return inv;
   }
-  function totals(role,chars){
+  function totals(role,chars,team){
     const out={hp:0,atk:0,def:0,hpPct:0,atkPct:0,defPct:0,speedPct:0,sets:{},activeSetTiers:[]};
     const c=chars[role]||{},slots=Object.assign(emptySlots(),c.crystalModuleSlots||{});
     SLOTS.forEach(s=>{const d=item(slots[s]);if(!d)return;Object.keys(d.stats||{}).forEach(k=>out[k]=(out[k]||0)+d.stats[k]);Object.keys(d.drawback||{}).forEach(k=>out[k]=(out[k]||0)+d.drawback[k]);out.sets[d.setId]=(out.sets[d.setId]||0)+1;});
@@ -172,6 +172,16 @@
         out.activeSetTiers.push({setId:id,pieces:need});
       });
     });
+    // Role and squad matching adds utility instead of another large raw-stat layer.
+    const members=Array.isArray(team)?team:[],has=id=>members.includes(id),pieces=id=>out.sets[id]||0,synergy=[];
+    if(pieces("breaker")>=2&&(role===0||role===7)){out.shieldDamagePct=(out.shieldDamagePct||0)+.08;synergy.push(["击破位：额外破盾 +8%","Breaker: Shield break +8%"]);}
+    if(pieces("breaker")>=2&&has(6)){out.breakExposurePct=(out.breakExposurePct||0)+.08;synergy.push(["与盾卫同队：击破脆弱 +8%","With Defender: Break exposure +8%"]);}
+    if(pieces("convergence")>=2&&[1,3,5].includes(role)){out.controlExposurePct=(out.controlExposurePct||0)+.10;synergy.push(["支援/控制适配：控制脆弱 +10%","Support/Control: Exposure +10%"]);}
+    if(pieces("counterflow")>=2&&(role===0||role===6)){out.parryExposurePct=(out.parryExposurePct||0)+.10;synergy.push(["近战/盾卫适配：弹刀脆弱 +10%","Melee/Defender: Parry exposure +10%"]);}
+    if(pieces("bulwark")>=2&&role===6){out.damageReductionPct=(out.damageReductionPct||0)+.04;synergy.push(["盾卫适配：减伤 +4%","Defender: Damage reduction +4%"]);}
+    if(pieces("resonance")>=2&&[1,3,5].includes(role)){out.skillDamagePct=(out.skillDamagePct||0)+.06;synergy.push(["术式适配：技能效果 +6%","Caster synergy: Skill effect +6%"]);}
+    if(has(5)&&(pieces("bulwark")>=2||pieces("survey")>=2)){out.healReceivedPct=(out.healReceivedPct||0)+.05;synergy.push(["与治疗同队：受治疗 +5%","With Healer: Healing received +5%"]);}
+    out.synergyText=synergy;
     return out;
   }
   function gradeForDifficulty(difficulty){return Math.max(2,Math.min(6,Math.floor(difficulty||2)));}
