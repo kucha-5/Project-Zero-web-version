@@ -1,0 +1,15 @@
+PROJECT ZERO PC UPDATE
+Build: 20261010-pc-base-adam-trust
+
+- Protocol Hub supports up to four unique staff assignments.
+- Hub staff gain configurable Trust, safely clamped to 0-200%.
+- Two starter Rest Camps are restored for old saves; Hub Lv.10 raises the cap to four.
+- Facility placement supports R-key 90-degree rotation with rotated footprint collision and persistence.
+- Added C-rank Adam with Physical-to-Arts conversion, Burning Field, and 20% Ultimate damage boost.
+- Added the one-time manually claimed Adam launch mail for new and existing accounts.
+- Operator files now include Adam and display Trust.
+- Adam is listed in Operators, can be raised, assigned to teams and deployed in battle with a unique fire-support model.
+- Base Operations now uses Production, Hub Management and Rest Camp side navigation; staff are assigned from those pages.
+- Operator files render Trust as a real 0-200% bar; the Lobby profile card renders Authority EXP progress.
+
+Compatibility: PC only. Existing Crystal modules, Boss rank changes, buildings, resources, and saves are preserved.

@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="zh"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HIGIRI · Phase 1 Art Preview</title>
+<style>
+body{margin:0;background:#141619;color:#d8cfb8;font:14px system-ui}main{max-width:1120px;margin:auto;padding:16px}h1{font-size:22px}p{line-height:1.6;color:#bdb9b0}nav{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0}label{display:flex;align-items:center;gap:6px}button,select{font:inherit;background:#252a30;color:#e4ddcf;border:1px solid #68625a;padding:7px 12px}canvas{width:100%;display:block;border:1px solid #5b5650}#status{min-height:24px}small{color:#a5a09b}
+</style>
+<main>
+<h1>日斬 · 第一阶段视觉样板 / HIGIRI · Phase 1 Visual Samples</h1>
+<p>仅展示美术，不读写存档、不创建敌人、不造成伤害。场景底图已接入白日梦战斗；怪物、幻象及色调切换仅供此页预览。<br>Art only: no saves, enemies or damage. Battle scenery is integrated; creature states, illusions and tint switching remain previews.</p>
+<nav>
+<label>场景 / Scene <select id="scene"><option value="wau">和乌 / Wau</option><option value="shrine">神社 / Shrine</option><option value="torii">鸟居 / Torii</option><option value="shop">商铺 / Shop</option><option value="rest">休整 / Rest</option><option value="battle">普通战斗 / Battle</option><option value="elite">精英 / Elite</option><option value="boss">最终战场 / Final arena</option></select></label>
+<label>色调 / Tint <select id="tint"><option value="gunjo">群青</option><option value="sakura">樱色</option><option value="yamabuki">山吹色</option><option value="fuji">藤色</option><option value="shu">朱色</option><option value="sumi">墨色</option></select></label>
+<label>妖怪 / Yaokai <select id="state"><option value="normal">普通 / Normal</option><option value="phased">虚化 / Phased</option><option value="absent">消失 / Absent</option><option value="reappear">再现 / Reappear</option></select></label>
+</nav>
+<nav id="effects"><button data-effect="ranged">远程表现 / Ranged</button><button data-effect="decoys">假怪 / Decoys</button><button data-effect="flicker">暗闪 / Dark pulse</button><button data-effect="blackout">黑屏轮廓 / Silhouette</button><button data-effect="static">花屏 0.6s / Static</button><button id="cycle">20秒循环：关 / 20s cycle: OFF</button></nav>
+<small>暗闪、花屏均为手动样板，光敏感者请勿触发。Photo-sensitivity caution: visual interference is opt-in.</small>
+<canvas id="stage" width="1120" height="660"></canvas><p id="status"></p>
+</main>
+<script src="game_higiri_visuals.js"></script><script src="higiri-art-preview.js"></script>
+</html>

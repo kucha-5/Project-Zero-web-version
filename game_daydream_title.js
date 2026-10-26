@@ -33,13 +33,13 @@
     alpha = alpha == null ? 1 : alpha;
     ctx.save();
     ctx.globalAlpha *= alpha;
-    roundedRect(ctx,x,y,w,h,10);
-    ctx.fillStyle = strong ? "rgba(245,238,224,.88)" : "rgba(245,238,224,.10)";
+    roundedRect(ctx,x,y,w,h,4);
+    ctx.fillStyle = strong ? "rgba(124,39,32,.92)" : "rgba(23,21,19,.62)";
     ctx.fill();
-    ctx.strokeStyle = strong ? "rgba(245,238,224,.92)" : "rgba(245,238,224,.38)";
-    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = strong ? "rgba(216,207,184,.88)" : "rgba(216,207,184,.42)";
+    ctx.lineWidth = strong ? 2.2 : 1.4;
     ctx.stroke();
-    ctx.fillStyle = strong ? "rgba(20,18,28,.95)" : "rgba(245,238,224,.86)";
+    ctx.fillStyle = "rgba(232,224,207,.94)";
     ctx.font = "bold " + (strong ? 20 : 15) + "px " + (global.FONT_UI || "Arial");
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
@@ -245,13 +245,12 @@
 
     // Soft evening sky. Palette: 群青 / 京紫 / 浅葱 / 山吹 / 栀子 / 茜 / 胡粉 / 鼠.
     const sky = ctx.createLinearGradient(0,y0,0,y0+h0*0.66);
-    sky.addColorStop(0.00,"#182a56");   // 群青色
-    sky.addColorStop(0.22,"#33204e");   // 深紫 / 京紫
-    sky.addColorStop(0.44,"#5b87a2");   // 群青 -> 浅葱 bridge
-    sky.addColorStop(0.57,"#78c0bf");   // 浅葱色
-    sky.addColorStop(0.70,"#efcf84");   // 栀子色
-    sky.addColorStop(0.82,"#e5a63b");   // 山吹色
-    sky.addColorStop(1.00,"#b8524c");   // 茜色
+    sky.addColorStop(0.00,"#171513");
+    sky.addColorStop(0.24,"#24394f");
+    sky.addColorStop(0.50,"#315a78");
+    sky.addColorStop(0.69,"#69566f");
+    sky.addColorStop(0.84,"#a76d45");
+    sky.addColorStop(1.00,"#b13a2f");
     ctx.fillStyle = sky;
     ctx.fillRect(x0,y0,w0,h0*0.67);
 
@@ -290,12 +289,12 @@
 
     // Mirror lake: draws sky reflection with a faint inverted sunset gradient.
     const water = ctx.createLinearGradient(0,lakeY,0,y0+h0);
-    water.addColorStop(0.00,"rgba(245,238,224,.42)");
-    water.addColorStop(0.16,"#86c5c4");  // 浅葱 reflection
-    water.addColorStop(0.36,"#d19d48");  // sunset warmth reflected
-    water.addColorStop(0.52,"#64436e");  // 京紫 reflection
-    water.addColorStop(0.78,"#2b3358");  // 群青 reflection
-    water.addColorStop(1.00,"#6f6a67");  // 鼠色 lower shade
+    water.addColorStop(0.00,"rgba(216,207,184,.34)");
+    water.addColorStop(0.18,"#425e68");
+    water.addColorStop(0.40,"#6f5a56");
+    water.addColorStop(0.62,"#493d54");
+    water.addColorStop(0.82,"#26364b");
+    water.addColorStop(1.00,"#171513");
     ctx.fillStyle=water;
     ctx.fillRect(x0,lakeY,w0,y0+h0-lakeY);
 
@@ -340,7 +339,7 @@
     const baseY = lakeY + 38;
     ctx.save();
     ctx.translate(tx, baseY);
-    ctx.fillStyle="rgba(64,61,68,.93)"; // 鼠色
+    ctx.fillStyle="rgba(139,43,35,.94)";
     ctx.strokeStyle="rgba(245,238,224,.58)";
     ctx.lineWidth=1.25;
     ctx.shadowColor="rgba(245,238,224,.22)";

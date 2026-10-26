@@ -44,7 +44,7 @@
   }
   function clamp(v,a,b){ return Math.max(a, Math.min(b,v)); }
   function clickRect(x,y,w,h){ return global.clicked && global.inRect && global.inRect(x,y,w,h); }
-  function pulseColor(base="#9b7cff"){ return base; }
+  function pulseColor(base="#b13a2f"){ return base; }
   function playerLevel(){
     const p = global.player || {};
     return Number(p.level || p.lv || global.playerLevel || 1) || 1;
@@ -54,15 +54,53 @@
   function sfx(name){ if(global.sfx) global.sfx(name); }
 
   const nodeTypes = {
-    story:{zh:"剧情",en:"Story",color:"#9b7cff"},
-    event:{zh:"事件",en:"Event",color:"#ffe066"},
-    battle:{zh:"战斗",en:"Battle",color:"#ff6b9b"},
-    safe:{zh:"休整",en:"Rest",color:"#7cffb2"},
-    nightmare:{zh:"梦魇",en:"Nightmare",color:"#b15cff"},
-    portal:{zh:"传送",en:"Portal",color:"#5ce1e6"},
-    boss:{zh:"追猎者",en:"Pursuer",color:"#ff6b6b"},
-    exit:{zh:"层级终点",en:"Floor Exit",color:"#ff9955"}
+    story:{zh:"剧情",en:"Story",color:"#b13a2f",mark:"文"},
+    event:{zh:"事件",en:"Event",color:"#d6a52b",mark:"异"},
+    battle:{zh:"战斗",en:"Battle",color:"#b13a2f",mark:"战"},
+    safe:{zh:"休整",en:"Rest",color:"#d98b9d",mark:"休"},
+    nightmare:{zh:"梦魇",en:"Nightmare",color:"#8d78a8",mark:"魇"},
+    portal:{zh:"传送",en:"Portal",color:"#315a78",mark:"门"},
+    boss:{zh:"追猎者",en:"Pursuer",color:"#b13a2f",mark:"危"},
+    exit:{zh:"层级终点",en:"Floor Exit",color:"#d6a52b",mark:"终"}
   };
+  const higiriBosses = [
+    {id:"hundred_eye",zh:"百目面",en:"Hundred-Eye Mask",descZh:"以追踪晶瞳封锁移动空间。",descEn:"Tracking crystal eyes restrict movement."},
+    {id:"silent_bell",zh:"无声铃守",en:"Silent Bell Warden",descZh:"周期释放近距离震荡回响。",descEn:"Periodically releases a close-range shockwave."},
+    {id:"mirror_shade",zh:"镜返之影",en:"Mirror-Returning Shade",descZh:"改变位置并召出无法信任的鬼影。",descEn:"Repositions and calls forth untrustworthy shades."},
+    {id:"torii_maw",zh:"蚀门残像",en:"Torii-Eater Remnant",descZh:"沿直线突进并撕开鸟居裂隙。",descEn:"Charges in a line and tears open torii rifts."},
+    {id:"moonless",zh:"无月御前",en:"Moonless Presence",descZh:"同时操纵虚化妖怪与灵异远火。",descEn:"Commands phased Yaokai and spectral ranged fire."}
+  ];
+  function bossById(id){return higiriBosses.find(b=>b.id===id)||higiriBosses[0];}
+
+  function wrapCanvasText(ctx,text,x,y,maxWidth,lineHeight,maxLines=3){
+    const chars=Array.from(String(text||"")),lines=[];let line="";
+    for(const ch of chars){const next=line+ch;if(line&&ctx.measureText(next).width>maxWidth){lines.push(line);line=ch;if(lines.length>=maxLines)break;}else line=next;}
+    if(lines.length<maxLines&&line)lines.push(line);
+    if(chars.length&&lines.length===maxLines&&lines.join("").length<chars.length)lines[maxLines-1]=lines[maxLines-1].replace(/[.…]*$/,"")+"…";
+    lines.forEach((s,i)=>ctx.fillText(s,x,y+i*lineHeight));return lines.length;
+  }
+  function drawRouteBackdrop(ctx,theme,layer,camX,camY){
+    ctx.save();
+    // Layered Wa-U district silhouettes: scenery, route markings and fog stay separate.
+    ctx.globalAlpha=.18;ctx.fillStyle=theme.mark;
+    for(let i=0;i<7;i++){const x=45+i*132+(camX*.05%132),h=38+((i*37+layer*19)%72);ctx.beginPath();ctx.moveTo(x,535);ctx.lineTo(x+18,535-h);ctx.lineTo(x+42,535-h-14);ctx.lineTo(x+68,535-h);ctx.lineTo(x+92,535);ctx.closePath();ctx.fill();}
+    ctx.globalAlpha=.14;ctx.strokeStyle=theme.mark;ctx.lineWidth=1;
+    for(let band=0;band<5;band++){ctx.beginPath();for(let x=28;x<=840;x+=24){const y=150+band*86+Math.sin((x+camX*.12+band*77)*.018)*18;ctx.lineTo(x,y);}ctx.stroke();}
+    ctx.globalAlpha=.22;
+    for(let i=0;i<12;i++){const x=70+((i*173+layer*53)%730),y=142+((i*97+layer*29)%390);ctx.save();ctx.translate(x+camX*.025,y+camY*.025);ctx.rotate((i%3-1)*.12);ctx.strokeRect(-9,-9,18,18);ctx.beginPath();ctx.moveTo(-13,0);ctx.lineTo(13,0);ctx.moveTo(0,-13);ctx.lineTo(0,13);ctx.stroke();ctx.restore();}
+    // Torii silhouettes mark depth without becoming interactive scenery.
+    ctx.globalAlpha=.20;for(const x of [92,744]){ctx.fillRect(x,196,5,62);ctx.fillRect(x+42,196,5,62);ctx.fillRect(x-7,188,61,6);ctx.fillRect(x,201,47,3);}
+    const shade=ctx.createLinearGradient(28,96,840,616);shade.addColorStop(0,"rgba(3,8,15,.02)");shade.addColorStop(.62,"rgba(3,8,15,.08)");shade.addColorStop(1,"rgba(3,8,15,.48)");ctx.fillStyle=shade;ctx.globalAlpha=1;ctx.fillRect(28,96,812,520);ctx.restore();
+  }
+  function drawRouteNode(ctx,x,y,info,state,label){
+    const {current,available,resolved,distant,pulse}=state;ctx.save();ctx.translate(x,y);
+    if(available){ctx.globalAlpha=.16+.08*pulse;ctx.fillStyle=info.color;ctx.beginPath();ctx.arc(0,0,31,0,Math.PI*2);ctx.fill();}
+    ctx.rotate(Math.PI/4);ctx.fillStyle=current?info.color:resolved?"rgba(67,89,108,.92)":available?"rgba(28,36,48,.96)":"rgba(20,29,43,.58)";ctx.strokeStyle=current?"#f2ead8":available?info.color:distant?"rgba(116,142,169,.26)":"rgba(161,180,196,.40)";ctx.lineWidth=current?3:available?2.5:1.5;ctx.fillRect(-18,-18,36,36);ctx.strokeRect(-18,-18,36,36);ctx.rotate(-Math.PI/4);
+    ctx.fillStyle=current?"#fff":available?info.color:"rgba(232,239,244,.78)";ctx.font="bold 13px "+(global.FONT_UI||"Arial");ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(info.mark||"·",0,1);
+    if(current){ctx.strokeStyle=info.color;ctx.globalAlpha=.55+.25*pulse;ctx.lineWidth=2;ctx.beginPath();ctx.arc(0,0,27,0,Math.PI*2);ctx.stroke();}
+    if(label){ctx.globalAlpha=1;ctx.fillStyle=available?"#e6c85b":"rgba(255,255,255,.74)";ctx.font="bold 10px "+(global.FONT_UI||"Arial");ctx.textBaseline="alphabetic";ctx.fillText(label,0,39);}
+    ctx.restore();
+  }
 
   const nightmarePool = [
     {id:"bell", zh:"神乐铃", en:"Kagura Bell", descZh:"铃声让路径变得清晰，但污染轻微上升。", descEn:"The bell clarifies the path, but raises pollution slightly.", clue:1, pollution:5},
@@ -253,6 +291,9 @@
     {id:"finalGate",zh:"最后的鸟居",en:"The Final Torii",bodyZh:"出口只允许调查队与一名目标通过。你必须决定带走谁、相信什么，以及是否还有人需要留下维持通道。",bodyEn:"The exit admits the investigation squad and only one target. You must decide whom to take, what to believe, and whether anyone must remain to hold the route."},
     {id:"archiveEcho",zh:"协会回收记录",en:"Association Recovery Log",bodyZh:"每次调查都会留下不同版本的报告。五份结局档案互相矛盾，却都包含一部分真实。",bodyEn:"Each investigation leaves a different report. The five ending files contradict one another, yet each contains part of the truth."},
     {id:"afterimage",zh:"归档后的残响",en:"Echo After Archiving",bodyZh:"任务结束后，记录仪仍偶尔捕捉到刀刃出鞘的声音。案件是否真正结束，取决于调查员带回了什么。",bodyEn:"After the mission, recorders still occasionally capture a blade leaving its scabbard. Whether the case truly ended depends on what the investigator brought back."}
+    ,{id:"yaokaiTrace",zh:"实体边界记录",en:"Material Boundary Log",bodyZh:"队伍在旧参道发现成群妖怪。它们的轮廓会先于身体消失，物理攻击穿过虚化部分，法术痕迹却仍能留在表面。",bodyEn:"The squad encounters a mass of Yaokai along the old approach. Their outlines vanish before their bodies; physical attacks pass through the phased parts while arcane traces remain."}
+    ,{id:"ghostoTrace",zh:"不存在的远程火力",en:"Fire From Nowhere",bodyZh:"远处的鬼没有固定影子。每次射击后，记录仪都会多出数个并不存在的目标；护盾读数保持不变，生命监测却出现下降。",bodyEn:"The distant Ghosto casts no stable shadow. Every shot creates targets absent from the recorder's previous frame; shield readings remain unchanged while vital signs fall."}
+    ,{id:"mixedTrace",zh:"双重异常区",en:"Overlapping Anomalies",bodyZh:"妖怪消失后的空位被鬼制造的假影填满。队伍必须同时确认实体位置与生命读数，任何只依赖画面的判断都会被误导。",bodyEn:"Ghost-made decoys fill the spaces left by vanished Yaokai. The squad must compare physical position with vital readings; any judgment based only on sight will be misled."}
   ];
   const layerThemes={
     1:{nameZh:"雨蚀村落",nameEn:"Rain-Eroded Village",top:"#101829",bottom:"#071019",fog:"88,116,158",mark:"#6f91b9"},
@@ -271,6 +312,9 @@
     associationChoice:["协会只能提供观测数据，无法替现场调查员承担判断结果。每条线索都可能是真实记忆，也可能是梦魇为了自保制造的证据。","队伍成员的精神状态开始影响观测：污染越高，同一段记录就会出现越多互相矛盾的版本。","最终选择将决定被带回现实的对象，也会决定谁被永远留在日斩。"],
     truthOfHizan:["日斩最初只是档案柜上的案件编号，后来却成为白日梦对自身的称呼。","被篡改的命令、剑客未完成的职责和调查者的怀疑互相叠加，最终塑造出能够模仿人类的追猎者。","摧毁追猎者并不能结束案件；只有带回完整记录，让现实承认发生过什么，执念才可能停止重现。"],
     finalGate:["最后的鸟居正在崩塌，出口容量只能维持一次通行。所有未确认的路线都在黑暗中消失。","两名剑客分别给出相反的请求，执行官则等待调查员下达最终命令。","此刻没有可以再次验证的证据。此前走过的节点、保存的线索与承受的污染共同构成唯一答案。"]
+    ,yaokaiTrace:["第一批妖怪在进入视野后的五秒内保持虚化。凯恩的刀刃没有触感，法术留下的光痕却勾出了完整轮廓。","连续命中会令它们短暂从观测中消失。消失不是隐身：热源、碰撞与锁定信号会同时归零。","重新显现的位置没有固定规律。调查员将移动路线改为交叉覆盖，避免队伍被突然出现在侧面的妖怪分割。"]
+    ,ghostoTrace:["鬼释放的远程冲击绕过了现有护盾读数，伤害直接反映在执行官生命监测中。协会要求将其标记为优先目标。","幻象持续时间很短，却会制造假怪物、暗屏轮廓或不稳定闪烁。假目标不会造成伤害，也不应消耗高价值技能。","队伍使用攻击反馈和生命读数校验目标。没有命中反馈的轮廓只作为幻象记录，不纳入歼灭统计。"]
+    ,mixedTrace:["妖怪负责打断近距离阵线，鬼则从远处用幻象掩盖射击轨迹。两种异常同时出现时，数量判断会迅速失真。","调查设备只保留三类可靠数据：实际伤害反馈、生命读数变化，以及妖怪重新显现时产生的短暂空间扰动。","这份记录没有解释它们为何聚集，只确认大量异常会随重现深度增加，并在高压区域形成混合群落。"]
   };
   function makeScenePages(story,isEvent=false){const body=T(story.bodyZh||"",story.bodyEn||"");if(lang()==="en")return[body,isEvent?"The environment reacts to the team's presence. Details that looked decorative begin to repeat like instructions, while the recorder marks inconsistencies in sound, time, and direction.":"The team compares the recovered record with the changing environment. Every repeated object may be evidence, a warning, or a memory deliberately placed to mislead the investigation.",isEvent?"No option is neutral. The decision will alter Clue, Will, Contamination, or the Pursuer's approach for the remainder of this reconstruction.":"The route ahead emerges only after the record is acknowledged. The investigation continues with this fragment preserved in the Association archive."];const extra=storyExtraZh[story.id]||["周围环境随记录发生变化，远处道路被重新排列，调查设备开始标记时间、声音与方位上的矛盾。","执行官对照现场痕迹复核内容。看似普通的装饰可能是证据，也可能是白日梦为了误导调查制造的重复记忆。","记录确认后，前方道路才从黑暗中显现。该片段将被保存在协会档案中，并影响之后的调查判断。"];return[body,...extra];}
 
@@ -308,6 +352,8 @@
     selectedLevel:1,
     levelTrackPage:0,
     codexScroll:0,
+    codexDragging:false,
+    codexDragY:0,
 
     freshState(){
       return {version:RUN_VERSION,totalRuns:0,bestClue:0,unlockedEndings:{},unlockedNightmares:{},reconstructionExp:0,levelClaimed:{},highestDifficultyRankCleared:0,activeRun:null};
@@ -350,6 +396,7 @@
       if(this.state.activeRun&&!this.state.activeRun.completed){
         this.run=this.state.activeRun;
         this.run.dreamShards=Math.max(0,Number(this.run.dreamShards)||0);
+        this.run.layer=clamp(Math.floor(Number(this.run.layer)||1),1,4);this.run.floor=this.run.layer;
         // A browser close or account transition cannot keep a live combat
         // scene. Make that node enterable again instead of permanently stuck.
         this.run.awaitingBattle=false;
@@ -448,10 +495,12 @@
     runDifficulty(){return difficultyById(this.run?this.run.difficultyId:this.selectedDifficulty);},
 
     makeRoute(layer=1){
+      layer=clamp(Math.floor(Number(layer)||1),1,4);
       const seed = (now()+layer*7919) % 999999;
       const diff=this.runDifficulty();
       const opening=storyPool[Math.floor(rand(seed+layer*113)*storyPool.length)];
-      const route=[{type:"story",zh:opening.zh,en:opening.en,story:opening,resolved:false,mapX:110,mapY:330}];
+      const lanes=[190,330,470];let lane=1;
+      const route=[{type:"story",zh:opening.zh,en:opening.en,story:opening,resolved:false,mapX:118,mapY:lanes[lane],lane}];
       const pool=["event","battle","safe","nightmare","event","battle","story"];
       const interiorCount=14+Math.min(8,Math.floor((diff.branches||0)*1.75));
       const bossIndex=layer>=3?Math.max(6,Math.floor(interiorCount*.62)): -1;
@@ -461,7 +510,8 @@
         if(i%7===5) type="story";
         if(i%8===4) type="safe";
         if(i===bossIndex) type="boss";
-        const node={type,resolved:false,mapX:110+i*108,mapY:150+Math.floor(rand(seed+i*43)*320),layer};
+        const turn=rand(seed+i*43);if(turn>.70)lane=Math.min(2,lane+1);else if(turn<.30)lane=Math.max(0,lane-1);
+        const node={type,resolved:false,mapX:118+i*116,mapY:lanes[lane]+Math.round((rand(seed+i*61)-.5)*24),lane,layer};
         if(type==="event"){
           const base=eventPool[Math.floor(rand(seed+i*17)*eventPool.length)];
           const ev={...base,choices:base.choices.slice()};
@@ -473,10 +523,10 @@
           const b=battlePool[Math.floor(rand(seed+i*19)*battlePool.length)];node.battle=b;node.zh=b.zh;node.en=b.en;
         }else if(type==="safe"){node.zh="短暂清醒";node.en="Lucid Rest";}
         else if(type==="nightmare"){node.zh="梦魇残响";node.en="Nightmare Echo";}
-        else if(type==="boss"){node.zh=layer===4?"日斩追猎体":"深层追猎体";node.en=layer===4?"Hizan Pursuer":"Depth Pursuer";node.optionalBoss=true;}
+        else if(type==="boss"){const boss=higiriBosses[Math.floor(rand(seed+i*131)*higiriBosses.length)];node.bossId=boss.id;node.zh=boss.zh;node.en=boss.en;node.bossDescZh=boss.descZh;node.bossDescEn=boss.descEn;node.optionalBoss=true;}
         route.push(node);
       }
-      route.push({type:"exit",zh:layer===4?"日斩终点":"下层入口",en:layer===4?"Hizan Terminus":"Next Floor",resolved:false,mapX:110+(interiorCount+1)*108,mapY:330,layer});
+      route.push({type:"exit",zh:layer===4?"日斩终点":"下层入口",en:layer===4?"Hizan Terminus":"Next Floor",resolved:false,mapX:118+(interiorCount+1)*116,mapY:lanes[1],lane:1,layer});
       for(let i=0;i<route.length-1;i++){
         route[i].next=[i+1];
         const chance=.62-Math.min(.38,(diff.branches||0)*.08);
@@ -505,7 +555,7 @@
     confirmMainTeam(squad){this.setupSquad=(squad||[0,1,2]).slice(0,3);this.createRun();},
 
     prepareNextLayer(){
-      if(!this.run||this.run.layer>=4)return;
+      if(!this.run)return;if(this.run.layer>=4){this.finishRun();return;}
       this.pendingLayer=this.run.layer+1;this.rollLayerTraits();this.page="setupTraits";
       this.message=T("选择下一层的随机词条。","Choose a trait for the next floor.");this.save();sfx("ui");
     },
@@ -517,8 +567,10 @@
       if(t.spirit)for(const m of (this.run.squad||[]))m.spirit=clamp(m.spirit+t.spirit,0,110);
       if(t.reveal)this.run.flags.reveal=(this.run.flags.reveal||0)+t.reveal;
       if(typeof t.buff==="number")this.run.flags.combatBuff=(this.run.flags.combatBuff||0)+t.buff;
-      this.run.floorTraits=this.run.floorTraits||[];this.run.floorTraits.push({layer:this.pendingLayer,id:t.id});
-      this.enterNextLayer(this.pendingLayer);this.pendingLayer=0;
+      const targetLayer=this.pendingLayer;
+      this.run.floorTraits=this.run.floorTraits||[];this.run.floorTraits.push({layer:targetLayer,id:t.id});
+      this.pendingLayer=0;
+      this.enterNextLayer(targetLayer);
     },
 
     createRun(){
@@ -542,6 +594,7 @@
         layerBossDefeated:false,pursuer:null,pursuerEncounter:false,cameraX:0,cameraY:0,
         revealAt:now(),revealStep:0,
         activeChoice:-1,
+        expEarned:0,
         log:[T("调查开始 · 难度 Project ","Investigation started · Project ")+diff.id],
         completed:false
       };
@@ -564,7 +617,7 @@
       const bossChoice=choices.find(i=>this.run.route[i]&&this.run.route[i].type==="boss");
       const diff=this.runDifficulty();
       if(this.run.layer>=3&&!this.run.layerBossDefeated&&bossChoice!==undefined&&index!==bossChoice&&!this.run.pursuer)this.run.pursuer={active:true,steps:0,max:Math.max(3,4-(diff.pursuit||0))};
-      this.run.currentNode=index;this.run.visitedCount=(this.run.visitedCount||1)+1;this.run.floor=this.run.visitedCount;
+      this.run.currentNode=index;this.run.visitedCount=(this.run.visitedCount||1)+1;this.run.floor=this.run.layer;
       this.run.revealAt=now();this.run.revealStep=this.run.visitedCount;
       if(this.run.pursuer&&this.run.pursuer.active&&!this.run.layerBossDefeated){
         this.run.pursuer.steps++;
@@ -578,7 +631,7 @@
       const options=this.availableNext();if(!options.length)return false;
       const skipped=options[0],node=this.run.route[skipped],next=(node?.next||[]).filter(i=>i<this.run.route.length);
       if(!next.length)return false;
-      node.resolved=true;this.run.flags.skipCharges--;this.run.currentNode=next[0];this.run.visitedCount=(this.run.visitedCount||1)+1;this.run.floor=this.run.visitedCount;
+      node.resolved=true;this.run.flags.skipCharges--;this.run.currentNode=next[0];this.run.visitedCount=(this.run.visitedCount||1)+1;this.run.floor=this.run.layer;
       this.run.revealAt=now();this.run.revealStep=this.run.visitedCount;
       this.addLog(T("折跃一次，跳过了一个节点。剩余 ","Fold-jump used; one node skipped. Remaining ")+(this.run.flags.skipCharges||0));
       this.resolveCurrentNode();this.save();sfx("ui");return true;
@@ -587,8 +640,9 @@
     launchPursuerBattle(){
       if(!this.run||this.run.awaitingBattle)return;
       const diff=this.runDifficulty();
+      const boss=higiriBosses[(this.run.layer*7+(this.run.currentNode||0)+diff.rank)%higiriBosses.length];
       this.run.awaitingBattle=true;this.save();
-      if(global.startPZDaydreamBattle)global.startPZDaydreamBattle({id:"pursuer_l"+this.run.layer,name:T("追猎者强制遭遇","Pursuer Encounter"),difficulty:58+this.run.layer*10+diff.rank*3,areas:1,boss:true,pursuer:true,pollution:this.run.pollution,combatBuff:this.run.flags.combatBuff||0,difficultyTier:diff.rank,enemyScale:diff.enemy,bossScale:diff.boss,squad:(this.run.squad||[]).map(x=>x.role)});
+      if(global.startPZDaydreamBattle)global.startPZDaydreamBattle({id:"pursuer_l"+this.run.layer,name:T(boss.zh,boss.en),bossId:boss.id,difficulty:58+this.run.layer*10+diff.rank*3,areas:1,boss:true,pursuer:true,pollution:this.run.pollution,combatBuff:this.run.flags.combatBuff||0,difficultyTier:diff.rank,enemyScale:diff.enemy,bossScale:diff.boss,squad:(this.run.squad||[]).map(x=>x.role)});
     },
 
     abandonRun(){
@@ -703,7 +757,7 @@
         this.save();
         if(global.startPZDaydreamBattle){
           const diff=this.runDifficulty();
-          global.startPZDaydreamBattle({id:"hizan_depth_l"+this.run.layer,name:this.nodeName(node),difficulty:58+this.run.layer*10+diff.rank*3,areas:1,boss:true,pursuer:true,pollution:this.run.pollution,combatBuff:this.run.flags.combatBuff||0,difficultyTier:diff.rank,enemyScale:diff.enemy,bossScale:diff.boss,squad:(this.run.squad||[]).map(x=>x.role)});
+          global.startPZDaydreamBattle({id:"hizan_depth_l"+this.run.layer,name:this.nodeName(node),bossId:node.bossId||higiriBosses[(this.run.layer+diff.rank)%higiriBosses.length].id,difficulty:58+this.run.layer*10+diff.rank*3,areas:1,boss:true,pursuer:true,pollution:this.run.pollution,combatBuff:this.run.flags.combatBuff||0,difficultyTier:diff.rank,enemyScale:diff.enemy,bossScale:diff.boss,squad:(this.run.squad||[]).map(x=>x.role)});
         }else{
           this.run.awaitingBattle=false;
           this.addLog(T("终点战斗模块未能启动。","Final battle module could not start."));
@@ -717,8 +771,14 @@
       }
     },
 
-    completeBattle(success){
+    completeBattle(success,summary){
       if(!this.run) return;
+      if(summary&&Array.isArray(summary.squad)){
+        for(const result of summary.squad){
+          const member=(this.run.squad||[]).find(item=>item.role===result.role);
+          if(member&&Number.isFinite(Number(result.hp))) member.hp=clamp(Math.round(Number(result.hp)),0,100);
+        }
+      }
       const node=this.currentNode();
       const forced=!!this.run.pursuerEncounter;
       if(!node || (!forced&&node.type!=="battle"&&node.type!=="boss")) return;
@@ -728,7 +788,7 @@
         if(forced||node.type==="boss"){
           if(node.type==="boss")node.resolved=true;
           this.run.pursuerEncounter=false;this.run.layerBossDefeated=true;this.run.pursuer=null;
-          this.state.reconstructionExp=(this.state.reconstructionExp||0)+Math.round(55*diff.reward);
+          const gained=Math.round(55*diff.reward);this.state.reconstructionExp=(this.state.reconstructionExp||0)+gained;this.run.expEarned=(this.run.expEarned||0)+gained;
           this.addLog(T("追猎者已被击退，本层路线恢复稳定。","The pursuer is defeated. This floor's route stabilizes."));
           if(forced)this.resolveCurrentNode();
           this.page="run";this.save();sfx("break");
@@ -736,7 +796,7 @@
         }
         node.resolved=true;
         const b=node.battle;
-        this.state.reconstructionExp=(this.state.reconstructionExp||0)+Math.round(35*diff.reward);
+        const gained=Math.round(35*diff.reward);this.state.reconstructionExp=(this.state.reconstructionExp||0)+gained;this.run.expEarned=(this.run.expEarned||0)+gained;
         this.run.dreamShards=(this.run.dreamShards||0)+2+(diff.battleShard||0);
         this.run.clue=clamp(this.run.clue+b.rewardClue,0,99);
         this.run.pollution=clamp(this.run.pollution+b.pollution,0,MAX_POLLUTION);
@@ -758,7 +818,7 @@
 
     openRestStation(){
       if(!this.run)return;const seed=now()+this.run.layer*101+this.run.currentNode*17;this.restOffers=[];
-      for(let i=0;i<3;i++){let item=nightmarePool[Math.floor(rand(seed+i*37)*nightmarePool.length)],guard=0;while(this.restOffers.some(o=>o.item.id===item.id)&&guard++<12)item=nightmarePool[Math.floor(rand(seed+i*37+guard*11)*nightmarePool.length)];this.restOffers.push({item,price:2+i,bought:false});}
+      for(let i=0;i<3;i++){let item=nightmarePool[Math.floor(rand(seed+i*37)*nightmarePool.length)],guard=0;while((this.restOffers.some(o=>o.item.id===item.id)||this.run.nightmares.includes(item.id))&&guard++<nightmarePool.length)item=nightmarePool[Math.floor(rand(seed+i*37+guard*11)*nightmarePool.length)];this.restOffers.push({item,price:2+i,bought:false});}
       this.page="rest";this.save();sfx("ui");
     },
 
@@ -810,7 +870,7 @@
       if(this.run.currentNode < this.run.route.length - 1){
         const jump=Math.max(1,this.run.flags.portalJump||1);
         this.run.flags.portalJump=0;
-        if(jump>1){const target=Math.min(this.run.route.length-1,this.run.currentNode+jump);this.run.currentNode=target;this.run.visitedCount=(this.run.visitedCount||1)+1;this.run.floor=this.run.visitedCount;if(this.run.pursuer&&this.run.pursuer.active&&!this.run.layerBossDefeated){this.run.pursuer.steps++;if(this.run.pursuer.steps>=(this.run.pursuer.max||4)){this.run.pursuerEncounter=true;this.launchPursuerBattle();this.save();return;}}this.resolveCurrentNode();this.save();return;}
+        if(jump>1){const target=Math.min(this.run.route.length-1,this.run.currentNode+jump);this.run.currentNode=target;this.run.visitedCount=(this.run.visitedCount||1)+1;this.run.floor=this.run.layer;if(this.run.pursuer&&this.run.pursuer.active&&!this.run.layerBossDefeated){this.run.pursuer.steps++;if(this.run.pursuer.steps>=(this.run.pursuer.max||4)){this.run.pursuerEncounter=true;this.launchPursuerBattle();this.save();return;}}this.resolveCurrentNode();this.save();return;}
         const options=this.availableNext();
         if(options.length>1){this.addLog(T("请选择下一处调查节点。","Select the next investigation node."));return;}
         if(options.length===1)this.chooseNext(options[0]);
@@ -820,8 +880,10 @@
     },
 
     enterNextLayer(targetLayer){
-      if(!this.run||this.run.layer>=4)return;
+      if(!this.run)return;if(this.run.layer>=4||Number(targetLayer)>4){this.finishRun();return;}
       this.run.layer=clamp(targetLayer||this.run.layer+1,2,4);
+      this.run.floor=this.run.layer;
+      this.page="run";
       this.run.currentNode=0;this.run.route=this.makeRoute(this.run.layer);
       this.run.layerBossDefeated=false;this.run.pursuer=null;this.run.pursuerEncounter=false;
       this.run.dreamShards=(this.run.dreamShards||0)+3;
@@ -852,7 +914,7 @@
       this.state.totalRuns = (this.state.totalRuns || 0) + 1;
       this.state.bestClue = Math.max(this.state.bestClue || 0, this.run.clue || 0);
       const diff=this.runDifficulty();
-      this.state.reconstructionExp=(this.state.reconstructionExp||0)+Math.round(80*diff.reward);
+      const clearExp=Math.round(80*diff.reward);this.state.reconstructionExp=(this.state.reconstructionExp||0)+clearExp;this.run.expEarned=(this.run.expEarned||0)+clearExp;
       this.state.unlockedEndings[ending] = true;
       this.state.highestDifficultyRankCleared=Math.max(this.state.highestDifficultyRankCleared||0,this.run.difficultyRank||1);
       this.save();
@@ -864,6 +926,8 @@
         pollution:this.run.pollution,
         will:this.run.will,
         nightmares:this.run.nightmares.length,
+        nodes:this.run.visitedCount||this.run.route.filter(n=>n.resolved).length,
+        exp:this.run.expEarned||clearExp,
         difficultyId:this.run.difficultyId
       };
       this.page="result";
@@ -881,11 +945,11 @@
       const bg=ctx.createLinearGradient(0,0,W,H);
       bg.addColorStop(0,"#111b38"); bg.addColorStop(.48,"#17102d"); bg.addColorStop(1,"#05060c");
       ctx.fillStyle=bg; ctx.fillRect(0,0,W,H);
-      if(global.uiPanel) global.uiPanel(28,28,W-56,H-56,"rgba(155,124,255,.38)","rgba(5,8,18,.68)");
-      else { ctx.fillStyle="rgba(5,8,18,.68)"; ctx.fillRect(28,28,W-56,H-56); ctx.strokeStyle="rgba(155,124,255,.38)"; ctx.strokeRect(28,28,W-56,H-56); }
-      ctx.fillStyle="rgba(155,124,255,.10)";
+      if(global.uiPanel) global.uiPanel(28,28,W-56,H-56,"rgba(177,58,47,.38)","rgba(5,8,18,.68)");
+      else { ctx.fillStyle="rgba(5,8,18,.68)"; ctx.fillRect(28,28,W-56,H-56); ctx.strokeStyle="rgba(177,58,47,.38)"; ctx.strokeRect(28,28,W-56,H-56); }
+      ctx.fillStyle="rgba(177,58,47,.10)";
       for(let i=0;i<8;i++){
-        ctx.beginPath(); ctx.arc(220,275,40+i*28+Math.sin(this.pulse+i)*3,0,Math.PI*2); ctx.strokeStyle="rgba(155,124,255,"+(0.10-i*0.008)+")"; ctx.stroke();
+        ctx.beginPath(); ctx.arc(220,275,40+i*28+Math.sin(this.pulse+i)*3,0,Math.PI*2); ctx.strokeStyle="rgba(177,58,47,"+(0.10-i*0.008)+")"; ctx.stroke();
       }
       ctx.beginPath(); ctx.arc(W-55,55,22,0,Math.PI*2); ctx.fillStyle="rgba(255,255,255,.08)"; ctx.fill();
       ctx.strokeStyle="rgba(255,255,255,.32)"; ctx.stroke();
@@ -895,7 +959,7 @@
 
     drawHeader(){
       const ctx=global.ctx, FONT_UI=global.FONT_UI;
-      ctx.fillStyle="#9b7cff"; ctx.font="bold 28px "+FONT_UI; ctx.textAlign="left";
+      ctx.fillStyle="#b13a2f"; ctx.font="bold 28px "+FONT_UI; ctx.textAlign="left";
       ctx.fillText(this.title(),95,158);
       ctx.fillStyle="rgba(255,255,255,.62)"; ctx.font="14px "+FONT_UI;
       ctx.fillText(this.scenarioName()+"  ·  "+T("多结局调查 / 精神污染 / 梦魇词条","Multi-ending Investigation / Mental Pollution / Nightmare Tags"),97,181);
@@ -927,8 +991,8 @@
     drawStoryScene(){
       const ctx=global.ctx,FONT_UI=global.FONT_UI,scene=this.storyScene;if(!scene)return;
       ctx.save();ctx.fillStyle="rgba(0,0,0,.60)";ctx.fillRect(0,0,global.W||1120,global.H||660);
-      const x=66,y=420,w=(global.W||1120)-132,h=182;ctx.fillStyle="rgba(5,10,20,.98)";ctx.fillRect(x,y,w,h);ctx.strokeStyle=scene.type==="event"?"#ffe066":"#8bcfff";ctx.lineWidth=2;ctx.strokeRect(x,y,w,h);
-      ctx.fillStyle=scene.type==="event"?"#ffe066":"#8bcfff";ctx.font="bold 13px "+FONT_UI;ctx.textAlign="left";ctx.fillText(scene.type==="event"?T("随机异常记录","RANDOM ANOMALY RECORD"):T("白日梦重现记录","DAYDREAM RECONSTRUCTION RECORD"),x+28,y+31);
+      const x=66,y=420,w=(global.W||1120)-132,h=182;ctx.fillStyle="rgba(5,10,20,.98)";ctx.fillRect(x,y,w,h);ctx.strokeStyle=scene.type==="event"?"#d6a52b":"#8bcfff";ctx.lineWidth=2;ctx.strokeRect(x,y,w,h);
+      ctx.fillStyle=scene.type==="event"?"#d6a52b":"#8bcfff";ctx.font="bold 13px "+FONT_UI;ctx.textAlign="left";ctx.fillText(scene.type==="event"?T("随机异常记录","RANDOM ANOMALY RECORD"):T("白日梦重现记录","DAYDREAM RECONSTRUCTION RECORD"),x+28,y+31);
       ctx.fillStyle="#fff";ctx.font="bold 22px "+FONT_UI;ctx.fillText(scene.title,x+28,y+64);ctx.fillStyle="rgba(255,255,255,.78)";ctx.font="14px "+FONT_UI;const body=scene.pages?.[scene.page||0]||"";if(global.wrapText)global.wrapText(body,x+28,y+94,w-56,21);else ctx.fillText(body,x+28,y+94);
       ctx.fillStyle="rgba(255,255,255,.55)";ctx.font="12px "+FONT_UI;ctx.textAlign="right";ctx.fillText(((scene.page||0)+1)+" / "+(scene.pages?.length||1)+"  ·  "+T("点击继续 · 本段记录不可跳过","CLICK TO CONTINUE · THIS RECORD CANNOT BE SKIPPED"),x+w-28,y+h-20);ctx.restore();
     },
@@ -943,27 +1007,27 @@
       if(this.page==="setupDifficulty"){
         for(let i=0;i<difficultyDefs.length;i++){
           const d=difficultyDefs[i],col=i%5,row=Math.floor(i/5),x=50+col*207,y=158+row*164,w=190,h=146,active=Number(this.selectedDifficulty)===d.id;
-          const locked=d.rank>(this.state.highestDifficultyRankCleared||0)+1;ctx.fillStyle=locked?"rgba(0,0,0,.48)":(active?"rgba(255,224,102,.16)":"rgba(255,255,255,.055)");ctx.fillRect(x,y,w,h);ctx.strokeStyle=locked?"rgba(255,255,255,.14)":(active?"#ffe066":"rgba(155,124,255,.28)");ctx.lineWidth=active&&!locked?3:1;ctx.strokeRect(x,y,w,h);
-          ctx.fillStyle=active?"#ffe066":"#fff";ctx.font="bold 21px "+FONT_UI;ctx.fillText("PROJECT "+d.id,x+14,y+30);
-          ctx.fillStyle="#7cffb2";ctx.font="11px "+FONT_UI;if(global.wrapText)global.wrapText(T(d.posZh,d.posEn),x+14,y+55,w-26,15);else ctx.fillText(T(d.posZh,d.posEn),x+14,y+55);
+          const locked=d.rank>(this.state.highestDifficultyRankCleared||0)+1;ctx.fillStyle=locked?"rgba(0,0,0,.48)":(active?"rgba(255,224,102,.16)":"rgba(255,255,255,.055)");ctx.fillRect(x,y,w,h);ctx.strokeStyle=locked?"rgba(255,255,255,.14)":(active?"#d6a52b":"rgba(177,58,47,.28)");ctx.lineWidth=active&&!locked?3:1;ctx.strokeRect(x,y,w,h);
+          ctx.fillStyle=active?"#d6a52b":"#fff";ctx.font="bold 21px "+FONT_UI;ctx.fillText("PROJECT "+d.id,x+14,y+30);
+          ctx.fillStyle="#d98b9d";ctx.font="11px "+FONT_UI;if(global.wrapText)global.wrapText(T(d.posZh,d.posEn),x+14,y+55,w-26,15);else ctx.fillText(T(d.posZh,d.posEn),x+14,y+55);
           ctx.fillStyle="#ff909a";ctx.font="11px "+FONT_UI;if(global.wrapText)global.wrapText(T(d.negZh,d.negEn),x+14,y+102,w-26,15);else ctx.fillText(T(d.negZh,d.negEn),x+14,y+102);
           if(locked){ctx.fillStyle="rgba(255,255,255,.76)";ctx.font="bold 12px "+FONT_UI;ctx.fillText(T("完成上一难度解锁","CLEAR PREVIOUS TO UNLOCK"),x+14,y+136);}
         }
-        global.drawBtn(T("确认难度","CONFIRM DIFFICULTY"),"",W-302,530,240,58,true,"#ffe066");
+        global.drawBtn(T("确认难度","CONFIRM DIFFICULTY"),"",W-302,530,240,58,true,"#d6a52b");
       }else if(this.page==="setupTraits"){
-        for(let i=0;i<3;i++){const t=this.setupTraits[i],x=76+i*332,y=190,w=300,h=260,active=this.selectedTrait&&this.selectedTrait.id===t.id;ctx.fillStyle=active?"rgba(155,124,255,.25)":"rgba(255,255,255,.06)";ctx.fillRect(x,y,w,h);ctx.strokeStyle=active?"#ffe066":"rgba(255,255,255,.20)";ctx.lineWidth=active?3:1;ctx.strokeRect(x,y,w,h);ctx.fillStyle="#9b7cff";ctx.font="bold 54px Arial";ctx.fillText("◇",x+28,y+72);ctx.fillStyle="#fff";ctx.font="bold 24px "+FONT_UI;ctx.fillText(T(t.zh,t.en),x+28,y+128);ctx.fillStyle="rgba(255,255,255,.66)";ctx.font="15px "+FONT_UI;ctx.fillText(T(t.descZh,t.descEn),x+28,y+170);}
-        global.drawBtn(T("确认词条","CONFIRM TRAIT"),"",W-302,530,240,58,!!this.selectedTrait,"#9b7cff");
+        for(let i=0;i<3;i++){const t=this.setupTraits[i],x=76+i*332,y=190,w=300,h=260,active=this.selectedTrait&&this.selectedTrait.id===t.id;ctx.fillStyle=active?"rgba(177,58,47,.25)":"rgba(255,255,255,.06)";ctx.fillRect(x,y,w,h);ctx.strokeStyle=active?"#d6a52b":"rgba(255,255,255,.20)";ctx.lineWidth=active?3:1;ctx.strokeRect(x,y,w,h);ctx.fillStyle="#b13a2f";ctx.font="bold 54px Arial";ctx.fillText("◇",x+28,y+72);ctx.fillStyle="#fff";ctx.font="bold 24px "+FONT_UI;ctx.fillText(T(t.zh,t.en),x+28,y+128);ctx.fillStyle="rgba(255,255,255,.66)";ctx.font="15px "+FONT_UI;ctx.fillText(T(t.descZh,t.descEn),x+28,y+170);}
+        global.drawBtn(T("确认词条","CONFIRM TRAIT"),"",W-302,530,240,58,!!this.selectedTrait,"#b13a2f");
       }else{
-        for(let i=0;i<3;i++){const x=90+i*300,y=165,role=this.setupSquad[i];ctx.fillStyle=this.setupSlot===i?"rgba(255,224,102,.18)":"rgba(255,255,255,.07)";ctx.fillRect(x,y,260,150);ctx.strokeStyle=this.setupSlot===i?"#ffe066":"rgba(255,255,255,.20)";ctx.strokeRect(x,y,260,150);ctx.fillStyle=["#7cc7ff","#ffe066","#c35cff"][role%3];ctx.beginPath();ctx.arc(x+62,y+70,38,0,Math.PI*2);ctx.fill();ctx.fillStyle="#fff";ctx.font="bold 22px "+FONT_UI;ctx.fillText((global.roles&&global.roles[role]?T(global.roles[role].zh||global.roles[role].name,global.roles[role].name):T("角色 ","Operator ")+(role+1)),x+120,y+78);}
-        for(let i=0;i<6;i++){const x=86+i*160,y=380;ctx.fillStyle="rgba(255,255,255,.06)";ctx.fillRect(x,y,140,90);ctx.strokeStyle="rgba(155,124,255,.28)";ctx.strokeRect(x,y,140,90);ctx.fillStyle=["#7cc7ff","#ffe066","#c35cff"][i%3];ctx.beginPath();ctx.arc(x+35,y+42,24,0,Math.PI*2);ctx.fill();ctx.fillStyle="#fff";ctx.font="bold 13px "+FONT_UI;ctx.fillText(T("角色 ","OP ")+(i+1),x+68,y+48);}
-        global.drawBtn(T("开始调查","START INVESTIGATION"),"",W-322,530,260,58,true,"#9b7cff");
+        for(let i=0;i<3;i++){const x=90+i*300,y=165,role=this.setupSquad[i];ctx.fillStyle=this.setupSlot===i?"rgba(255,224,102,.18)":"rgba(255,255,255,.07)";ctx.fillRect(x,y,260,150);ctx.strokeStyle=this.setupSlot===i?"#d6a52b":"rgba(255,255,255,.20)";ctx.strokeRect(x,y,260,150);ctx.fillStyle=["#7cc7ff","#d6a52b","#c35cff"][role%3];ctx.beginPath();ctx.arc(x+62,y+70,38,0,Math.PI*2);ctx.fill();ctx.fillStyle="#fff";ctx.font="bold 22px "+FONT_UI;ctx.fillText((global.roles&&global.roles[role]?T(global.roles[role].zh||global.roles[role].name,global.roles[role].name):T("角色 ","Operator ")+(role+1)),x+120,y+78);}
+        for(let i=0;i<6;i++){const x=86+i*160,y=380;ctx.fillStyle="rgba(255,255,255,.06)";ctx.fillRect(x,y,140,90);ctx.strokeStyle="rgba(177,58,47,.28)";ctx.strokeRect(x,y,140,90);ctx.fillStyle=["#7cc7ff","#d6a52b","#c35cff"][i%3];ctx.beginPath();ctx.arc(x+35,y+42,24,0,Math.PI*2);ctx.fill();ctx.fillStyle="#fff";ctx.font="bold 13px "+FONT_UI;ctx.fillText(T("角色 ","OP ")+(i+1),x+68,y+48);}
+        global.drawBtn(T("开始调查","START INVESTIGATION"),"",W-322,530,260,58,true,"#b13a2f");
       }
     },
 
     drawDefeat(){
       const ctx=global.ctx,FONT_UI=global.FONT_UI,s=this.defeatSummary||{nodes:0,clue:0,pollution:0,exp:10};this.drawBasePanel();
       ctx.textAlign="center";ctx.fillStyle="#ff6b7a";ctx.font="bold 54px Arial";ctx.fillText("MISSION DEFEAT",560,170);ctx.fillStyle="rgba(255,255,255,.58)";ctx.font="15px "+FONT_UI;ctx.fillText(T("本次调查已中止，但记录仍转化为白日梦经验。","The investigation ended, but recovered records still grant Daydream EXP."),560,205);
-      const rows=[[T("经过节点","Nodes Visited"),s.nodes],[T("获得线索","Clues"),s.clue],[T("最终污染","Final Pollution"),s.pollution+"%"],[T("获得经验","EXP Earned"),"+"+s.exp]];for(let i=0;i<4;i++){const x=150+i*215;ctx.fillStyle="rgba(255,255,255,.07)";ctx.fillRect(x,270,180,110);ctx.fillStyle="rgba(255,255,255,.52)";ctx.font="13px "+FONT_UI;ctx.fillText(rows[i][0],x+90,305);ctx.fillStyle=i===3?"#ffe066":"#fff";ctx.font="bold 27px Arial";ctx.fillText(rows[i][1],x+90,350);}global.drawBtn(T("返回白日梦","RETURN"),"",440,470,240,58,true,"#9b7cff");
+      const rows=[[T("经过节点","Nodes Visited"),s.nodes],[T("获得线索","Clues"),s.clue],[T("最终污染","Final Pollution"),s.pollution+"%"],[T("获得经验","EXP Earned"),"+"+s.exp]];for(let i=0;i<4;i++){const x=150+i*215;ctx.fillStyle="rgba(255,255,255,.07)";ctx.fillRect(x,270,180,110);ctx.fillStyle="rgba(255,255,255,.52)";ctx.font="13px "+FONT_UI;ctx.fillText(rows[i][0],x+90,305);ctx.fillStyle=i===3?"#d6a52b":"#fff";ctx.font="bold 27px Arial";ctx.fillText(rows[i][1],x+90,350);}global.drawBtn(T("返回白日梦","RETURN"),"",440,470,240,58,true,"#b13a2f");
     },
 
     drawHome(){
@@ -1111,7 +1175,7 @@
       ctx.strokeStyle="rgba(145,255,255,.95)"; ctx.lineWidth=2; ctx.strokeRect(sx,sy,sw,sh);
       ctx.fillStyle="rgba(145,255,255,.18)"; ctx.fillRect(sx+4,sy+4,sw-8,sh-8);
       ctx.fillStyle="#eaffff"; ctx.font="bold 26px "+FONT_UI; ctx.textAlign="center";
-      ctx.fillText(T("开始探索","START"),sx+sw/2,sy+38);
+      ctx.fillText(this.run&&!this.run.completed?T("继续调查","CONTINUE"):T("开始探索","START"),sx+sw/2,sy+38);
       ctx.strokeStyle="rgba(145,255,255,.75)"; ctx.lineWidth=3;
       ctx.beginPath(); ctx.moveTo(sx+sw-32,sy+18); ctx.lineTo(sx+sw-16,sy+29); ctx.lineTo(sx+sw-32,sy+40); ctx.stroke();
       ctx.restore();
@@ -1131,7 +1195,7 @@
         ctx.fillStyle = "rgba(235,245,255,.96)";
         ctx.font = "bold 28px " + FONT_UI;
         ctx.fillText("DAYDREAM RECONSTRUCTION", W/2, H/2 - 28);
-        ctx.fillStyle = "rgba(155,124,255,.88)";
+        ctx.fillStyle = "rgba(177,58,47,.88)";
         ctx.font = "15px " + FONT_UI;
         ctx.fillText(T("精神同步中……","Synchronizing..."), W/2, H/2 + 8);
 
@@ -1177,20 +1241,17 @@
       const ctx=global.ctx,FONT_UI=global.FONT_UI,route=this.run.route;this.updateMapPan();
       const camX=this.run.cameraX||0,camY=this.run.cameraY||0,available=this.availableNext(),visible=this.visibleRouteIndexes(),theme=layerThemes[this.run.layer]||layerThemes[1],elapsed=now()-(this.run.revealAt||0);
       ctx.save();ctx.beginPath();ctx.rect(28,96,812,520);ctx.clip();const mapGrad=ctx.createLinearGradient(28,96,840,616);mapGrad.addColorStop(0,theme.top);mapGrad.addColorStop(1,theme.bottom);ctx.fillStyle=mapGrad;ctx.fillRect(28,96,812,520);
-      // Each floor has its own discoverable scenery. It is deliberately dim,
-      // but never a featureless black rectangle.
-      ctx.strokeStyle=theme.mark+"33";ctx.lineWidth=1;for(let i=0;i<22;i++){const px=55+((i*137+this.run.layer*61)%760)+camX*.12,py=128+((i*83+this.run.layer*47)%445)+camY*.08;ctx.beginPath();if(this.run.layer===1){ctx.moveTo(px-10,py);ctx.lineTo(px+10,py);ctx.moveTo(px,py-7);ctx.lineTo(px,py+7);}else if(this.run.layer===2){ctx.moveTo(px-12,py+8);ctx.lineTo(px,py-10);ctx.lineTo(px+12,py+8);}else if(this.run.layer===3){ctx.moveTo(px-5,py+14);ctx.lineTo(px,py-16);ctx.lineTo(px+5,py+14);}else{ctx.arc(px,py,7,0,Math.PI*2);ctx.moveTo(px-13,py);ctx.lineTo(px+13,py);}ctx.stroke();}
+      drawRouteBackdrop(ctx,theme,this.run.layer,camX,camY);
       ctx.fillStyle=theme.mark;ctx.globalAlpha=.72;ctx.font="bold 11px "+FONT_UI;ctx.textAlign="left";ctx.fillText(T(theme.nameZh,theme.nameEn)+"  /  FLOOR "+this.run.layer,48,122);ctx.globalAlpha=1;
       const current=route[this.run.currentNode],cx=(current.mapX||110)+camX,cy=(current.mapY||330)+camY;
       const fog=ctx.createRadialGradient(cx,cy,35,cx,cy,300);fog.addColorStop(0,"rgba("+theme.fog+",.62)");fog.addColorStop(.62,"rgba("+theme.fog+",.17)");fog.addColorStop(1,"rgba(0,0,0,0)");ctx.fillStyle=fog;ctx.fillRect(28,96,812,520);
       for(let i=0;i<route.length;i++){
         if(!visible.has(i))continue;const n=route[i],info=nodeTypes[n.type]||nodeTypes.event,x=(n.mapX||0)+camX,y=(n.mapY||330)+camY,distance=Math.max(0,i-this.run.currentNode),revealAlpha=n.resolved||i===this.run.currentNode?1:clamp((elapsed-distance*150)/720,0,1);if(revealAlpha<=.02)continue;ctx.save();ctx.globalAlpha=.12+.88*revealAlpha;
-        for(let p=0;p<route.length;p++)if(visible.has(p)&&(route[p].next||[]).includes(i)&&(route[p].resolved||p===this.run.currentNode)){const prev=route[p];ctx.strokeStyle=available.includes(i)?"rgba(255,224,102,.70)":"rgba(125,191,220,.34)";ctx.lineWidth=available.includes(i)?3:2;ctx.beginPath();ctx.moveTo((prev.mapX||0)+camX,(prev.mapY||330)+camY);ctx.lineTo(x,y);ctx.stroke();}
-        const distant=!n.resolved&&!available.includes(i)&&i!==this.run.currentNode;ctx.beginPath();ctx.arc(x,y,i===this.run.currentNode?22:18,0,Math.PI*2);ctx.fillStyle=i===this.run.currentNode?info.color:(n.resolved?"rgba(125,191,220,.42)":available.includes(i)?"rgba(255,224,102,.28)":distant?"rgba(89,105,150,.16)":"rgba(255,255,255,.10)");ctx.fill();ctx.strokeStyle=i===this.run.currentNode?"#fff":available.includes(i)?"#ffe066":distant?"rgba(126,155,200,.24)":"rgba(255,255,255,.32)";ctx.lineWidth=available.includes(i)?3:2;ctx.stroke();
-        ctx.fillStyle=i===this.run.currentNode?"#061018":"#fff";ctx.font="bold 11px "+FONT_UI;ctx.textAlign="center";ctx.fillText(n.type==="portal"?"◇":n.type==="boss"?"B":String(i+1),x,y+4);if(i===this.run.currentNode||available.includes(i)){ctx.fillStyle=available.includes(i)?"#ffe066":"rgba(255,255,255,.72)";ctx.font="10px "+FONT_UI;ctx.fillText(T(info.zh,info.en),x,y+34);}
+        for(let p=0;p<route.length;p++)if(visible.has(p)&&(route[p].next||[]).includes(i)&&(route[p].resolved||p===this.run.currentNode)){const prev=route[p],px=(prev.mapX||0)+camX,py=(prev.mapY||330)+camY,hot=available.includes(i);ctx.strokeStyle=hot?"rgba(230,200,91,.82)":"rgba(111,150,177,.36)";ctx.lineWidth=hot?3:2;ctx.setLineDash(hot?[]:[7,7]);ctx.beginPath();ctx.moveTo(px,py);ctx.bezierCurveTo(px+(x-px)*.46,py,x-(x-px)*.46,y,x,y);ctx.stroke();ctx.setLineDash([]);}
+        const distant=!n.resolved&&!available.includes(i)&&i!==this.run.currentNode,pulse=.5+.5*Math.sin(now()/260+i);drawRouteNode(ctx,x,y,info,{current:i===this.run.currentNode,available:available.includes(i),resolved:n.resolved,distant,pulse},(i===this.run.currentNode||available.includes(i))?T(info.zh,info.en):"");
         ctx.restore();
       }
-      ctx.fillStyle="rgba(255,255,255,.46)";ctx.font="11px "+FONT_UI;ctx.textAlign="left";ctx.fillText(T("按住左键拖动地图 · 迷雾会随推进逐步退散","Hold left mouse to drag · Fog recedes as you advance"),48,596);ctx.restore();
+      ctx.fillStyle="rgba(255,255,255,.46)";ctx.font="11px "+FONT_UI;ctx.textAlign="left";ctx.fillText(T("按住左键拖动地图 · 迷雾随推进退散","Hold left mouse to drag · Fog recedes as you advance"),48,596);ctx.textAlign="right";ctx.fillStyle="rgba(255,255,255,.42)";ctx.fillText(T("文 剧情   异 事件   战 战斗   休 休整   魇 梦魇   危 追猎者","STORY   EVENT   BATTLE   REST   NIGHTMARE   PURSUER"),820,596);ctx.restore();
     },
 
     drawRun(){
@@ -1201,50 +1262,54 @@
       this.drawBasePanel(); this.drawRoute();
       ctx.fillStyle="#fff";ctx.font="bold 26px "+FONT_UI;ctx.textAlign="left";ctx.fillText(T("白日梦调查","DAYDREAM INVESTIGATION"),44,58);
       ctx.fillStyle="rgba(255,255,255,.58)";ctx.font="13px "+FONT_UI;ctx.fillText(T("未知节点只有在接近后才会显现","Unknown nodes emerge only as the team approaches"),44,82);
-      ctx.textAlign="right";ctx.fillStyle="#ffe066";ctx.font="bold 15px "+FONT_UI;ctx.fillText("PROJECT "+run.difficultyId,1090,58);ctx.textAlign="left";
-      const stats=[[T("层级","Floor"),run.layer+" / 4"],[T("线索","Clue"),run.clue],[T("污染","Pollution"),run.pollution+"%"],[T("追踪","Pursuit"),run.pursuer&&!run.layerBossDefeated?run.pursuer.steps+" / "+(run.pursuer.max||4):"—"]];
-      for(let i=0;i<stats.length;i++){const sx=836+(i%2)*132,sy=98+Math.floor(i/2)*66;ctx.fillStyle="rgba(255,255,255,.075)";ctx.fillRect(sx,sy,124,56);ctx.strokeStyle="rgba(155,124,255,.18)";ctx.strokeRect(sx,sy,124,56);ctx.fillStyle="rgba(255,255,255,.52)";ctx.font="11px "+FONT_UI;ctx.fillText(stats[i][0],sx+11,sy+20);ctx.fillStyle="#fff";ctx.font="bold 19px "+FONT_UI;ctx.fillText(stats[i][1],sx+11,sy+44);}
+      ctx.textAlign="right";ctx.fillStyle="#d6a52b";ctx.font="bold 15px "+FONT_UI;ctx.fillText("PROJECT "+run.difficultyId,1090,58);ctx.textAlign="left";
+      run.layer=clamp(Math.floor(Number(run.layer)||1),1,4);run.floor=run.layer;
+      run.clue=clamp(Math.floor(Number(run.clue)||0),0,99);run.pollution=clamp(Math.floor(Number(run.pollution)||0),0,MAX_POLLUTION);
+      const resolvedCount=(run.route||[]).filter(item=>item&&item.resolved).length;
+      const stats=[[T("层级","Floor"),run.layer+" / 4"],[T("节点","Nodes"),resolvedCount+" / "+(run.route||[]).length],[T("线索","Clue"),run.clue],[T("污染","Pollution"),run.pollution+"%"],[T("追踪","Pursuit"),run.pursuer&&!run.layerBossDefeated?run.pursuer.steps+" / "+(run.pursuer.max||4):"—"],[T("意志","Will"),clamp(Math.round(Number(run.will)||0),0,120)]];
+      for(let i=0;i<stats.length;i++){const sx=836+(i%2)*132,sy=98+Math.floor(i/2)*50;ctx.fillStyle="rgba(255,255,255,.075)";ctx.fillRect(sx,sy,124,42);ctx.strokeStyle="rgba(177,58,47,.18)";ctx.strokeRect(sx,sy,124,42);ctx.fillStyle="rgba(255,255,255,.52)";ctx.font="10px "+FONT_UI;ctx.fillText(stats[i][0],sx+10,sy+15);ctx.fillStyle="#fff";ctx.font="bold 16px "+FONT_UI;ctx.fillText(stats[i][1],sx+10,sy+35);}
       ctx.fillStyle="#fff";ctx.font="bold 23px "+FONT_UI;ctx.fillText(node?this.nodeName(node):"???",840,252);
+      if(node){const ni=nodeTypes[node.type]||nodeTypes.event,risk=node.type==="boss"?T("极高危","CRITICAL"):node.type==="battle"?T("交战区","COMBAT"):node.type==="nightmare"?T("异常","ANOMALY"):T("调查区","SURVEY");ctx.fillStyle=ni.color;ctx.fillRect(840,264,34,3);ctx.fillStyle="rgba(255,255,255,.46)";ctx.font="bold 10px "+FONT_UI;ctx.fillText(T(ni.zh,ni.en)+"  ·  "+risk,882,268);}
       ctx.fillStyle="rgba(255,255,255,.62)";ctx.font="13px "+FONT_UI;
       if(node && node.type === "event" && !node.resolved){
-        ctx.fillText(T(node.event.bodyZh,node.event.bodyEn),840,280);
+        wrapCanvasText(ctx,T(node.event.bodyZh,node.event.bodyEn),840,288,244,18,2);
         for(let i=0;i<node.event.choices.length;i++){
-          const c=node.event.choices[i]; const x=836, y=298+i*48, w=256, h=40;
-          if(global.uiCard) global.uiCard(x,y,w,h,"#ffe066",false);
-          ctx.fillStyle="rgba(255,255,255,.90)";ctx.font="bold 12px "+FONT_UI;ctx.fillText((i+1)+". "+T(c.zh,c.en),x+12,y+26);
+          const c=node.event.choices[i]; const x=836, y=330+i*48, w=256, h=40;
+          if(global.uiCard) global.uiCard(x,y,w,h,"#d6a52b",false);
+          ctx.fillStyle="rgba(255,255,255,.90)";ctx.font="bold 12px "+FONT_UI;ctx.fillText((i+1)+". "+T(c.zh,c.en),x+12,y+26,w-24);
         }
       }else{
-        const logs=run.log||[];for(let i=0;i<Math.min(3,logs.length);i++){ctx.fillStyle=i===0?"#ffe066":"rgba(255,255,255,.50)";ctx.font=(i===0?"bold ":"")+"12px "+FONT_UI;ctx.fillText("· "+logs[i],840,282+i*23);}
+        const logs=run.log||[];let ly=288;for(let i=0;i<Math.min(2,logs.length);i++){ctx.fillStyle=i===0?"#d6a52b":"rgba(255,255,255,.50)";ctx.font=(i===0?"bold ":"")+"12px "+FONT_UI;ly+=wrapCanvasText(ctx,"· "+logs[i],840,ly,244,17,2)*17+4;}
       }
       const roleNames=global.roles||[];
-      if(!(node&&node.type==="event"&&!node.resolved))for(let i=0;i<(run.squad||[]).length;i++){const m=run.squad[i],rx=836+i*87,ry=424;ctx.fillStyle="rgba(8,12,22,.90)";ctx.fillRect(rx,ry,79,130);ctx.strokeStyle=i===0?"#9b7cff":"rgba(255,255,255,.25)";ctx.lineWidth=1.5;ctx.strokeRect(rx,ry,79,130);const col=roleNames[m.role]&&roleNames[m.role].color||["#7cc7ff","#ffe066","#c35cff"][i];ctx.fillStyle=col;ctx.beginPath();ctx.arc(rx+39.5,ry+33,24,0,Math.PI*2);ctx.fill();ctx.fillStyle="rgba(255,255,255,.74)";ctx.font="10px "+FONT_UI;ctx.fillText(T("精神","SP")+" "+m.spirit,rx+8,ry+76);ctx.fillStyle="rgba(255,255,255,.12)";ctx.fillRect(rx+8,ry+84,63,7);ctx.fillStyle="#9b7cff";ctx.fillRect(rx+8,ry+84,63*m.spirit/100,7);ctx.fillStyle="rgba(255,255,255,.74)";ctx.fillText("HP "+m.hp,rx+8,ry+106);ctx.fillStyle="rgba(255,255,255,.12)";ctx.fillRect(rx+8,ry+114,63,7);ctx.fillStyle="#ff6b7a";ctx.fillRect(rx+8,ry+114,63*m.hp/100,7);}
+      if(!(node&&node.type==="event"&&!node.resolved))for(let i=0;i<(run.squad||[]).length;i++){const m=run.squad[i],role=roleNames[m.role]||{},rx=836+i*87,ry=364;ctx.fillStyle="rgba(8,12,22,.90)";ctx.fillRect(rx,ry,79,130);ctx.strokeStyle=i===0?"#b13a2f":"rgba(255,255,255,.25)";ctx.lineWidth=1.5;ctx.strokeRect(rx,ry,79,130);const col=role.color||["#7cc7ff","#d6a52b","#c35cff"][i],roleName=T(role.nameZh||role.name||("R"+(m.role+1)),role.nameEn||role.name||("R"+(m.role+1)));ctx.fillStyle=col;ctx.globalAlpha=.26;ctx.fillRect(rx+7,ry+7,65,48);ctx.globalAlpha=1;ctx.strokeStyle=col;ctx.strokeRect(rx+7,ry+7,65,48);ctx.fillStyle="#fff";ctx.font="bold 18px "+FONT_UI;ctx.textAlign="center";ctx.fillText(Array.from(roleName)[0]||"?",rx+39.5,ry+38);ctx.font="9px "+FONT_UI;ctx.fillStyle="rgba(255,255,255,.72)";ctx.fillText(roleName.slice(0,7),rx+39.5,ry+66);ctx.textAlign="left";ctx.fillStyle="rgba(255,255,255,.74)";ctx.font="10px "+FONT_UI;ctx.fillText(T("精神","SP")+" "+m.spirit,rx+8,ry+80);ctx.fillStyle="rgba(255,255,255,.12)";ctx.fillRect(rx+8,ry+86,63,6);ctx.fillStyle="#b13a2f";ctx.fillRect(rx+8,ry+86,63*m.spirit/100,6);ctx.fillStyle="rgba(255,255,255,.74)";ctx.fillText("HP "+m.hp,rx+8,ry+107);ctx.fillStyle="rgba(255,255,255,.12)";ctx.fillRect(rx+8,ry+114,63,7);ctx.fillStyle="#ff6b7a";ctx.fillRect(rx+8,ry+114,63*m.hp/100,7);}
       const actionLabel=run.pursuerEncounter?T("迎击追猎者","FACE PURSUER"):(node&&(node.type==="battle"||node.type==="boss")&&!node.resolved?T("进入战斗","ENTER BATTLE"):(this.availableNext().length>1?T("选择发光节点","SELECT A NODE"):T("前往节点","ADVANCE")));
-      const canSkip=(run.flags.skipCharges||0)>0&&this.availableNext().length>0;global.drawBtn(T("折跃跳过 ×","FOLD-JUMP ×")+(run.flags.skipCharges||0),"",836,510,256,42,canSkip,"#5ce1e6");
-      global.drawBtn(actionLabel,"",836,566,256,50,true,"#9b7cff");
+      const canSkip=(run.flags.skipCharges||0)>0&&this.availableNext().length>0;global.drawBtn(T("折跃跳过 ×","FOLD-JUMP ×")+(run.flags.skipCharges||0),"",836,510,256,42,canSkip,"#315a78");
+      global.drawBtn(actionLabel,"",836,566,256,50,true,"#b13a2f");
     },
 
     drawRestStation(){
       const ctx=global.ctx,FONT_UI=global.FONT_UI,W=global.W||1120;this.drawBasePanel();
-      ctx.textAlign="left";ctx.fillStyle="#7cffb2";ctx.font="bold 16px "+FONT_UI;ctx.fillText("REST STATION / FLOOR "+this.run.layer,66,92);
+      ctx.textAlign="left";ctx.fillStyle="#d98b9d";ctx.font="bold 16px "+FONT_UI;ctx.fillText("REST STATION / FLOOR "+this.run.layer,66,92);
       ctx.fillStyle="#fff";ctx.font="bold 38px "+FONT_UI;ctx.fillText(T("梦境休息站","Daydream Rest Station"),66,140);
       ctx.fillStyle="rgba(255,255,255,.58)";ctx.font="14px "+FONT_UI;ctx.fillText(T("使用梦境碎片购买本次调查生效的梦魇道具，也可以拒绝交易。","Spend Dream Shards on Nightmare items for this run, or leave without buying."),68,170);
-      ctx.textAlign="right";ctx.fillStyle="#ffe066";ctx.font="bold 19px "+FONT_UI;ctx.fillText(T("梦境碎片 ","Dream Shards ")+(this.run.dreamShards||0),W-72,118);
-      for(let i=0;i<3;i++){const o=this.restOffers[i],x=68+i*340,y=215,w=308,h=255;if(!o)continue;ctx.fillStyle=o.bought?"rgba(65,110,96,.18)":"rgba(255,255,255,.065)";ctx.fillRect(x,y,w,h);ctx.strokeStyle=o.bought?"#7cffb2":"rgba(155,124,255,.48)";ctx.lineWidth=2;ctx.strokeRect(x,y,w,h);ctx.fillStyle="#b478ff";ctx.font="bold 54px Arial";ctx.textAlign="left";ctx.fillText("◇",x+24,y+70);ctx.fillStyle="#fff";ctx.font="bold 23px "+FONT_UI;ctx.fillText(T(o.item.zh,o.item.en),x+28,y+115);ctx.fillStyle="rgba(255,255,255,.60)";ctx.font="13px "+FONT_UI;ctx.fillText(T(o.item.descZh,o.item.descEn),x+28,y+150);ctx.fillStyle=o.bought?"#7cffb2":"#ffe066";ctx.font="bold 17px "+FONT_UI;ctx.fillText(o.bought?T("已购买","PURCHASED"):T("碎片 ×","SHARDS ×")+o.price,x+28,y+205);}
+      ctx.textAlign="right";ctx.fillStyle="#d6a52b";ctx.font="bold 19px "+FONT_UI;ctx.fillText(T("梦境碎片 ","Dream Shards ")+(this.run.dreamShards||0),W-72,118);
+      for(let i=0;i<3;i++){const o=this.restOffers[i],x=68+i*340,y=215,w=308,h=255;if(!o)continue;const affordable=(this.run.dreamShards||0)>=o.price;ctx.fillStyle=o.bought?"rgba(65,110,96,.18)":"rgba(255,255,255,.065)";ctx.fillRect(x,y,w,h);ctx.strokeStyle=o.bought?"#d98b9d":affordable?"rgba(214,165,43,.72)":"rgba(177,58,47,.48)";ctx.lineWidth=2;ctx.strokeRect(x,y,w,h);ctx.fillStyle="#b478ff";ctx.font="bold 54px Arial";ctx.textAlign="left";ctx.fillText("◇",x+24,y+70);ctx.fillStyle="#fff";ctx.font="bold 23px "+FONT_UI;ctx.fillText(T(o.item.zh,o.item.en),x+28,y+115);ctx.fillStyle="rgba(255,255,255,.60)";ctx.font="13px "+FONT_UI;wrapCanvasText(ctx,T(o.item.descZh,o.item.descEn),x+28,y+148,w-56,18,3);ctx.fillStyle=o.bought?"#d98b9d":affordable?"#d6a52b":"rgba(255,255,255,.38)";ctx.font="bold 17px "+FONT_UI;ctx.fillText(o.bought?T("已购买","PURCHASED"):T("碎片 ×","SHARDS ×")+o.price,x+28,y+215);ctx.fillStyle="rgba(255,255,255,.42)";ctx.font="10px "+FONT_UI;ctx.fillText(o.bought?T("效果已应用","EFFECT APPLIED"):affordable?T("点击购买","CLICK TO ACQUIRE"):T("碎片不足","INSUFFICIENT SHARDS"),x+28,y+238);}
       global.drawBtn(T("拒绝交易并离开","LEAVE WITHOUT BUYING"),"ESC",W-350,520,280,54,false,"#fff");
     },
 
     drawLevelTrack(){
       const ctx=global.ctx,FONT_UI=global.FONT_UI,W=global.W||1120;this.drawBasePanel();
       const lv=this.reconstructionLevel();this.selectedLevel=clamp(this.selectedLevel||lv,1,MAX_RECONSTRUCTION_LEVEL);const selected=this.selectedLevel,reward=this.levelReward(selected),ready=selected<=lv,claimed=!!this.state.levelClaimed[selected];
-      ctx.fillStyle="#82ffe2";ctx.font="bold 15px "+FONT_UI;ctx.textAlign="left";ctx.fillText("DAYDREAM RECONSTRUCTION / REWARD ARCHIVE",62,76);
+      ctx.fillStyle="#d8cfb8";ctx.font="bold 15px "+FONT_UI;ctx.textAlign="left";ctx.fillText("DAYDREAM RECONSTRUCTION / REWARD ARCHIVE",62,76);
       ctx.fillStyle="#fff";ctx.font="bold 38px "+FONT_UI;ctx.fillText(T("白日梦等级奖励","Daydream Level Rewards"),62,122);
-      ctx.textAlign="right";ctx.fillStyle="#82ffe2";ctx.font="bold 46px Arial";ctx.fillText("LV "+lv,W-72,94);ctx.fillStyle="rgba(255,255,255,.16)";ctx.fillRect(W-360,108,288,8);ctx.fillStyle="#82ffe2";ctx.fillRect(W-360,108,288*this.levelProgress()/LEVEL_EXP_REQUIRED,8);ctx.fillStyle="rgba(255,255,255,.62)";ctx.font="13px Arial";ctx.fillText(this.levelProgress()+" / "+LEVEL_EXP_REQUIRED+" EXP",W-72,139);
+      ctx.textAlign="right";ctx.fillStyle="#d8cfb8";ctx.font="bold 46px Arial";ctx.fillText("LV "+lv,W-72,94);ctx.fillStyle="rgba(255,255,255,.16)";ctx.fillRect(W-360,108,288,8);ctx.fillStyle="#d8cfb8";ctx.fillRect(W-360,108,288*this.levelProgress()/LEVEL_EXP_REQUIRED,8);ctx.fillStyle="rgba(255,255,255,.62)";ctx.font="13px Arial";ctx.fillText(this.levelProgress()+" / "+LEVEL_EXP_REQUIRED+" EXP",W-72,139);
       const grad=ctx.createLinearGradient(54,170,1060,470);grad.addColorStop(0,"rgba(10,18,24,.96)");grad.addColorStop(.6,"rgba(22,32,42,.90)");grad.addColorStop(1,"rgba(34,15,48,.86)");ctx.fillStyle=grad;ctx.fillRect(54,170,1012,300);ctx.strokeStyle="rgba(130,255,226,.28)";ctx.strokeRect(54,170,1012,300);
-      ctx.textAlign="left";ctx.fillStyle="#82ffe2";ctx.font="bold 18px "+FONT_UI;ctx.fillText(T("等级奖励","LEVEL REWARD")+"  "+selected,90,215);ctx.fillStyle="#fff";ctx.font="bold 31px "+FONT_UI;ctx.fillText(selected%30===0?T("高价值调查补给","High-Value Investigation Supply"):T("调查记录补给","Investigation Record Supply"),90,264);ctx.fillStyle="rgba(255,255,255,.58)";ctx.font="14px "+FONT_UI;ctx.fillText(T("提升白日梦等级，解锁调查资源与成长材料。","Raise your Daydream level to unlock investigation resources and growth materials."),90,298);
+      ctx.textAlign="left";ctx.fillStyle="#d8cfb8";ctx.font="bold 18px "+FONT_UI;ctx.fillText(T("等级奖励","LEVEL REWARD")+"  "+selected,90,215);ctx.fillStyle="#fff";ctx.font="bold 31px "+FONT_UI;ctx.fillText(selected%30===0?T("高价值调查补给","High-Value Investigation Supply"):T("调查记录补给","Investigation Record Supply"),90,264);ctx.fillStyle="rgba(255,255,255,.58)";ctx.font="14px "+FONT_UI;ctx.fillText(T("提升白日梦等级，解锁调查资源与成长材料。","Raise your Daydream level to unlock investigation resources and growth materials."),90,298);
       ctx.fillStyle="rgba(130,255,226,.08)";ctx.fillRect(90,330,660,72);ctx.strokeStyle="rgba(130,255,226,.22)";ctx.strokeRect(90,330,660,72);ctx.fillStyle="#fff";ctx.font="bold 19px "+FONT_UI;ctx.fillText(this.rewardLabel(reward),116,375);
-      global.drawBtn(claimed?T("已领取","CLAIMED"):(ready?T("领取奖励","CLAIM REWARD"):T("等级未达到","LEVEL LOCKED")),"",790,332,225,66,ready&&!claimed,"#82ffe2");
+      global.drawBtn(claimed?T("已领取","CLAIMED"):(ready?T("领取奖励","CLAIM REWARD"):T("等级未达到","LEVEL LOCKED")),"",790,332,225,66,ready&&!claimed,"#d8cfb8");
       const start=clamp(this.levelTrackPage||0,0,14)*8+1;ctx.strokeStyle="rgba(130,255,226,.48)";ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(104,548);ctx.lineTo(1010,548);ctx.stroke();
-      for(let j=0;j<8;j++){const level=start+j;if(level>MAX_RECONSTRUCTION_LEVEL)break;const x=126+j*124,rdy=level<=lv,clm=!!this.state.levelClaimed[level],sel=level===selected;ctx.beginPath();ctx.arc(x,548,sel?24:18,0,Math.PI*2);ctx.fillStyle=clm?"#347f73":rdy?"#72e6cf":"#252b32";ctx.fill();ctx.strokeStyle=sel?"#fff":"rgba(255,255,255,.30)";ctx.lineWidth=sel?3:1.5;ctx.stroke();ctx.fillStyle=sel?"#07120f":"#fff";ctx.font="bold 11px Arial";ctx.textAlign="center";ctx.fillText(level,x,552);ctx.fillStyle=sel?"#82ffe2":"rgba(255,255,255,.55)";ctx.font="bold 13px Arial";ctx.fillText(level,x,592);if(clm){ctx.fillStyle="#7cffb2";ctx.font="bold 14px Arial";ctx.fillText("✓",x,520);}}
+      for(let j=0;j<8;j++){const level=start+j;if(level>MAX_RECONSTRUCTION_LEVEL)break;const x=126+j*124,rdy=level<=lv,clm=!!this.state.levelClaimed[level],sel=level===selected;ctx.beginPath();ctx.arc(x,548,sel?24:18,0,Math.PI*2);ctx.fillStyle=clm?"#347f73":rdy?"#72e6cf":"#252b32";ctx.fill();ctx.strokeStyle=sel?"#fff":"rgba(255,255,255,.30)";ctx.lineWidth=sel?3:1.5;ctx.stroke();ctx.fillStyle=sel?"#07120f":"#fff";ctx.font="bold 11px Arial";ctx.textAlign="center";ctx.fillText(level,x,552);ctx.fillStyle=sel?"#d8cfb8":"rgba(255,255,255,.55)";ctx.font="bold 13px Arial";ctx.fillText(level,x,592);if(clm){ctx.fillStyle="#d98b9d";ctx.font="bold 14px Arial";ctx.fillText("✓",x,520);}}
       ctx.fillStyle="#fff";ctx.font="bold 30px Arial";ctx.fillText("‹",65,558);ctx.fillText("›",1060,558);
     },
 
@@ -1252,31 +1317,32 @@
       const ctx=global.ctx, FONT_UI=global.FONT_UI;
       this.drawBasePanel(); this.drawHeader();
       const count=this.nightmareCount(),maxScroll=Math.max(0,nightmarePool.length*76-324);this.codexScroll=clamp(this.codexScroll||0,0,maxScroll);
-      ctx.fillStyle="#9b7cff";ctx.font="bold 23px "+FONT_UI;ctx.textAlign="left";ctx.fillText(T("梦魇图鉴","Nightmare Codex"),95,202);
+      if(global.getPZPointerState){const p=global.getPZPointerState(),inside=p.x>=92&&p.x<=1045&&p.y>=264&&p.y<=554;if(p.down&&inside){if(!this.codexDragging){this.codexDragging=true;this.codexDragY=p.y;}else{this.codexScroll=clamp(this.codexScroll+(this.codexDragY-p.y),0,maxScroll);this.codexDragY=p.y;}}else if(!p.down)this.codexDragging=false;}
+      ctx.fillStyle="#b13a2f";ctx.font="bold 23px "+FONT_UI;ctx.textAlign="left";ctx.fillText(T("梦魇图鉴","Nightmare Codex"),95,202);
       ctx.fillStyle="rgba(255,255,255,.58)";ctx.font="12px "+FONT_UI;ctx.fillText(T("记录调查中接触过的梦魇词条；未记录条目会隐藏名称与效果。","Records Nightmare traits encountered during investigations. Unrecorded entries hide their names and effects."),95,226);
-      ctx.fillStyle="#d8c7ff";ctx.font="bold 12px "+FONT_UI;ctx.fillText(T("已记录 ","RECORDED ")+count+" / "+nightmarePool.length+T(" · 将鼠标放在列表上滚轮查看"," · HOVER AND SCROLL"),95,249);
+      ctx.fillStyle="#d8c7ff";ctx.font="bold 12px "+FONT_UI;ctx.fillText(T("已记录 ","RECORDED ")+count+" / "+nightmarePool.length+T(" · 滚轮或按住左键拖动查看"," · WHEEL OR HOLD LEFT MOUSE TO DRAG"),95,249);
       ctx.save();ctx.beginPath();ctx.rect(92,264,936,290);ctx.clip();ctx.fillStyle="rgba(4,6,16,.72)";ctx.fillRect(92,264,936,290);
       for(let i=0;i<nightmarePool.length;i++){
         const n=nightmarePool[i],unlocked=!!this.state.unlockedNightmares[n.id],x=108,y=272+i*76-this.codexScroll,w=904,h=64;if(y+h<264||y>554)continue;
-        if(global.uiCard)global.uiCard(x,y,w,h,unlocked?"#9b7cff":"#4d4d59",false);
+        if(global.uiCard)global.uiCard(x,y,w,h,unlocked?"#b13a2f":"#4d4d59",false);
         ctx.fillStyle=unlocked?"#fff":"rgba(255,255,255,.34)";ctx.font="bold 14px "+FONT_UI;ctx.textAlign="left";ctx.fillText(unlocked?T(n.zh,n.en):"???",x+18,y+25);
         ctx.fillStyle=unlocked?"rgba(255,255,255,.55)":"rgba(255,255,255,.22)";ctx.font="11px "+FONT_UI;ctx.fillText(unlocked?T(n.descZh,n.descEn):T("继续调查以补全这份记录。","Continue investigating to complete this record."),x+18,y+48);
         ctx.textAlign="right";ctx.fillStyle=unlocked?"rgba(180,145,255,.9)":"rgba(255,255,255,.24)";ctx.font="10px "+FONT_UI;ctx.fillText(unlocked?T("已记录","RECORDED"):T("未记录","LOCKED"),x+w-18,y+25);
       }ctx.restore();
-      if(maxScroll>0){ctx.fillStyle="rgba(255,255,255,.12)";ctx.fillRect(1035,264,5,290);ctx.fillStyle="#9b7cff";const thumb=Math.max(34,290*290/(290+maxScroll)),ty=264+(290-thumb)*(this.codexScroll/maxScroll);ctx.fillRect(1035,ty,5,thumb);}
+      if(maxScroll>0){ctx.fillStyle="rgba(255,255,255,.12)";ctx.fillRect(1035,264,5,290);ctx.fillStyle="#b13a2f";const thumb=Math.max(34,290*290/(290+maxScroll)),ty=264+(290-thumb)*(this.codexScroll/maxScroll);ctx.fillRect(1035,ty,5,thumb);}
       global.drawBtn(T("返回","Back"),"",865,585,150,42,false,"#fff");
     },
 
     drawEndings(){
       const ctx=global.ctx, FONT_UI=global.FONT_UI;
       this.drawBasePanel(); this.drawHeader();
-      ctx.fillStyle="#9b7cff"; ctx.font="bold 24px "+FONT_UI; ctx.textAlign="left";
+      ctx.fillStyle="#b13a2f"; ctx.font="bold 24px "+FONT_UI; ctx.textAlign="left";
       ctx.fillText(T("结局一览","Ending Archive"),95,215);
       const ids=Object.keys(endingDefs);
       for(let i=0;i<ids.length;i++){
         const id=ids[i], e=endingDefs[id], unlocked=!!this.state.unlockedEndings[id];
         const x=135, y=252+i*52, w=850, h=42;
-        if(global.uiCard) global.uiCard(x,y,w,h,unlocked?"#9b7cff":"#666",false);
+        if(global.uiCard) global.uiCard(x,y,w,h,unlocked?"#b13a2f":"#666",false);
         ctx.fillStyle=unlocked?"#fff":"rgba(255,255,255,.38)"; ctx.font="bold 15px "+FONT_UI; ctx.textAlign="left";
         ctx.fillText((i+1)+"/5  "+(unlocked?T(e.nameZh,e.nameEn):"???"),x+18,y+25);
         ctx.fillStyle="rgba(255,255,255,.50)"; ctx.font="12px "+FONT_UI;
@@ -1289,13 +1355,13 @@
       const ctx=global.ctx, FONT_UI=global.FONT_UI;
       const r=this.result;
       this.drawBasePanel(); this.drawHeader();
-      ctx.fillStyle="#ffe066"; ctx.font="bold 22px "+FONT_UI; ctx.textAlign="left";
+      ctx.fillStyle="#d6a52b"; ctx.font="bold 22px "+FONT_UI; ctx.textAlign="left";
       ctx.fillText(T("调查完成","Investigation Complete"),135,230);
       ctx.fillStyle="#fff"; ctx.font="bold 42px "+FONT_UI;
       ctx.fillText(r ? r.name : "???",135,285);
       ctx.fillStyle="rgba(255,255,255,.62)"; ctx.font="15px "+FONT_UI;
-      ctx.fillText(r ? r.hint : "",138,315);
-      ctx.fillStyle="#ffe066";ctx.font="bold 13px "+FONT_UI;ctx.fillText(r?"PROJECT "+r.difficultyId:"",138,340);
+      wrapCanvasText(ctx,r?r.hint:"",138,315,820,20,2);
+      ctx.fillStyle="#d6a52b";ctx.font="bold 13px "+FONT_UI;ctx.fillText(r?"PROJECT "+r.difficultyId:"",138,340);
       const lines = r ? [
         T("线索：","Clue: ")+r.clue,
         T("污染：","Pollution: ")+r.pollution+"%",
@@ -1304,10 +1370,11 @@
       ] : [];
       for(let i=0;i<lines.length;i++){
         const x=150+i*195, y=370, w=160, h=62;
-        if(global.uiCard) global.uiCard(x,y,w,h,"#9b7cff",false);
+        if(global.uiCard) global.uiCard(x,y,w,h,"#b13a2f",false);
         ctx.fillStyle="#fff"; ctx.font="bold 17px "+FONT_UI; ctx.fillText(lines[i],x+16,y+38);
       }
-      global.drawBtn(T("再次调查","Run Again"),"",645,505,145,44,true,"#9b7cff");
+      if(r){ctx.fillStyle="rgba(255,255,255,.56)";ctx.font="bold 12px "+FONT_UI;ctx.fillText(T("经过节点 ","NODES ")+r.nodes+"   ·   "+T("本次获得EXP +","EXP EARNED +")+r.exp,150,460);}
+      global.drawBtn(T("再次调查","Run Again"),"",645,505,145,44,true,"#b13a2f");
       global.drawBtn(T("结局一览","Endings"),"",805,505,145,44,false,"#fff");
       global.drawBtn(T("返回首页","Home"),"",485,505,145,44,false,"#fff");
     },
@@ -1320,7 +1387,7 @@
       }
       if(this.page==="home"){
         if(this.entryPlaying){ global.clicked=false; return true; }
-        if(clickRect((global.W||1120)-280,528,240,72)){ this.beginSetup(); global.clicked=false; return true; }
+        if(clickRect(828,486,184,58)){ if(this.run&&!this.run.completed){this.page="run";this.run.revealAt=now();sfx("ui");}else this.beginSetup(); global.clicked=false; return true; }
         if(clickRect(48,550,168,48)){ this.codexScroll=0;this.page="codex"; global.clicked=false; return true; }
         if(clickRect(230,550,168,48)){ this.page="endings"; global.clicked=false; return true; }
       }else if(this.page==="setupDifficulty"){
@@ -1344,7 +1411,7 @@
         }
         if(node && node.type==="event" && !node.resolved){
           for(let i=0;i<node.event.choices.length;i++){
-            if(clickRect(836,298+i*48,256,40)){ this.chooseEvent(i); global.clicked=false; return true; }
+            if(clickRect(836,330+i*48,256,40)){ this.chooseEvent(i); global.clicked=false; return true; }
           }
         }
         if(clickRect(836,510,256,42)){this.skipNextNode();global.clicked=false;return true;}

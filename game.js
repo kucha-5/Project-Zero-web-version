@@ -877,6 +877,14 @@ function approachBgmVolume(current,target,seconds){
 }
 
 function desiredChapterBgm(){
+  if(gameMode==="operation" && selectedTab==="daydream"){
+    const page=window.PZDaydream&&window.PZDaydream.page;
+    if(page==="home") return {key:"higiri:home",path:HIGIRI_HOME_BGM_PATH};
+    return {key:"higiri:route",path:HIGIRI_ROUTE_BGM_PATH};
+  }
+  if(gameMode==="battle" && battleModeSource==="daydream" && daydreamBattleConfig && !daydreamBattleConfig.boss){
+    return {key:"higiri:battle",path:HIGIRI_BATTLE_BGM_PATH};
+  }
   if(gameMode==="operation"&&selectedTab==="combat"&&["world","region","config"].includes(operationView)){
     return {key:"operation:world",path:OPERATION_WORLD_BGM_PATH};
   }
@@ -922,8 +930,8 @@ function updateWorldBgm(){
   const isProjectArea=gameMode==="projectArea" || (gameMode==="battle" && battleModeSource==="projectArea");
   const chapterRoute=desiredChapterBgm();
   selectChapterBgm(chapterRoute);
-  const isSilentCrystalPage=gameMode==="operation" && (selectedTab==="daydream" ||
-    (selectedTab==="dualCrystal" && window.PZCrystalWar && typeof window.PZCrystalWar.isCrystalWarActive==="function" && window.PZCrystalWar.isCrystalWarActive()));
+  const isSilentCrystalPage=gameMode==="operation" && selectedTab==="dualCrystal" &&
+    window.PZCrystalWar && typeof window.PZCrystalWar.isCrystalWarActive==="function" && window.PZCrystalWar.isCrystalWarActive();
   const stageMusicPaused=["story","team","settlement","defeat"].includes(gameMode) || (gameMode==="battle"&&!isBossKrosBattle&&!chapterRoute) || isProjectArea || isSilentCrystalPage;
   const enabled=!audioMuted ? clamp(bgmVolume,0,1) : 0;
   const isWorldEntryPage=gameMode==="lobby" || gameMode==="operation";
@@ -1908,6 +1916,9 @@ const SHOP_BGM_PATH = "assets/audio/bgm/skyglass_bazaar.mp3";
 const BOSS_KROS_BGM_PATH = "assets/audio/bgm/kros_battle.mp3";
 const BOSS_CRYSTAL_HUMANOID_BGM_PATH = "assets/audio/bgm/chapter0_boss.mp3";
 const OPERATION_WORLD_BGM_PATH = "assets/audio/bgm/operation_world.mp3";
+const HIGIRI_HOME_BGM_PATH = "assets/audio/bgm/higiri_home.mp3";
+const HIGIRI_ROUTE_BGM_PATH = "assets/audio/bgm/higiri_route.mp3";
+const HIGIRI_BATTLE_BGM_PATH = "assets/audio/bgm/higiri_battle.mp3";
 const CHAPTER_OPERATION_BGM_PATHS = [
   "assets/audio/bgm/chapter0_operation.mp3",
   "assets/audio/bgm/chapter1_operation.mp3",
@@ -2081,6 +2092,8 @@ let battleResumeSnapshot = null;
 let showcaseRole = 0;
 let showcasePreviousState = null;
 let daydreamBattleConfig = null;
+let daydreamIllusion = null;
+let daydreamIllusionUsed = false;
 let daydreamTeamSetupPending = false;
 let crystalWarTeamSetupPending = false;
 let crystalWarMines = [];
@@ -2258,7 +2271,7 @@ try{
     localStorage.setItem(GUEST_SAVE_KEY, localStorage.getItem(LEGACY_SAVE_KEY));
   }
 }catch(e){}
-const SAVE_VERSION = 70;
+const SAVE_VERSION = 71;
 const SAVE_BACKUP_SUFFIX = "_backup_";
 const SAVE_TEMP_SUFFIX = "_writing";
 let saveCooldown = 0;
@@ -3439,7 +3452,7 @@ function resetRuntimeDefaults(){
 
   // Starter roster: Kane, Ailo and the protagonist. Nox is an S-rank
   // permanent recruit; Chloe is never granted automatically.
-  owned = [true,true,false,false,true,false,false,false];
+  owned = [true,true,false,false,true,false,false,false,false];
   cleared = {};
   hardCleared = {};
   charData = roles.map((r,i)=>({
@@ -3451,7 +3464,8 @@ function resetRuntimeDefaults(){
     ultimate:1,
     weaponLevel:1,
     weapon:["训练剑","训练长枪","训练双刃","训练法器","灰白核心刃","训练法器","训练盾"][i],
-    equippedWeaponId:["training_sword","training_bow","training_dual","training_codex","gray_core_blade","training_codex","training_shield"][i]
+    equippedWeaponId:["training_sword","training_bow","training_dual","training_codex","gray_core_blade","training_codex","training_shield","training_katana","training_codex"][i],
+    trust:0
   }));
 
   ownedWeapons = {flora:false};
@@ -3476,10 +3490,14 @@ function resetRuntimeDefaults(){
   hasCreatedProfile = false;
   playerLevel = 1;
   playerExp = 0;
-  playerExpNeed = 1600;
+  playerExpNeed = 534;
+  authorityExpCurveV2 = true;
+  authorityExpCurveV3 = true;
   protagonistStoryLevel = 1;
   mailClaimed = false;
   mailDeleted = false;
+  launchMailRead = false;
+  adamGiftMail={id:"pz_mail_adam_launch_v1",read:false,claimed:false,deleted:false};
   eventClaimed = false;
   mailMsg = msg("mailDefault");
   eventMsg = msg("eventDefault");
@@ -3498,8 +3516,8 @@ function resetRuntimeDefaults(){
   weaponOre = 5;
   skillBooks = 6;
   skillMaterials = {normal:6,skill:4,ultimate:2};
-  owned = [true,true,false,false,true,false,false,false];
-  charData = roles.map((r,i)=>({level:1,breakStage:0,skillPoints:0,normal:1,skill:1,ultimate:1,weaponLevel:1,weapon:["训练剑","训练弓","训练双刃","训练法器","灰白核心刃","训练法器","训练盾"][i],equippedWeaponId:["training_sword","training_bow","training_dual","training_codex","gray_core_blade","training_codex","training_shield"][i]}));
+  owned = [true,true,false,false,true,false,false,false,false];
+  charData = roles.map((r,i)=>({level:1,breakStage:0,skillPoints:0,normal:1,skill:1,ultimate:1,weaponLevel:1,weapon:["训练剑","训练弓","训练双刃","训练法器","灰白核心刃","训练法器","训练盾","训练太刀","训练法器"][i],equippedWeaponId:["training_sword","training_bow","training_dual","training_codex","gray_core_blade","training_codex","training_shield","training_katana","training_codex"][i],trust:0}));
   cleared = {};
   achievements = {};
   totalKills = 0; totalParries = 0; totalChains = 0; totalBossKills = 0;
@@ -3719,8 +3737,8 @@ function saveGame(){
       saveRevision:Math.max(0,Math.floor(Number(previous.saveRevision)||0))+1,
       updatedAt:now,
       accountUid:(!guestMode && cloudUser) ? cloudUser.uid : "",
-      crystals, gold, expBooks, weaponOre, skillBooks, skillMaterials, playerLevel, playerExp, playerExpNeed, protagonistStoryLevel, playerName, playerUID, hasCreatedProfile, profileAvatarRole, profileAvatarFrame, profileShowcase, profileStyle, profileOverviewMode, profileSignature,
-      owned, cleared, hardCleared, projectAreaCleared, projectAreaMapClears, storyIntelRecords, oneTimeExploreClaims, charData, lobbyExecutor, lobbyBackgroundTheme, team, teamPresets, teamPresetNames, borrowedSupport, renderQuality, targetFPS, monthlyOwned, monthlyClaimed, monthlyClaimDate, mailClaimed, mailDeleted, eventClaimed, lastLoginClaimDate, loginClaimIndex, monthlyLoginCheckin, versionLoginCheckin,
+      crystals, gold, expBooks, weaponOre, skillBooks, skillMaterials, playerLevel, playerExp, playerExpNeed, authorityExpCurveV2, authorityExpCurveV3, protagonistStoryLevel, playerName, playerUID, hasCreatedProfile, profileAvatarRole, profileAvatarFrame, profileShowcase, profileStyle, profileOverviewMode, profileSignature,
+      owned, cleared, hardCleared, projectAreaCleared, projectAreaMapClears, storyIntelRecords, oneTimeExploreClaims, charData, lobbyExecutor, lobbyBackgroundTheme, team, teamPresets, teamPresetNames, borrowedSupport, renderQuality, targetFPS, monthlyOwned, monthlyClaimed, monthlyClaimDate, mailClaimed, mailDeleted, launchMailRead, adamGiftMail, eventClaimed, lastLoginClaimDate, loginClaimIndex, monthlyLoginCheckin, versionLoginCheckin,
       loginRewards, levelRewards, boughtPacks, ownedWeapons, weaponInventory, weaponLevelMigrationDone, crystalExchangePurchases, crystalExchangeWeekKey, shopTokens, shopTokenPurchases, shopScrewPurchases, shopTokenMonthKey, shopScrewWeekKey, dungeonStamina, dungeonWeeklyCrystalLeft, dungeonCrystalWeekKey, dungeonLastStaminaDate, dungeonCandy, dungeonStimulant, dungeonCandyMonthKey, dungeonCandyDailyUsed, dungeonCandyDailyKey, dungeonRewardMultiplier, materialDungeonDifficulty, materialDungeonDifficulties, materialDungeonSelected, materialDungeonScroll, moduleDungeonTarget, audioMuted, bgmVolume, sfxVolume, particlesEnabled, damageTextEnabled, tutorialCompleted, tutorialInProgress, tutorialResumeMode, language, prologueDone, lobbyGuideDone, lobbyGuideStep, achievements, totalKills, totalParries, totalChains, totalBossKills, totalGoldEarned, totalCrystalsEarned, growthGuidePage, growthGuidePageClaimed, growthGuideTaskClaimed, bossMultiplier, bossDifficulty, bossDifficulties, bossKrosWeeklyKey, dragonClaw, crystalHand, elementalFragments, uiGuideSeen, uiNewSeen, actionRecordLevel, actionRecordExp, actionRecordExpNeed, actionRecordPage, actionRecordAdvanced, actionRecordUltimate, actionRecordClaimed, actionRecordWeaponChoice, actionRecordTab, actionRecordTaskTab, actionRecordTaskClaimed, battleManualDailyClaimed,
       battleResume:captureBattleResumeSnapshot()
     };
@@ -3769,6 +3787,7 @@ function migrateSaveData(d){
   addMissing("actionRecordTaskClaimed", {dailyKey:"",weeklyKey:"",monthlyKey:"",daily:{},weekly:{},monthly:{}});
   addMissing("battleManualDailyClaimed", {key:"",tasks:{},page:false});
   addMissing("mailDeleted", false);
+  addMissing("adamGiftMail", {id:"pz_mail_adam_launch_v1",read:false,claimed:false,deleted:false});
   addMissing("projectAreaCleared", false);
   addMissing("projectAreaMapClears", d.projectAreaCleared ? {project_area:true} : {});
   addMissing("storyIntelRecords", []);
@@ -3842,6 +3861,23 @@ function migrateSaveData(d){
       }
     }
   }
+  // Schema 71: authority requirements are one third of the previous curve.
+  // Keep earned EXP/level, then consume any overflow on the new curve once.
+  if(!d.authorityExpCurveV3){
+    d.playerLevel=Math.max(1,Math.floor(Number(d.playerLevel)||1));
+    d.playerExp=Math.max(0,Math.floor(Number(d.playerExp)||0));
+    d.playerExpNeed=authorityExpRequired(d.playerLevel);
+    let authorityGuard=0;
+    while(d.playerExp>=d.playerExpNeed&&authorityGuard++<1000){
+      d.playerExp-=d.playerExpNeed;
+      d.playerLevel++;
+      d.playerExpNeed=authorityExpRequired(d.playerLevel);
+    }
+    d.authorityExpCurveV2=true;
+    d.authorityExpCurveV3=true;
+    changed=true;
+  }
+  if(typeof d.launchMailRead!=="boolean"){d.launchMailRead=!!d.mailClaimed;changed=true;}
   if(fromVersion !== SAVE_VERSION){
     d.saveVersion = SAVE_VERSION;
     d.migratedFromVersion = fromVersion;
@@ -3885,8 +3921,9 @@ function loadGame(){
     if(typeof d.playerLevel === "number") playerLevel = d.playerLevel;
     if(typeof d.playerExp === "number") playerExp = d.playerExp;
     if(typeof d.playerExpNeed === "number") playerExpNeed = d.playerExpNeed;
-    // V49.19 early progression: existing fresh saves adopt the slower opening curve.
-    if(playerLevel<=3) playerExpNeed=Math.max(playerExpNeed,1600);
+    authorityExpCurveV2=d.authorityExpCurveV2===true;
+    authorityExpCurveV3=d.authorityExpCurveV3===true;
+    if(playerLevel<=3) playerExpNeed=Math.max(playerExpNeed,534);
     if(typeof d.protagonistStoryLevel === "number") protagonistStoryLevel = clamp(Math.floor(d.protagonistStoryLevel),1,60);
     if(typeof d.playerName === "string") playerName = cleanPlayerName(d.playerName);
     if(typeof d.playerUID === "string") playerUID = d.playerUID;
@@ -3924,6 +3961,7 @@ function loadGame(){
       const roleId=charData.length;
       charData.push({level:1,breakStage:0,skillPoints:0,normal:1,skill:1,ultimate:1,weaponLevel:1,weapon:roleId===6?"训练盾":"训练武器",equippedWeaponId:defaultWeaponIdForRole(roleId)});
     }
+    charData.forEach(c=>{c.trust=clamp(Number(c.trust)||0,0,200);});
     crystalModuleInventory=window.PZModules?window.PZModules.normalize(charData,Array.isArray(d.crystalModuleInventory)?d.crystalModuleInventory:[]):[];
     if(typeof d.moduleDungeonTarget === "string" && window.PZModules){
       if(window.PZModules.SETS[d.moduleDungeonTarget]) moduleDungeonTarget=d.moduleDungeonTarget;
@@ -3946,6 +3984,8 @@ function loadGame(){
     normalizeMonthlyCardRuntime();
     if(typeof d.mailClaimed === "boolean") mailClaimed = d.mailClaimed;
     if(typeof d.mailDeleted === "boolean") mailDeleted = d.mailDeleted;
+    if(typeof d.launchMailRead === "boolean") launchMailRead = d.launchMailRead;
+    if(d.adamGiftMail&&typeof d.adamGiftMail==="object")adamGiftMail={id:"pz_mail_adam_launch_v1",read:!!d.adamGiftMail.read,claimed:!!d.adamGiftMail.claimed,deleted:!!d.adamGiftMail.deleted};
     if(typeof d.eventClaimed === "boolean") eventClaimed = d.eventClaimed;
     if(typeof d.lastLoginClaimDate === "string") lastLoginClaimDate = d.lastLoginClaimDate;
     if(typeof d.loginClaimIndex === "number") loginClaimIndex = d.loginClaimIndex;
@@ -4538,24 +4578,24 @@ function protagonistInfoLine(){
 function roleName(i){
   if(isProtagonist(i)) return protagonistName();
   const names = {
-    zh:["凯恩","艾洛","诺克斯","芙洛拉","主角","克洛伊","阿贝其·富兰克琳","拉文"],
-    en:["Kane","Ailo","Nox","Flora","Protagonist","Chloe","Abeqi Franklin","Raven"]
+    zh:["凯恩","艾洛","诺克斯","芙洛拉","主角","克洛伊","阿贝其·富兰克琳","拉文","阿当"],
+    en:["Kane","Ailo","Nox","Flora","Protagonist","Chloe","Abeqi Franklin","Raven","Adam"]
   };
   return (names[currentLang()] || names.zh)[i] || "";
 }
 function roleStyle(i){
   if(isProtagonist(i)) return language==="en" ? "S · High HP / Single Target" : "S级 · 高生命 / 单体";
   const styles = {
-    zh:["物理剑卫","风系辅助","暗系击破","冰系法术","单体输出","风系辅助","物理盾卫","晶属性击破"],
-    en:["Physical Sword Guard","Wind Support","Dark Breaker","Ice Caster","Single Target","Wind Support","Physical Shield Guard","Crystal Breaker"]
+    zh:["物理剑卫","风系辅助","暗系击破","冰系法术","单体输出","风系辅助","物理盾卫","晶属性击破","C级 · 辅助 / 法术副C"],
+    en:["Physical Sword Guard","Wind Support","Dark Breaker","Ice Caster","Single Target","Wind Support","Physical Shield Guard","Crystal Breaker","C Rank · Support / Arts Sub-DPS"]
   };
   return (styles[currentLang()] || styles.zh)[i] || "";
 }
 
 function roleLine(i){
   const lines = {
-    zh:["烈阳，斩开黑夜。","风会记住这一击。","无名之刃，撕裂终局。","霜影落下，万物静止。","","听见了吗？风正在回应。","防线不会在我身后崩塌。"],
-    en:["Solar flame, cut through the night.","The wind will remember this strike.","Nameless blades tear through the end.","Frost descends. All becomes still.","","Can you hear it? The wind is answering.","The line will not fall behind me."]
+    zh:["烈阳，斩开黑夜。","风会记住这一击。","无名之刃，撕裂终局。","霜影落下，万物静止。","","听见了吗？风正在回应。","防线不会在我身后崩塌。","刃落之前，晶体先碎。","先点燃，再计算。"],
+    en:["Solar flame, cut through the night.","The wind will remember this strike.","Nameless blades tear through the end.","Frost descends. All becomes still.","","Can you hear it? The wind is answering.","The line will not fall behind me.","The crystal breaks before the blade falls.","Ignite first. Calculate second."]
   };
   return (lines[currentLang()] || lines.zh)[i] || "";
 }
@@ -4633,9 +4673,10 @@ const roles = [
   {name:"主角", element:"monochrome", color:"#dfe6ef", sub:"#313846", atk:[15,20,38], skill:72, speed:3.05, style:"单体输出", line:"灰白之间，斩开前路。"},
   {name:"克洛伊", element:"wind", color:"#bda7ff", sub:"#78f0c3", atk:[9,12,20], skill:58, speed:3.15, style:"风系治疗辅助", line:"别离开我的治疗范围。"},
   {name:"阿贝其·富兰克琳", element:"physical", color:"#5db8ff", sub:"#d9f2ff", atk:[12,16,34], skill:62, speed:2.65, style:"物理盾卫", line:"防线不会在我身后崩塌。"},
-  {name:"拉文", element:"crystal", color:"#65e6ff", sub:"#d9fbff", atk:[12,15,18,34], skill:68, speed:3.65, style:"晶属性击破", line:"刀锋所至，结晶亦会断裂。"}
+  {name:"拉文", element:"crystal", color:"#65e6ff", sub:"#d9fbff", atk:[12,15,18,34], skill:68, speed:3.65, style:"晶属性击破", line:"刀锋所至，结晶亦会断裂。"},
+  {name:"阿当", element:"fire", color:"#ff936b", sub:"#ffd08a", atk:[8,10,17], skill:48, speed:3.05, style:"辅助 / 法术副C", line:"先点燃，再计算。"}
 ];
-let owned = [true,true,true,false,true,false,false,false];
+let owned = [true,true,true,false,true,false,false,false,false];
 let charData = roles.map((r,i)=>({
   level:1,
   breakStage:0,
@@ -4644,8 +4685,13 @@ let charData = roles.map((r,i)=>({
   skill:1,
   ultimate:1,
   weaponLevel:1,
-    weapon:["烈阳之刃","风语法典","终夜双刃","霜月长枪","灰核之刃","拉文德","训练盾"][i] || "训练武器"
+    weapon:["烈阳之刃","风语法典","终夜双刃","霜月长枪","灰核之刃","拉文德","训练盾","训练太刀","训练法器"][i] || "训练武器",
+    trust:0
 }));
+window.PZBaseRoster={
+  list(){return roles.map((r,i)=>({id:i,name:language==="en"?(i===8?"Adam":i===6?"Abeqi Franklin":r.name):r.name,owned:!!owned[i],trust:clamp(Number(charData[i]?.trust)||0,0,200)}));},
+  gainTrust(id,amount){const c=charData[id];if(!c||!owned[id])return 0;const before=clamp(Number(c.trust)||0,0,200);c.trust=clamp(before+Math.max(0,Number(amount)||0),0,200);return c.trust-before;}
+};
 let shopMsg = msg("shopDefault");
 let shopTab = "recommend";
 let shopRecommendIndex = 0;
@@ -4829,7 +4875,9 @@ function requestReturnToLauncherFromGame() {
 let hasCreatedProfile = false;
 let playerLevel = 1;
 let playerExp = 0;
-let playerExpNeed = 1600;
+let playerExpNeed = 534;
+let authorityExpCurveV2 = true;
+let authorityExpCurveV3 = true;
 let protagonistStoryLevel = 1; // protagonist growth is driven only by main story progress, not player level
 let growthGuidePage = 0;
 let growthGuidePageClaimed = Array(10).fill(false);
@@ -4858,6 +4906,9 @@ let actionRecordWheelDelta = 0;
 let actionRecordTaskClaimed = {dailyKey:"", weeklyKey:"", monthlyKey:"", daily:{}, weekly:{}, monthly:{}};
 let mailClaimed = false;
 let mailDeleted = false;
+let launchMailRead = false;
+let mailDetailId = "";
+let adamGiftMail={id:"pz_mail_adam_launch_v1",read:false,claimed:false,deleted:false};
 let eventClaimed = false;
 let mailMsg = msg("mailDefault");
 let eventMsg = msg("eventDefault");
@@ -5305,6 +5356,8 @@ let protagonistBindings = [];
 let protagonistSweeps = [];
 let protagonistDomain = {active:false,life:0,max:180,tick:0,sweepIndex:0};
 let teamDamageAmpTimer = 0;
+let adamDamageAmpTimer=0;
+let adamCombat={hits:0,artsTimer:0,field:null};
 let chloeElementDamageAmpTimer = 0;
 let chloeTrueDamageTimer = 0;
 let chloeHealingFields = [];
@@ -5343,7 +5396,7 @@ function stabilizePlayerStats(){
   skillMaterials.ultimate=Math.max(0,Math.floor(safeNumber(skillMaterials.ultimate,0)));
   playerLevel = Math.max(1, Math.floor(safeNumber(playerLevel,1)));
   playerExp = Math.max(0, Math.floor(safeNumber(playerExp,0)));
-  playerExpNeed = Math.max(100, Math.floor(safeNumber(playerExpNeed,1600)));
+  playerExpNeed = Math.max(1, Math.floor(safeNumber(playerExpNeed,534)));
   const currentMaxHp = (typeof playerMaxHp === "function") ? playerMaxHp() : 100;
   player.hp = clamp(safeNumber(player.hp,currentMaxHp), 0, currentMaxHp);
   player.energy = clamp(safeNumber(player.energy,80), 0, 100);
@@ -5687,25 +5740,25 @@ function createEnemy(x,y,boss=false,type="normal"){
     ? crystalWarScaledLevel()
     : ((materialScale||commissionStage) ? (materialScale||(commissionStage&&commissionStage.lv)) : (selectedStage||1)+hardStoryLevelBonus);
   const cappedScale=Math.min(80,Math.max(1,stageScale||1));
-  const hpBase = boss ? 1650 + cappedScale*95 : type==="shield" ? 760 + cappedScale*45 : type==="berserker" ? 620 + cappedScale*38 : type==="ranged" ? 470 + cappedScale*30 : type==="sniper" ? 430 + cappedScale*28 : type==="skirmisher" ? 520 + cappedScale*32 : type==="support" ? 620 + cappedScale*36 : type==="elite" ? 820 + cappedScale*48 : type==="fireCrystal" ? 650 + cappedScale*38 : type==="lancer" ? 590+cappedScale*36 : type==="disruptor" ? 500+cappedScale*31 : type==="bomber" ? 540+cappedScale*34 : 560 + cappedScale*34;
+  const hpBase = boss ? 1650 + cappedScale*95 : type==="yaokai" ? 610+cappedScale*37 : type==="ghosto" ? 455+cappedScale*29 : type==="shield" ? 760 + cappedScale*45 : type==="berserker" ? 620 + cappedScale*38 : type==="ranged" ? 470 + cappedScale*30 : type==="sniper" ? 430 + cappedScale*28 : type==="skirmisher" ? 520 + cappedScale*32 : type==="support" ? 620 + cappedScale*36 : type==="elite" ? 820 + cappedScale*48 : type==="fireCrystal" ? 650 + cappedScale*38 : type==="lancer" ? 590+cappedScale*36 : type==="disruptor" ? 500+cappedScale*31 : type==="bomber" ? 540+cappedScale*34 : 560 + cappedScale*34;
   const hp=Math.floor(hpBase*(battleHardMode?1.35:1));
   const shieldBase = boss ? 880 + cappedScale*65 : type==="shield" ? 520 + cappedScale*42 : type==="elite" ? 360 + cappedScale*30 : type==="support" ? 240 + cappedScale*20 : type==="disruptor" ? 300+cappedScale*24 : type==="ranged" ? 180 + cappedScale*18 : type==="sniper" ? 120 + cappedScale*12 : 0;
   const shield=Math.floor(shieldBase*(battleHardMode?1.25:1));
   const rawLv = boss ? cappedScale + 7 : type==="elite" ? cappedScale + 4 : type==="shield" ? cappedScale + 2 : type==="berserker" ? cappedScale + 3 : ["ranged","sniper","skirmisher","support","lancer","disruptor","bomber"].includes(type) ? cappedScale + 2 : cappedScale;
   const lv=Math.min(70,rawLv);
-  const specialEligible=!boss&&["main","daydream","crystalWar"].includes(battleModeSource)&&!["support","fireCrystal"].includes(type)&&!enemies.some(e=>e&&e.special);
+  const specialEligible=!boss&&["main","daydream","crystalWar"].includes(battleModeSource)&&!["support","fireCrystal","yaokai","ghosto"].includes(type)&&!enemies.some(e=>e&&e.special);
   const specialRoll=specialEligible?Math.random():1;
   const special=specialRoll<(battleHardMode?.13:.045)?"physicalImmune":specialRoll<(battleHardMode?.25:.085)?"skillImmune":specialRoll<(battleHardMode?.38:.13)?"pullResist":"";
   return {
     uid:++enemySerial,
-    x,y,vx:0,vy:0,r:boss?46:type==="shield"?32:type==="support"?29:["ranged","sniper","fireCrystal","disruptor","bomber"].includes(type)?24:type==="skirmisher"||type==="lancer"?23:26,
+    x,y,vx:0,vy:0,r:boss?46:type==="shield"?32:type==="support"?29:type==="yaokai"?29:["ranged","sniper","fireCrystal","disruptor","bomber","ghosto"].includes(type)?24:type==="skirmisher"||type==="lancer"?23:26,
     hp,maxHp:hp,shield,maxShield:shield,
     stun:boss?520:type==="shield"?320:type==="elite"?360:type==="support"?280:220,
     maxStun:boss?520:type==="shield"?320:type==="elite"?360:type==="support"?280:220,
     alive:true,boss,type,lv,
     phase:1,
     windup:0,attackCd:70+Math.random()*70,hit:0,parried:0,
-    shotCd:type==="ranged"?60:type==="sniper"?82:type==="fireCrystal"?72:type==="disruptor"?96:type==="bomber"?112:0,
+    shotCd:type==="ranged"?60:type==="ghosto"?70:type==="sniper"?82:type==="fireCrystal"?72:type==="disruptor"?96:type==="bomber"?112:0,
     supportCd:type==="support"?150:0,
     strafeSeed:Math.random()<.5?-1:1,
     aiTick: Math.floor(Math.random()*8),
@@ -5722,9 +5775,16 @@ function createEnemy(x,y,boss=false,type="normal"){
     attackLaneOffset:(Math.random()-.5)*110,
     tacticClock:55+Math.random()*85,
     repositionTimer:0,
-    flying:["fireCrystal","bomber","disruptor"].includes(type),
-    flightHeight:["fireCrystal","bomber","disruptor"].includes(type)?44+Math.random()*32:0,
-    flightBob:4+Math.random()*3,flightVisualHeight:0
+    flying:["fireCrystal","bomber","disruptor","ghosto"].includes(type),
+    flightHeight:["fireCrystal","bomber","disruptor","ghosto"].includes(type)?44+Math.random()*32:0,
+    flightBob:4+Math.random()*3,flightVisualHeight:0,
+    higiriKind:type==="yaokai"||type==="ghosto"?type:"",
+    higiriState:type==="yaokai"?"phased":"normal",
+    higiriStateTimer:type==="yaokai"?300:0,
+    higiriVanishCd:0,
+    higiriHitCount:0,
+    higiriIllusionAt:type==="ghosto"?180+Math.random()*300:0,
+    higiriIllusionUsed:false
   };
 }
 
@@ -5916,6 +5976,17 @@ function spawnAreaLegacyChapterPrototype(){
 
 
 const PLAYER_LEVEL_EXP_GAIN_MULTIPLIER=6;
+function authorityExpRequired(level){
+  // Divide the original per-level curve, not only its starting value.
+  // R2 retained +140 after division, causing each later level to drift upward.
+  let original=1600;
+  const target=Math.max(1,Math.min(1000,Math.floor(Number(level)||1)));
+  for(let i=1;i<target;i++){
+    original=Math.floor(original*1.24+140);
+    if(original>=Number.MAX_SAFE_INTEGER)return Math.floor(Number.MAX_SAFE_INTEGER/3);
+  }
+  return Math.max(1,Math.ceil(original/3));
+}
 function addPlayerExp(amount){
   // Legacy compatibility: old stage EXP now feeds Action Record EXP.
   if(typeof arAddExp === "function") arAddExp(amount || 0, false);
@@ -5928,7 +5999,7 @@ function addPlayerExp(amount){
   while(playerExp >= playerExpNeed){
     playerExp -= playerExpNeed;
     playerLevel++;
-    playerExpNeed = Math.floor(playerExpNeed * 1.24 + 420);
+    playerExpNeed = authorityExpRequired(playerLevel);
   }
   return amount;
 }
@@ -6200,6 +6271,8 @@ function failMission(){
 
 function clearTransientBattleState(){
   battlePaused=false;
+  daydreamIllusion=null;
+  daydreamIllusionUsed=false;
   enemies=[];
   projectAreaObjects=[];
   battleExploreObjects=[];
@@ -6350,6 +6423,14 @@ function roleMaxHpForBattle(roleId){
   return Math.max(1, Math.floor(operatorStatHp(roleId)));
 }
 
+function daydreamBattleSummary(){
+  ensureBattleRoleHp();
+  return {squad:(Array.isArray(team)?team:[]).slice(0,3).map(roleId=>({
+    role:roleId,
+    hp:Math.round(clamp((Number(battleRoleHp[roleId])||0)/roleMaxHpForBattle(roleId),0,1)*100)
+  }))};
+}
+
 function playerMaxHp(){
   return roleMaxHpForBattle(player.role);
 }
@@ -6453,7 +6534,7 @@ function triggerFranklinCounter(attacker){
   totalParries++;checkAchievements();showActionPrompt((language==="en"?"AUTO PARRY · COUNTERS ":"自动弹刀 · 反击剩余 ")+franklinCounterCharges,65);doShake(12);doHitStop(4);sfx("parry");return true;
 }
 
-function damageCurrentRoleHp(amount, label="HIT", color="#ff5555", attacker=null){
+function damageCurrentRoleHp(amount, label="HIT", color="#ff5555", attacker=null,ignoreShield=false){
   syncPlayerHpFromRole();
   if(triggerFranklinCounter(attacker))return true;
   const daydreamDamageScale=battleModeSource==="daydream"&&daydreamBattleConfig?1+Math.max(0,Number(daydreamBattleConfig.enemyScale)||0)*.55:1;
@@ -6466,7 +6547,7 @@ function damageCurrentRoleHp(amount, label="HIT", color="#ff5555", attacker=null
   const enemyDamageBalance=.88;
   let dmg = Math.max(0, Math.floor((amount || 0)*panelHpScale*daydreamDamageScale*(1-moduleReduction)*defenseIdentityScale*operationGuard*enemyDamageBalance));
   ensureBattleRoleResources();
-  const absorbed=Math.min(dmg,Math.max(0,battleRoleShield[player.role]||0));
+  const absorbed=ignoreShield?0:Math.min(dmg,Math.max(0,battleRoleShield[player.role]||0));
   if(absorbed>0){battleRoleShield[player.role]-=absorbed;dmg-=absorbed;addText(player.x,player.y-52,(language==="en"?"SHIELD -":"护盾 -")+absorbed,"#5db8ff");}
   player.hp = clamp(player.hp - dmg, 0, playerMaxHp());
   saveCurrentRoleHp();
@@ -6841,7 +6922,7 @@ function enterStory(id){ if(selectedTab==="main") resetBattleSourceToMain(); reb
 function nearestEnemy(){
   let b=null, bd=Infinity;
   for(const e of enemies){
-    if(!e.alive) continue;
+    if(!e.alive || e.higiriState==="absent") continue;
     const d=dist(player.x,player.y,e.x,e.y);
     if(d<bd){ bd=d; b=e; }
   }
@@ -6859,7 +6940,8 @@ function updateProjectiles(){
       if(p.fireProjectile) applyPlayerStatus("burn",120,{tick:1,damage:battleHardMode?5:4});
       p.life=0;
       const projectileDamage=(p.fireProjectile?12:10)*(p.krosBullet?activeBossKrosDamageScale():1);
-      if(damageCurrentRoleHp(projectileDamage, p.krosBullet?"DRAGON":p.fireProjectile?(language==="en"?"FIRE":"火焰"):"SHOT", p.fireProjectile?"#ff785f":"#ff5555",enemies.find(e=>e.uid===p.ownerUid)||null)) return;
+      const projectileLabel=p.ghostProjectile?(language==="en"?"SPIRIT HIT":"灵异直伤"):p.krosBullet?"DRAGON":p.fireProjectile?(language==="en"?"FIRE":"火焰"):"SHOT";
+      if(damageCurrentRoleHp(projectileDamage,projectileLabel,p.ghostProjectile?"#bda7ff":p.fireProjectile?"#ff785f":"#ff5555",enemies.find(e=>e.uid===p.ownerUid)||null,!!p.ghostProjectile)) return;
       doShake(5);
       flash=Math.max(flash,3);
     }
@@ -7430,7 +7512,17 @@ function clearKaneBasicStacks(){for(const e of enemies)if(e)e.kaneBasicHits=0;ka
 
 function hitEnemy(e,dmg,knock=8,stunDmg=16,color="#fff",label=null,sourceKind="basic",sourceRole=player.role){
   if(!e||!e.alive)return false;
-  if(enemyImmunityActive(e,"physicalImmune")&&isPhysicalRole(sourceRole)){
+  if(e.higiriKind==="yaokai"){
+    if(e.higiriState==="absent"){
+      addText(e.x,e.y-38,language==="en"?"NO TARGET":"目标消失","#8d78a8");
+      return false;
+    }
+    if(e.higiriState==="phased"&&roles[sourceRole]?.element==="physical"){
+      addText(e.x,e.y-38,language==="en"?"PHYSICAL IMMUNE":"物理免疫","#d98b9d",true);
+      return false;
+    }
+  }
+  if(enemyImmunityActive(e,"physicalImmune")&&(isPhysicalRole(sourceRole)||sourceKind==="adamPhysical")){
     addText(e.x,e.y-e.r-42,language==="en"?"PHYSICAL IMMUNE":"物理免疫","#ffe0a8",true);return false;
   }
   if(enemyImmunityActive(e,"skillImmune")&&["skill","ultimate","chain"].includes(sourceKind)){
@@ -7513,6 +7605,15 @@ function hitEnemy(e,dmg,knock=8,stunDmg=16,color="#fff",label=null,sourceKind="b
   doShake(e.boss?(heavyHit?18:11):(heavyHit?10:5));
   doHitStop(e.boss?(heavyHit?9:5):(heavyHit?7:3));
   flash=Math.max(flash,heavyHit?7:2.5);
+  if(e.higiriKind==="yaokai"&&e.hp>0&&!periodicImpact){
+    e.higiriHitCount=(e.higiriHitCount||0)+1;
+    if(e.higiriHitCount>=3&&e.higiriVanishCd<=0&&Math.random()<.20){
+      e.higiriState="absent";e.higiriStateTimer=105;e.higiriVanishCd=600;e.higiriHitCount=0;
+      e.windup=0;e.vx=0;e.vy=0;
+      addText(e.x,e.y-48,language==="en"?"VANISHED":"完全消失","#8d78a8",true);
+      return true;
+    }
+  }
   if(e.stun<=0 && e.stun>-999 && !(e.breakLock>0)){
     e.breakLock = e.boss ? 90 : 70;
     e.stun=-(e.boss ? 32 : 24);
@@ -7619,6 +7720,7 @@ function panelDamage(roleId, multiplier, kind="normal", randomBonus=0){
   const modules=roleModuleTotals(roleId);
   let setScale=1;
   if(teamDamageAmpTimer>0) setScale+=.18;
+  if(adamDamageAmpTimer>0) setScale+=.20;
   if(franklinDamageAmpTimer>0) setScale+=.25;
   if(chloeElementDamageAmpTimer>0 && roles[roleId] && roles[roleId].element!=="physical") setScale+=.05;
   if(roleId===0 && kaneSigils.some(s=>s.life>0)) setScale+=.05;
@@ -7876,6 +7978,25 @@ function emitPZCrystalWarAction(action,data={}){
   if(battleModeSource!=="crystalWar"||!window.PZCrystalWar||typeof window.PZCrystalWar.sendBattleEvent!=="function")return false;
   return window.PZCrystalWar.sendBattleEvent(action,{roleId:player.role,direction:player.facing,x:player.x,y:player.y,area,...data});
 }
+function adamAttack(){
+  const arts=adamCombat.artsTimer>0,target=lockTarget&&lockTarget.alive?lockTarget:nearestEnemy();
+  player.attackCd=28;attackInputLock=14;startAttackMotion(1,false);sfx("slash1");
+  if(!target||dist(player.x,player.y,target.x,target.y)>270)return;
+  if(!arts){adamCombat.hits++;if(adamCombat.hits>=5){adamCombat.hits=0;adamCombat.artsTimer=300;showActionPrompt(language==="en"?"ADAM · ARTS CONVERSION 5s":"阿当 · 法术转换 5秒",60);}}
+  const kind=arts?"adamArts":"adamPhysical",color=arts?"#ff936b":"#ffd08a",label=arts?(language==="en"?"ARTS":"法术"):(language==="en"?"PHYSICAL":"物理");
+  hitEnemy(target,panelDamage(8,arts?.68:.52,"normal",Math.random()*8),5,panelShieldDamage(8,arts?10:15,"normal"),color,label,kind,8);addBladeTrail(player.x,player.y-20,target.x,target.y,color,12,8,"skillTrail");
+}
+function adamSkill(){
+  player.energy-=SKILL_ENERGY_COST;player.skillCd=240;adamCombat.field={x:player.x,y:player.y,active:300,visual:480,r:180};
+  addSlash(player.x,player.y,180,"#ff785f",30,"burnStatus");showCenter(language==="en"?"BURNING FIELD · 5s":"燃烧领域 · 5秒",60);sfx("skill");
+}
+function updateAdamCombat(){
+  adamCombat.artsTimer=Math.max(0,adamCombat.artsTimer-frameScale);adamDamageAmpTimer=Math.max(0,adamDamageAmpTimer-frameScale);
+  const f=adamCombat.field;if(!f)return;f.active=Math.max(0,f.active-frameScale);f.visual=Math.max(0,f.visual-frameScale);
+  if(f.active>0)for(const e of enemies)if(e.alive&&withinDist(f.x,f.y,e.x,e.y,f.r)&&!(e.statuses&&e.statuses.burn))applyEnemyStatus(e,"burn",120,{tick:1,damage:Math.max(5,Math.floor(battleRoleAtk(8)*.11)),ownerRole:8});
+  if(f.visual<=0)adamCombat.field=null;
+}
+function drawAdamField(){const f=adamCombat.field;if(!f)return;ctx.save();ctx.globalAlpha=f.active>0?.22:.08;ctx.fillStyle="#ff6b45";ctx.beginPath();ctx.ellipse(f.x,f.y,f.r,f.r*.42,0,0,Math.PI*2);ctx.fill();ctx.strokeStyle="#ffb06f";ctx.lineWidth=3;ctx.setLineDash([12,8]);ctx.stroke();ctx.setLineDash([]);ctx.restore();}
 
 function attack(){
   if(player.attackCd>0 || attackInputLock>0 || ult.active) return;
@@ -7888,6 +8009,7 @@ function attack(){
   if(isFloraRole()){ floraAttack(); return; }
   if(player.role===1){ ailoAttack(); return; }
   if(player.role===2){ noxAttack(); return; }
+  if(player.role===8){adamAttack();return;}
   const role=roles[player.role];
   const cd = charData[player.role];
   if(player.chainTimer<=0) player.chain=0;
@@ -7928,6 +8050,7 @@ function skill(){
   if(player.role===2){ noxSkill(); return; }
   if(player.role===5){ lisaSkill(); return; }
   if(player.role===7){ ravenSkill(); return; }
+  if(player.role===8){adamSkill();return;}
   if(player.role===6){
     player.energy-=SKILL_ENERGY_COST;player.skillCd=150;
     const value=grantTeamShield(160);addSlash(player.x,player.y,240,"#5db8ff",25,"shield");addParticles(player.x,player.y,"#d9f2ff",22,6);
@@ -7978,6 +8101,7 @@ function resolveUltimate(){
     showCenter((language==="en"?"HOLD THE LINE · DMG +25% · SHIELD ":"坚守阵线 · 全队增伤25% · 护盾 ")+value+(language==="en"?" · COUNTER ×3":" · 反击×3"),90);return;
   }
   if(ult.role===7){registerCrystalSkillUse();startRavenSequence("ultTarget",60);showCenter(language==="en"?"AMINOS · THREE-PHASE EXECUTION":"阿米诺斯 · 三段处刑",80);return;}
+  if(ult.role===8){adamDamageAmpTimer=600;addSlash(player.x,player.y,260,"#ff936b",36,"ultimate");addParticles(player.x,player.y,"#ffd08a",28,8);showCenter(language==="en"?"ADAM SUPPORT · SQUAD DMG +20%":"阿当支援 · 全队增伤20%",80);return;}
   const role=roles[ult.role]; const cd=charData[ult.role];
   damageNearbyBattleCrates(player.x,player.y,330);
   if(ult.role===0){
@@ -8167,7 +8291,7 @@ function updateDefeat(){
       selectedTab="dualCrystal";if(window.PZCrystalWar&&typeof window.PZCrystalWar.returnFromBattle==="function")window.PZCrystalWar.returnFromBattle();
     }
     else if(battleModeSource==="daydream"){
-      if(window.PZDaydream&&typeof window.PZDaydream.completeBattle==="function") window.PZDaydream.completeBattle(false);
+      if(window.PZDaydream&&typeof window.PZDaydream.completeBattle==="function") window.PZDaydream.completeBattle(false,daydreamBattleSummary());
       selectedTab="daydream";
       battleModeSource="main";
       daydreamBattleConfig=null;
@@ -8255,7 +8379,7 @@ function fixEventData(){
 function fixRuntimeValues(){
   if(!Number.isFinite(playerLevel) || playerLevel < 1) playerLevel = 1;
   if(!Number.isFinite(playerExp) || playerExp < 0) playerExp = 0;
-  if(!Number.isFinite(playerExpNeed) || playerExpNeed < 1) playerExpNeed = 1600;
+  if(!Number.isFinite(playerExpNeed) || playerExpNeed < 1) playerExpNeed = 534;
   if(!Number.isFinite(protagonistStoryLevel) || protagonistStoryLevel < 1) protagonistStoryLevel = 1;
   syncProtagonistStoryLevelFromProgress();
   if(!Number.isFinite(crystals) || crystals < 0) crystals = 0;
@@ -11194,6 +11318,66 @@ function enemyCanBeginMelee(e){
   return committed<simultaneousLimit;
 }
 
+function updateHigiriEnemyState(e){
+  if(battleModeSource!=="daydream"||!e)return false;
+  if(e.higiriBossId){
+    e.bossPatternCd=Math.max(0,(e.bossPatternCd||150)-frameScale);
+    if(e.bossPatternCd<=0){
+      const dx=player.x-e.x,dy=player.y-e.y,d=Math.hypot(dx,dy)||1,id=e.higiriBossId;
+      if(id==="hundred_eye"){
+        const base=Math.atan2(dy,dx);for(let i=-2;i<=2;i++){const a=base+i*.16;projectiles.push({x:e.x,y:e.y-10,vx:Math.cos(a)*4.2,vy:Math.sin(a)*4.2,life:120,ownerUid:e.uid});}
+        addText(e.x,e.y-72,language==="en"?"FIVE-EYE LOCK":"五目锁定","#d98b9d",true);e.bossPatternCd=240;
+      }else if(id==="silent_bell"){
+        addSlash(e.x,e.y,270,"#d6a52b",38,"bellWave");if(d<270)damageCurrentRoleHp(10+(e.phase||1)*3,language==="en"?"BELL ECHO":"铃音回响","#d6a52b",e,false);
+        addText(e.x,e.y-72,language==="en"?"SILENT ECHO":"无声回响","#d6a52b",true);e.bossPatternCd=300;
+      }else if(id==="mirror_shade"){
+        e.x=clamp(player.x+(Math.random()<.5?-1:1)*(210+Math.random()*90),170,W-100);e.y=clamp(player.y+(Math.random()-.5)*150,H*.46,H-70);
+        if(enemies.filter(v=>v.alive&&v.higiriKind==="ghosto").length<5)for(let i=0;i<2;i++)enemies.push(createEnemy(clamp(e.x+(i?95:-95),170,W-90),clamp(e.y+45,H*.46,H-60),false,"ghosto"));
+        addSlash(e.x,e.y,150,"#8d78a8",28,"mirrorShift");addText(e.x,e.y-72,language==="en"?"MIRROR SHIFT":"镜返换位","#bda7ff",true);e.bossPatternCd=330;
+      }else if(id==="torii_maw"){
+        e.vx+=dx/d*12;e.vy+=dy/d*8;e.windup=0;addBladeTrail(e.x,e.y,player.x,player.y,"#b13a2f",18,10,"toriiCharge");addText(e.x,e.y-72,language==="en"?"RIFT CHARGE":"裂门突进","#ff786f",true);e.bossPatternCd=270;
+      }else{
+        e.shield=Math.min(e.maxShield,Math.max(e.shield||0,Math.round(e.maxShield*.28)));
+        if(enemies.filter(v=>v.alive&&(v.higiriKind==="yaokai"||v.higiriKind==="ghosto")).length<6){enemies.push(createEnemy(clamp(e.x-130,170,W-90),clamp(e.y+55,H*.46,H-60),false,"yaokai"));enemies.push(createEnemy(clamp(e.x+130,170,W-90),clamp(e.y+35,H*.46,H-60),false,"ghosto"));}
+        addSlash(e.x,e.y,320,"#315a78",42,"moonlessField");addText(e.x,e.y-72,language==="en"?"MOONLESS PROCESSION":"无月百鬼","#8fb9d8",true);e.bossPatternCd=360;
+      }
+    }
+    return false;
+  }
+  if(!e.higiriKind)return false;
+  if(Math.abs(e.vx||0)>.018)e.modelFacing=e.vx<0?-1:1;
+  else if(!e.modelFacing)e.modelFacing=player.x<e.x?-1:1;
+  if(e.higiriVanishCd>0)e.higiriVanishCd=Math.max(0,e.higiriVanishCd-frameScale);
+  if(e.higiriKind==="yaokai"){
+    if(e.higiriState==="phased"){
+      e.higiriStateTimer=Math.max(0,e.higiriStateTimer-frameScale);
+      if(e.higiriStateTimer<=0)e.higiriState="normal";
+    }else if(e.higiriState==="absent"){
+      e.higiriStateTimer=Math.max(0,e.higiriStateTimer-frameScale);
+      e.windup=0;e.vx=0;e.vy=0;
+      if(e.higiriStateTimer<=0){
+        e.x=clamp(250+Math.random()*(W-500),250,W-110);
+        e.y=clamp(H*.45+Math.random()*210,H*.45,H-70);
+        e.higiriState="reappear";e.higiriStateTimer=45;
+        addText(e.x,e.y-55,language==="en"?"REAPPEAR":"重新显现","#d98b9d",true);
+      }
+      return true;
+    }else if(e.higiriState==="reappear"){
+      e.higiriStateTimer=Math.max(0,e.higiriStateTimer-frameScale);
+      if(e.higiriStateTimer<=0)e.higiriState="normal";
+    }
+  }else if(e.higiriKind==="ghosto"&&!e.higiriIllusionUsed){
+    e.higiriIllusionAt-=frameScale;
+    if(e.higiriIllusionAt<=0&&!daydreamIllusionUsed){
+      const kinds=["flicker","decoys","blackout"];
+      daydreamIllusion={type:kinds[Math.floor(Math.random()*kinds.length)],timer:120,max:120};
+      daydreamIllusionUsed=true;e.higiriIllusionUsed=true;
+      showActionPrompt(language==="en"?"GHOSTO ILLUSION · KEEP MOVING":"鬼之幻象 · 保持移动",70);
+    }
+  }
+  return false;
+}
+
 function updateBattle(){
   if(battlePaused){
     updateBattlePauseMenu();
@@ -11228,6 +11412,10 @@ function updateBattle(){
   updateFrostFields();
   updateBossHazards();
   updateBossKrosBattleLogic();
+  if(daydreamIllusion){
+    daydreamIllusion.timer=Math.max(0,daydreamIllusion.timer-frameScale);
+    if(daydreamIllusion.timer<=0)daydreamIllusion=null;
+  }
   if(chainSelect){
     // Real-time countdown while the complete battlefield stays frozen.
     chainSelectTimer=Math.max(0,(chainSelectDeadline-performance.now())/1000);
@@ -11279,11 +11467,12 @@ function updateBattle(){
   if(dx||dy){ const l=Math.hypot(dx,dy),operationSpeed=(battleModeSource==="commission"&&operationHasContract("player","move_down")) ? .82 : 1; dx/=l; dy/=l; player.vx+=dx*role.speed*MOVE_SPEED_MULT*.35*operationSpeed*frameScale; player.vy+=dy*role.speed*MOVE_SPEED_MULT*.35*operationSpeed*frameScale; if(Math.abs(dx)>.1)player.facing=dx>0?1:-1; }
   if(lockTarget&&lockTarget.alive) player.facing=lockTarget.x>player.x?1:-1; else if(lockTarget&&!lockTarget.alive) lockTarget=null;
   const slow=slowMo>0?.45:1; player.x+=player.vx*slow*frameScale; player.y+=player.vy*slow*frameScale; player.vx*=Math.pow(.82,frameScale); player.vy*=Math.pow(.82,frameScale); constrainBattleEntityToGround(player,22,false);
-  tickBattleRoleCooldowns(); player.attackMotion=Math.max(0,(player.attackMotion||0)-frameScale); attackInputLock=Math.max(0,attackInputLock-frameScale); attackBuffer=Math.max(0,attackBuffer-frameScale); skillBuffer=Math.max(0,skillBuffer-frameScale); ultBuffer=Math.max(0,ultBuffer-frameScale); dashBuffer=Math.max(0,dashBuffer-frameScale); player.dashCd=Math.max(0,player.dashCd-frameScale); player.switchCd=Math.max(0,player.switchCd-frameScale); player.inv=Math.max(0,player.inv-frameScale); player.chainTimer=Math.max(0,player.chainTimer-frameScale); player.guardTimer=Math.max(0,player.guardTimer-frameScale); player.parryReady=Math.max(0,player.parryReady-frameScale); player.perfectBuff=Math.max(0,player.perfectBuff-frameScale); teamDamageAmpTimer=Math.max(0,teamDamageAmpTimer-frameScale); franklinDamageAmpTimer=Math.max(0,franklinDamageAmpTimer-frameScale); chloeElementDamageAmpTimer=Math.max(0,chloeElementDamageAmpTimer-frameScale); chloeTrueDamageTimer=Math.max(0,chloeTrueDamageTimer-frameScale); noxDamageAmpTimer=Math.max(0,noxDamageAmpTimer-frameScale); if(player.parryReady<=0)player.parryTarget=null;
+  tickBattleRoleCooldowns(); player.attackMotion=Math.max(0,(player.attackMotion||0)-frameScale); attackInputLock=Math.max(0,attackInputLock-frameScale); attackBuffer=Math.max(0,attackBuffer-frameScale); skillBuffer=Math.max(0,skillBuffer-frameScale); ultBuffer=Math.max(0,ultBuffer-frameScale); dashBuffer=Math.max(0,dashBuffer-frameScale); player.dashCd=Math.max(0,player.dashCd-frameScale); player.switchCd=Math.max(0,player.switchCd-frameScale); player.inv=Math.max(0,player.inv-frameScale); player.chainTimer=Math.max(0,player.chainTimer-frameScale); player.guardTimer=Math.max(0,player.guardTimer-frameScale); player.parryReady=Math.max(0,player.parryReady-frameScale); player.perfectBuff=Math.max(0,player.perfectBuff-frameScale); teamDamageAmpTimer=Math.max(0,teamDamageAmpTimer-frameScale); franklinDamageAmpTimer=Math.max(0,franklinDamageAmpTimer-frameScale); chloeElementDamageAmpTimer=Math.max(0,chloeElementDamageAmpTimer-frameScale); chloeTrueDamageTimer=Math.max(0,chloeTrueDamageTimer-frameScale); noxDamageAmpTimer=Math.max(0,noxDamageAmpTimer-frameScale); updateAdamCombat(); if(player.parryReady<=0)player.parryTarget=null;
   if(battleModeSource==="crystalWar"&&window.PZCrystalWar&&typeof window.PZCrystalWar.syncBattlePresence==="function")window.PZCrystalWar.syncBattlePresence({roleId:player.role,roleLevel:Math.max(1,roleDisplayLevel(player.role)||1),maxHp:Math.max(1,playerMaxHp()),defense:Math.max(0,operatorStatDef(player.role)||0),damageReduction:clamp(roleModuleTotals(player.role).damageReductionPct||0,0,.5),x:player.x,y:player.y,hp:player.hp,area,route:battleRoute||"center",moveX:dx,moveY:dy,direction:player.facing});
   const crystalWarNetworkGuest=isPZCrystalWarNetworkGuest();
   for(const e of enemies){
     if(!e.alive)continue; e.parried=Math.max(0,e.parried-frameScale); e.breakLock=Math.max(0,(e.breakLock||0)-frameScale); e.freeze=Math.max(0,(e.freeze||0)-frameScale); e.chill=Math.max(0,(e.chill||0)-frameScale); e.physicalPain=Math.max(0,(e.physicalPain||0)-frameScale); e.weathering=Math.max(0,(e.weathering||0)-frameScale);
+    if(updateHigiriEnemyState(e))continue;
     if(crystalWarNetworkGuest&&updatePZCrystalWarGuestEnemy(e,slow))continue;
     if(e.trainingDummy){
       e.hp=e.maxHp;e.shield=0;e.windup=0;e.attackCd=999999;e.rage=false;
@@ -11360,8 +11549,8 @@ function updateBattle(){
           e.attackCd-=slow;
           if(e.attackCd<=0&&e.windup<=0&&l<118&&enemyCanBeginMelee(e)){e.windup=battleHardMode?24:31;e.attackCd=battleHardMode?62:82;}
         }
-      } else if((["ranged","sniper","disruptor","bomber"].includes(e.type))){
-        const ideal=e.type==="sniper"?330:e.type==="bomber"?285:e.type==="disruptor"?260:235;
+      } else if((["ranged","sniper","disruptor","bomber","ghosto"].includes(e.type))){
+        const ideal=e.type==="sniper"?330:e.type==="bomber"?285:e.type==="disruptor"?260:e.type==="ghosto"?270:235;
         activeMovement=true;
         e.shotCd -= slow;
         const direction=l<ideal-55?-1:l>ideal+45?1:0;
@@ -11372,10 +11561,10 @@ function updateBattle(){
         e.vy += (dx/l)*.014*reposition*(e.strafeSeed||1)*slow*frameScale;
         if(e.shotCd<=0){
           const speed=e.type==="sniper"?5.2:e.type==="bomber"?3.25:4.0;
-          projectiles.push({x:e.x,y:e.y,vx:dx/l*speed,vy:dy/l*speed,life:e.type==="sniper"?115:100,disruptor:e.type==="disruptor",heavy:e.type==="bomber",ownerUid:e.uid});
+          projectiles.push({x:e.x,y:e.y,vx:dx/l*speed,vy:dy/l*speed,life:e.type==="sniper"?115:100,disruptor:e.type==="disruptor",heavy:e.type==="bomber",ghostProjectile:e.type==="ghosto",ownerUid:e.uid});
           e.repositionTimer=battleHardMode?55:40;
           e.shotCd=e.type==="sniper"?145:e.type==="bomber"?170:e.type==="disruptor"?132:105;
-          addText(e.x,e.y-35,e.type==="sniper"?"AIMED SHOT":e.type==="bomber"?"BOMB":e.type==="disruptor"?"DISRUPT":"SHOT",e.type==="sniper"?"#ffcc77":e.type==="disruptor"?"#6fdcff":"#ff8888");
+          addText(e.x,e.y-35,e.type==="sniper"?"AIMED SHOT":e.type==="bomber"?"BOMB":e.type==="disruptor"?"DISRUPT":e.type==="ghosto"?(language==="en"?"SPIRIT SHOT":"灵异射击"):"SHOT",e.type==="sniper"?"#ffcc77":e.type==="ghosto"?"#bda7ff":e.type==="disruptor"?"#6fdcff":"#ff8888");
         }
       } else {
         activeMovement=true;
@@ -11426,7 +11615,7 @@ function updateBattle(){
     }
     else {
       if(battleModeSource==="daydream"){
-        if(window.PZDaydream&&typeof window.PZDaydream.completeBattle==="function") window.PZDaydream.completeBattle(true);
+        if(window.PZDaydream&&typeof window.PZDaydream.completeBattle==="function") window.PZDaydream.completeBattle(true,daydreamBattleSummary());
         selectedTab="daydream";
         battleModeSource="main";
         daydreamBattleConfig=null;
@@ -12179,7 +12368,7 @@ function updateAchievements(){
       y += 52;
     }
   }
-  if(justPressed("escape")) enterLobby();
+  if(justPressed("escape")){if(mailDetailId)mailDetailId="";else enterLobby();}
   clicked=false;
 }
 
@@ -12639,6 +12828,22 @@ function drawSettingsAccountRequest(){
 function updateMail(){
   menuPulse++;
   if(clicked){
+    if(mailDetailId){
+      if(inRect(72,500,190,48)||inRect(1002,140,42,42)){mailDetailId="";clicked=false;return;}
+      if(inRect(760,500,210,48)){
+        if(mailDetailId==="launch"){
+          launchMailRead=true;
+          if(!mailClaimed){sfx("reward");const n=grantFreeCrystals(300);gold+=1000;expBooks+=5;mailClaimed=true;mailMsg=(language==="en"?"Claimed: Crystal ":"领取成功：水晶 ")+n+(language==="en"?" / Gold 1000 / EXP Books 5":" / 金币1000 / 经验书5");}
+          else mailMsg=msg("mailAlready");
+        }else{
+          adamGiftMail.read=true;
+          if(!adamGiftMail.claimed){while(owned.length<roles.length)owned.push(false);owned[8]=true;adamGiftMail.claimed=true;mailMsg=language==="en"?"Adam joined your roster.":"领取成功：C级角色「阿当」已加入队伍。";sfx("reward");}
+          else mailMsg=language==="en"?"This attachment has already been claimed.":"该附件已领取。";
+        }
+        saveGame();autoCloudSaveNow(true);clicked=false;return;
+      }
+      clicked=false;return;
+    }
     if(inRect(60,560,220,52)){ enterLobby(); clicked=false; return; }
     if(inRect(310,560,250,52)){
       if(mailClaimed && !mailDeleted){
@@ -12650,19 +12855,14 @@ function updateMail(){
       }
       clicked=false; return;
     }
-    if(!mailDeleted && inRect(120,210,760,110)){
-      if(!mailClaimed){
-        sfx("reward"); const mailCrystalReward=grantFreeCrystals(300);
-        gold += 1000;
-        expBooks += 5;
-        sfx("buy"); mailClaimed = true; saveGame(); autoCloudSaveNow(true);
-        mailMsg = (language==="en"?"Claimed: Crystal ":"领取成功：水晶 ")+mailCrystalReward+(language==="en"?" / Gold 1000 / EXP Books 5":" / 金币1000 / 经验书5");
-      } else {
-        mailMsg = msg("mailAlready");
-      }
+    if(!mailDeleted && inRect(120,170,760,100)){
+      launchMailRead=true;mailDetailId="launch";saveGame();
+    }
+    if(!adamGiftMail.deleted&&inRect(120,290,760,120)){
+      adamGiftMail.read=true;mailDetailId="adam";saveGame();
     }
   }
-  if(justPressed("escape")) enterLobby();
+  if(justPressed("escape")){if(mailDetailId)mailDetailId="";else enterLobby();}
   clicked=false;
 }
 
@@ -12778,33 +12978,48 @@ function drawMail(){
   ctx.fillText(ui("mail"),58,78);
 
   if(!mailDeleted){
-    const hover=inRect(120,210,760,110);
+    const hover=inRect(120,170,760,100);
     ctx.fillStyle=hover?"rgba(255,224,102,.14)":"rgba(255,255,255,.075)";
-    ctx.fillRect(120,210,760,110);
+    ctx.fillRect(120,170,760,100);
     ctx.strokeStyle=hover?"rgba(255,224,102,.75)":"rgba(255,255,255,.14)";
-    ctx.strokeRect(120,210,760,110);
+    ctx.strokeRect(120,170,760,100);
     ctx.fillStyle=mailClaimed?"#888":"#ffe066";
     ctx.font="bold 22px " + FONT_UI;
-    ctx.fillText(tx("launchSupply"),150,250);
+    ctx.fillText(tx("launchSupply"),150,208);
     ctx.fillStyle="rgba(255,255,255,.70)";
     ctx.font="15px " + FONT_UI;
-    ctx.fillText(tx("mailRewardLine"),150,282);
+    ctx.fillText(tx("mailRewardLine"),150,240);
     ctx.textAlign="right";
     ctx.fillStyle=mailClaimed?"#888":"#ffffff";
-    ctx.fillText(mailClaimed?ui("claimed"):ui("claim"),850,270);
-  }else{
-    ctx.fillStyle="rgba(255,255,255,.38)";
-    ctx.font="18px " + FONT_UI;
-    ctx.textAlign="center";
-    ctx.fillText(language==="en"?"No mail":"暂无邮件",W/2,270);
+    ctx.fillText(mailClaimed?ui("claimed"):ui("claim"),850,225);
   }
+  if(!adamGiftMail.deleted){const hover=inRect(120,290,760,120);ctx.fillStyle=hover?"rgba(255,147,107,.16)":"rgba(255,255,255,.075)";ctx.fillRect(120,290,760,120);ctx.strokeStyle=hover?"#ff936b":"rgba(255,255,255,.14)";ctx.strokeRect(120,290,760,120);ctx.textAlign="left";ctx.fillStyle=adamGiftMail.claimed?"#888":"#ffb08d";ctx.font="bold 21px "+FONT_UI;ctx.fillText(language==="en"?"A Gift for a New Journey":"新旅程的礼物",150,325);ctx.fillStyle="rgba(255,255,255,.68)";ctx.font="13px "+FONT_UI;ctx.fillText(language==="en"?"From Project Zero Operations · C-rank Adam ×1":"Project Zero运营团队 · 附件：C级角色「阿当」×1",150,352);ctx.fillStyle="rgba(255,255,255,.48)";ctx.font="11px "+FONT_UI;ctx.fillText(language==="en"?"Thank you for supporting Project Zero. We hope Adam helps on your journey.":"感谢各位隐者的支持，希望阿当能在未来的冒险中提供帮助。",150,380);ctx.textAlign="right";ctx.fillStyle=adamGiftMail.claimed?"#888":"#fff";ctx.fillText(adamGiftMail.claimed?ui("claimed"):ui("claim"),850,352);}
 
   ctx.textAlign="left";
   ctx.fillStyle="rgba(255,255,255,.75)";
   ctx.font="16px " + FONT_UI;
-  ctx.fillText(tx("tipPrefix")+mailMsg,120,370);
+  ctx.fillText(tx("tipPrefix")+mailMsg,120,465);
   drawBtn(ui("backLobby"),"CLICK",60,560,220,52);
   drawBtn(language==="en"?"Delete Read Mail":"删除已读邮件","",310,560,250,52,mailClaimed&&!mailDeleted,mailClaimed&&!mailDeleted?"#ff9999":"#666");
+  if(mailDetailId)drawMailDetail();
+}
+
+function drawMailDetail(){
+  const adam=mailDetailId==="adam",claimed=adam?adamGiftMail.claimed:mailClaimed;
+  ctx.fillStyle="rgba(3,5,13,.97)";ctx.fillRect(54,126,1012,444);
+  ctx.strokeStyle=adam?"#ff936b":"#ffe066";ctx.lineWidth=2;ctx.strokeRect(54,126,1012,444);
+  ctx.textAlign="left";ctx.fillStyle=adam?"#ffb08d":"#ffe066";ctx.font="bold 26px "+FONT_UI;
+  ctx.fillText(adam?(language==="en"?"A Gift for a New Journey":"新旅程的礼物"):tx("launchSupply"),84,174);
+  ctx.fillStyle="rgba(255,255,255,.48)";ctx.font="12px "+FONT_UI;ctx.fillText(language==="en"?"Sender: Project Zero Operations":"发件人：Project Zero运营团队",84,204);
+  ctx.fillStyle="rgba(255,255,255,.82)";ctx.font="15px "+FONT_UI;
+  const lines=adam?(language==="en"?["Dear Hermit, welcome to Project Zero!","Thank you for your support. C-rank operator Adam has joined the game.","We hope he will help you in the adventures ahead."]:["亲爱的隐者：欢迎来到《Project Zero》！","为了感谢各位隐者的支持，C级角色「阿当」现已正式加入游戏。","希望他能够在未来的冒险中为你提供帮助。"]):(language==="en"?["Thank you for joining Project Zero.","Please accept these launch supplies for the journey ahead."]:["感谢您加入《Project Zero》。","请收下本次开服补给，祝您旅途顺利。"]);
+  lines.forEach((v,i)=>ctx.fillText(v,84,250+i*34));
+  ctx.fillStyle="rgba(124,199,255,.10)";ctx.fillRect(84,368,884,78);ctx.strokeStyle="rgba(124,199,255,.32)";ctx.strokeRect(84,368,884,78);
+  ctx.fillStyle="#7cc7ff";ctx.font="bold 12px "+FONT_UI;ctx.fillText(language==="en"?"ATTACHMENT":"附件奖励",104,395);
+  ctx.fillStyle="#fff";ctx.font="bold 16px "+FONT_UI;ctx.fillText(adam?(language==="en"?"C-rank Operator Adam ×1":"C级角色「阿当」×1"):(language==="en"?"Crystal ×300 · Gold ×1000 · EXP Books ×5":"水晶 ×300 · 金币 ×1000 · 经验书 ×5"),104,426);
+  drawBtn(language==="en"?"Back to Mail":"返回邮件列表","ESC",72,500,190,48,true,"#9aa7bd");
+  drawBtn(claimed?ui("claimed"):ui("claim"),"",760,500,210,48,!claimed,claimed?"#666":"#ffe066");
+  drawBtn("×","",1002,140,42,42,true,"#ff9999");
 }
 
 
@@ -15504,7 +15719,9 @@ function drawLobby(){
   ctx.fillStyle="#7cc7ff";ctx.beginPath();ctx.arc(52,432,16,0,Math.PI*2);ctx.fill();
   ctx.fillStyle="#071018";ctx.textAlign="center";ctx.font="bold 14px "+FONT_UI;ctx.fillText((playerName||"P").slice(0,1).toUpperCase(),52,437);
   ctx.textAlign="left";ctx.fillStyle="#fff";ctx.font="bold 14px "+FONT_UI;ctx.fillText(playerName||"PLAYER",76,426);
-  ctx.fillStyle="rgba(255,255,255,.68)";ctx.font="10px "+FONT_UI;ctx.fillText("Lv."+playerLevel+" · UID "+(playerUID||"--------"),76,444);
+  const authorityRatio=clamp(playerExp/Math.max(1,playerExpNeed),0,1);
+  ctx.fillStyle="rgba(255,255,255,.68)";ctx.font="9px "+FONT_UI;ctx.fillText((language==="en"?"AUTH Lv.":"权限 Lv.")+playerLevel+"  "+playerExp+"/"+playerExpNeed,76,442);
+  ctx.fillStyle="rgba(255,255,255,.12)";ctx.fillRect(76,448,104,5);ctx.fillStyle="#ffe066";ctx.fillRect(76,448,104*authorityRatio,5);
   drawNewDiamond(186,413,contentDot("profile"));
   drawLobbyRailButton(194,405,84,54,language==="en"?"Archive":"档案",language==="en"?"OPEN":"可进入","#88d8ff");
 
@@ -16926,7 +17143,7 @@ function spawnDaydreamBattleArea(){
   const final=area>=battleAreaLimit();
   const pressure=clamp(Math.floor((cfg.difficulty||40)/18),1,5);
   if(cfg.boss&&final){
-    enemies.push(createEnemy(735,H/2+90,true,"boss"));
+    const boss=createEnemy(735,H/2+90,true,"boss");boss.higiriBossId=cfg.bossId||["hundred_eye","silent_bell","mirror_shade","torii_maw","moonless"][Math.abs(Math.floor(cfg.difficulty||0))%5];boss.bossPatternCd=150;boss.modelFacing=-1;enemies.push(boss);
     enemies.push(createEnemy(510,H/2+140,false,"shield"));
     if(pressure>=4) enemies.push(createEnemy(900,H/2+65,false,"ranged"));
   }else if(area===1){
@@ -16939,6 +17156,17 @@ function spawnDaydreamBattleArea(){
     if(pressure>=3) enemies.push(createEnemy(790,H/2+185,false,"fireCrystal"));
     if(pressure>=5) enemies.push(createEnemy(570,H/2+45,false,"support"));
   }
+  const anomalyCount=Math.min(10,3+pressure+area+(cfg.boss?0:1));
+  let yaokaiCount=0,ghostoCount=0;
+  for(let i=0;i<anomalyCount;i++){
+    const type=i<2?"yaokai":i<4?"ghosto":(Math.random()<.58?"yaokai":"ghosto");
+    const col=i%5,row=Math.floor(i/5);
+    const x=275+col*158+Math.random()*62;
+    const y=H*.46+48+row*132+Math.random()*72;
+    const foe=createEnemy(clamp(x,220,W-95),clamp(y,H*.46,H-62),false,type);
+    enemies.push(foe);
+    if(type==="yaokai")yaokaiCount++;else ghostoCount++;
+  }
   for(const e of enemies){
     const pollutionScale=1+clamp((cfg.pollution||0)/250,0,.4);
     const projectScale=1+Math.max(0,Number(cfg.boss&&e.boss?cfg.bossScale:cfg.enemyScale)||0);
@@ -16948,7 +17176,11 @@ function spawnDaydreamBattleArea(){
   }
   const areaText=language==="en"?(final?"FINAL RECONSTRUCTION":"RECONSTRUCTION "+String(area).padStart(2,"0")):(final?"最终重现":"重现区域 "+String(area).padStart(2,"0"));
   showCenter(areaText+" / "+(cfg.name||"DAYDREAM"),70);
-  showActionPrompt(language==="en"?"Defeat the reconstructed enemies to stabilize this node.":"击败重现中的敌人，使当前节点恢复稳定。",140);
+  const encounterText=language==="en"
+    ?"Anomaly record: "+yaokaiCount+" Yaokai phase between matter and echo; "+ghostoCount+" Ghosto signatures are forming ranged illusions."
+    :"异常记录：妖怪 "+yaokaiCount+" 只在实体与回声间虚化；鬼 "+ghostoCount+" 只正在构筑远程幻象。";
+  showActionPrompt(encounterText,170);
+  if(cfg.boss&&final){const names={hundred_eye:["百目面","Hundred-Eye Mask"],silent_bell:["无声铃守","Silent Bell Warden"],mirror_shade:["镜返之影","Mirror-Returning Shade"],torii_maw:["蚀门残像","Torii-Eater Remnant"],moonless:["无月御前","Moonless Presence"]},n=names[cfg.bossId]||names.hundred_eye;showCenter((language==="en"?n[1]:n[0])+" · BOSS",110);}
 }
 
 function stageExploreKey(kind,index=0){
@@ -18648,16 +18880,17 @@ function drawPortrait(x,y,w,h,r,lock=false){
 let operatorPageMode = "list";
 
 function executorRank(i){
+  if(i===8) return "C";
   return (i===PROTAGONIST_ROLE || i===2 || i===3 || i===5 || i===6 || i===7) ? "S" : "A";
 }
 function executorElement(i){
   if(i===PROTAGONIST_ROLE) return language==="en" ? "Gray" : "灰白";
-  const zh=["物理","风","暗","冰","","风","物理","晶"];
-  const en=["Physical","Wind","Dark","Ice","","Wind","Physical","Crystal"];
+  const zh=["物理","风","暗","冰","","风","物理","晶","火"];
+  const en=["Physical","Wind","Dark","Ice","","Wind","Physical","Crystal","Fire"];
   return (language==="en"?en:zh)[i] || "";
 }
 function executorOrder(){
-  const order=[PROTAGONIST_ROLE,0,1,2,3,5,6,7];
+  const order=[PROTAGONIST_ROLE,0,1,2,3,5,6,7,8];
   return order.filter(i=>roles[i]);
 }
 function executorListIndexToRole(listIdx){
@@ -18803,19 +19036,19 @@ function operatorStatAtk(i){
   const cd=charData[i] || {level:1, weaponLevel:1};
   const lv=roleDisplayLevel(i);
   const base=100 + lv*(isProtagonist(i)?7:8) + roleWeaponLevelDisplay(i)*5,m=roleModuleTotals(i);
-  const identityScale=i===2?1.20:i===1?.88:i===5?.90:i===6?.92:1;
+  const identityScale=i===8?.72:i===2?1.20:i===1?.88:i===5?.90:i===6?.92:1;
   return Math.floor((base+(m.atk||0))*(1+(m.atkPct||0))*identityScale);
 }
 function operatorStatHp(i){
   const lv=roleDisplayLevel(i);
   const base=(isProtagonist(i)?1450:1200) + lv*(isProtagonist(i)?78:65),m=roleModuleTotals(i);
-  const identityScale=i===1?.84:i===2?.98:i===5?.90:i===6?1.42:1;
+  const identityScale=i===8?.90:i===1?.84:i===2?.98:i===5?.90:i===6?1.42:1;
   return Math.floor((base+(m.hp||0))*(1+(m.hpPct||0))*identityScale);
 }
 function operatorStatDef(i){
   const lv=roleDisplayLevel(i);
   const base=(isProtagonist(i)?120:90) + lv*(isProtagonist(i)?7:5),m=roleModuleTotals(i);
-  const identityScale=i===2?.62:i===1?.86:i===6?1.38:1;
+  const identityScale=i===8?.82:i===2?.62:i===1?.86:i===6?1.38:1;
   return Math.floor((base+(m.def||0))*(1+(m.defPct||0))*identityScale);
 }
 
@@ -19121,6 +19354,11 @@ function skillMechanicText(i,key,lv){
     if(key==="skill") return language==="en" ? "Possesses a high-HP enemy for 2s of automatic rapid slashes, then instantly returns to the cast position." : "锁定高血量敌人附身高速连斩2秒；期间不可操作，结束后瞬间返回释放位置。";
     return language==="en" ? "1.2s target rush, 2s pulling blade storm, then 10s Thrust State. Recommended: Raven + Kane + Abeqi + Chloe." : "锁定连斩1.2秒，归位后聚怪挥砍2秒，再进入10秒突刺状态。推荐配队：拉文 + 凯恩 + 阿贝其 + 克洛伊。";
   }
+  if(i===8){
+    if(key==="normal") return language==="en" ? "After 5 physical attacks, attacks become Arts damage for 5s." : "累计5次物理攻击后，普攻转为法术伤害5秒。";
+    if(key==="skill") return language==="en" ? "Creates a 5s burning field. Burn lasts 2s and cannot refresh before ending." : "生成5秒燃烧领域；燃烧持续2秒，结束前不可刷新。";
+    return language==="en" ? "Increases Adam's damage by 20% for 10s." : "阿当自身伤害提高20%，持续10秒。";
+  }
   if(isProtagonist(i)){
     if(key==="normal") return language==="en" ? "Three-hit slash with fading monochrome trails." : "三段斩击，附带向外消散的黑白线条。";
     if(key==="skill") return language==="en" ? "Ranged bind: immobilizes for 3s and deals 50 damage each second." : "远程缚锁：定身3秒，每秒造成50点伤害。";
@@ -19306,6 +19544,7 @@ function roleWeaponType(i){
   if(i===5) return "codex";
   if(i===6) return "shield";
   if(i===7) return "katana";
+  if(i===8) return "codex";
   return "sword";
 }
 function weaponTypeLabel(type){
@@ -19325,6 +19564,7 @@ function defaultWeaponIdForRole(i){
   if(i===3 || i===5) return "training_codex";
   if(i===6) return "training_shield";
   if(i===7) return "training_katana";
+  if(i===8) return "training_codex";
   return "training_sword";
 }
 function ensureWeaponBag(){
@@ -19531,7 +19771,12 @@ function drawOperatorWeaponTab(i,x=780,y=112,w=302,h=506){
 function drawOperatorProfileTab(i,x=780,y=112,w=302,h=506){
   const bx=x+22,by=y+76,r=roles[i]||{};
   drawInsetLabel(language==="en"?"OPERATOR FILE":"执行官档案",bx,by,258,36,"#7cc7ff","rgba(124,199,255,.08)","rgba(124,199,255,.22)",14,true,"center");
-  const rows=i===6?[
+  const rows=i===8?[
+    [language==="en"?"Rarity":"稀有度",language==="en"?"C Rank":"C级"],
+    [language==="en"?"Class":"职业",language==="en"?"Support / Arts Sub-DPS":"辅助 / 法术副C"],
+    [language==="en"?"Weapon Type":"武器类型",weaponTypeLabel(roleWeaponType(i))],
+    [language==="en"?"Trust":"信任度",(Number(charData[i]?.trust)||0).toFixed(1)+"%"]
+  ]:i===6?[
     [language==="en"?"Full Name":"全名",language==="en"?"Abeqi Franklin":"阿贝其·富兰克琳"],
     [language==="en"?"Class":"职业",language==="en"?"Physical Defender":"物理盾卫"],
     [language==="en"?"Affiliation":"所属",language==="en"?"Frontline Defense Unit":"前线防卫部队"],
@@ -19548,8 +19793,11 @@ function drawOperatorProfileTab(i,x=780,y=112,w=302,h=506){
     [language==="en"?"Combat Role":"战斗定位",roleStyle(i)]
   ];
   rows.forEach((row,n)=>{drawInsetLabel(row[0],bx,by+56+n*52,82,38,"#a8b6cc","rgba(255,255,255,.045)","rgba(255,255,255,.10)",10,true,"left");drawInsetLabel(row[1],bx+90,by+56+n*52,168,38,"#fff","rgba(255,255,255,.06)","rgba(255,255,255,.12)",10,true,"center");});
-  const note=i===6?(language==="en"?"A steadfast defender. Her ultimate orders a battlefield bombardment, grants the squad shields, and resets two automatic counters.":"重装防线执行官。终结技下达全场轰炸指令，为全队赋予护盾，并重置2次自动弹刀反击。"):(language==="en"?"Level breakthrough is performed in the Stats tab at each level cap.":"等级达到上限后，请在“属性”页直接完成基础等级突破。");
-  drawInsetLabel(note,bx,by+278,258,58,"#ffe066","rgba(255,224,102,.07)","rgba(255,224,102,.18)",10,true,"center");
+  const note=i===8?(language==="en"?"Physical-to-Arts conversion and a controlled burning field counter high-armor enemies.":"通过物理转法术与不可无限刷新的燃烧领域，应对高护甲敌人。"):(i===6?(language==="en"?"A steadfast defender. Her ultimate orders a battlefield bombardment, grants the squad shields, and resets two automatic counters.":"重装防线执行官。终结技下达全场轰炸指令，为全队赋予护盾，并重置2次自动弹刀反击。"):(language==="en"?"Level breakthrough is performed in the Stats tab at each level cap.":"等级达到上限后，请在“属性”页直接完成基础等级突破。"));
+  const trust=clamp(Number(charData[i]?.trust)||0,0,200);
+  ctx.fillStyle="rgba(255,255,255,.10)";ctx.fillRect(bx,by+268,258,10);ctx.fillStyle=trust>=200?"#ffe066":"#7cffb2";ctx.fillRect(bx,by+268,258*trust/200,10);ctx.strokeStyle="rgba(255,255,255,.2)";ctx.strokeRect(bx,by+268,258,10);
+  drawInsetLabel((language==="en"?"Trust ":"信任度 ")+trust.toFixed(1)+"% / 200%",bx,by+284,258,28,"#ffe066","rgba(255,224,102,.07)","rgba(255,224,102,.18)",10,true,"center");
+  drawInsetLabel(note,bx,by+318,258,42,"#d8e1ec","rgba(255,255,255,.045)","rgba(255,255,255,.12)",9,true,"center");
 }
 
 function drawFloraImageBox(x,y,w,h,alpha=1){
@@ -19570,7 +19818,7 @@ function drawFloraLimitedFullPortrait(x,y,w,h,alpha=1){
 
 function recruitModelIdlePose(roleId){
   const phase=(menuPulse*.012+roleId*.71)%(Math.PI*2),lift=.5+.5*Math.sin(phase),turn=Math.sin(phase*.72);
-  const names=["bladeCheck","bowTune","dualSpin","focusOrb","coatFix","medicalCheck","shieldBrace","katanaSheath"];
+  const names=["bladeCheck","bowTune","dualSpin","focusOrb","coatFix","medicalCheck","shieldBrace","katanaSheath","emberFormula"];
   return{name:names[roleId]||"lookAround",phase:phase/(Math.PI*2),lift,turn,weapon:lift};
 }
 function drawRecruitModelStand(roleId,cx,cy,scale=1){
@@ -20013,7 +20261,31 @@ function drawEnemy(e){ if(!e.alive)return; ctx.save(); ctx.translate(e.x,e.y); i
   const enemyLabel=e.type==="fireCrystal"?(language==="en"?"FIRE CRYSTAL":"火焰晶体"):e.type.toUpperCase();
   ctx.fillText(e.boss?"BOSS":enemyLabel,0,e.r+18); if(lockTarget===e){ctx.strokeStyle="#ffe066";ctx.lineWidth=3;ctx.beginPath();ctx.arc(0,0,e.r+10,0,Math.PI*2);ctx.stroke();} ctx.restore(); }
 const drawEnemyGroundModel=drawEnemy;
+function drawHigiriBoss(e){
+  if(!e.higiriBossId||!window.PZHigiriVisual||typeof window.PZHigiriVisual.drawBoss!=="function")return false;
+  ctx.save();ctx.translate(e.x,e.y);if(e.windup>0){ctx.strokeStyle="#ff596b";ctx.lineWidth=4;ctx.beginPath();ctx.arc(0,0,105,0,Math.PI*2);ctx.stroke();}
+  window.PZHigiriVisual.drawBoss(ctx,e.higiriBossId,0,10,190,{facing:e.modelFacing||-1,time:performance.now()/1000,phase:e.phase||1});
+  const hw=132;ctx.fillStyle="rgba(255,255,255,.12)";ctx.fillRect(-hw/2,-105,hw,8);ctx.fillStyle="#ff5f70";ctx.fillRect(-hw/2,-105,hw*clamp(e.hp/e.maxHp,0,1),8);if(e.maxShield>0){ctx.fillStyle="rgba(124,199,255,.18)";ctx.fillRect(-hw/2,-116,hw,6);ctx.fillStyle="#7cc7ff";ctx.fillRect(-hw/2,-116,hw*clamp(e.shield/e.maxShield,0,1),6);}
+  const names={hundred_eye:["百目面","HUNDRED-EYE MASK"],silent_bell:["无声铃守","SILENT BELL WARDEN"],mirror_shade:["镜返之影","MIRROR-RETURNING SHADE"],torii_maw:["蚀门残像","TORII-EATER REMNANT"],moonless:["无月御前","MOONLESS PRESENCE"]},n=names[e.higiriBossId]||["日斩异常","HIGIRI ANOMALY"];ctx.fillStyle="#f3e8d1";ctx.font="bold 12px "+FONT_UI;ctx.textAlign="center";ctx.fillText(language==="en"?n[1]:n[0],0,48);if(lockTarget===e){ctx.strokeStyle="#ffe066";ctx.lineWidth=3;ctx.beginPath();ctx.arc(0,0,74,0,Math.PI*2);ctx.stroke();}ctx.restore();return true;
+}
+function drawHigiriEnemy(e){
+  if(!e.higiriKind||!window.PZHigiriVisual)return false;
+  if(e.higiriState==="absent")return true;
+  const visualY=e.y-(e.flying?(e.flightVisualHeight||e.flightHeight||24):0);
+  ctx.save();ctx.translate(e.x,visualY);
+  if(e.windup>0){ctx.strokeStyle="#ff596b";ctx.lineWidth=3;ctx.beginPath();ctx.arc(0,0,70,0,Math.PI*2);ctx.stroke();}
+  const phase=e.higiriState==="reappear"?1-clamp((e.higiriStateTimer||0)/45,0,1):1;
+  window.PZHigiriVisual.drawCreature(ctx,e.higiriKind,0,8,e.r*4.7,e.higiriState||"normal",phase,{facing:e.modelFacing||1,time:performance.now()/1000,moving:Math.hypot(e.vx||0,e.vy||0)>.025});
+  const hw=62;ctx.fillStyle="#ff4d4d";ctx.fillRect(-hw/2,-e.r-58,hw,6);ctx.fillStyle="#ffe066";ctx.fillRect(-hw/2,-e.r-58,hw*clamp(e.hp/e.maxHp,0,1),6);
+  ctx.fillStyle=e.higiriKind==="yaokai"?"#d98b9d":"#bda7ff";ctx.font="bold 10px "+FONT_UI;ctx.textAlign="center";
+  ctx.fillText(e.higiriKind==="yaokai"?(language==="en"?"YAOKAI":"妖怪"):(language==="en"?"GHOSTO":"鬼"),0,e.r+25);
+  if(e.higiriState==="phased")ctx.fillText(language==="en"?"PHASED · MAGIC ONLY":"虚化 · 仅法术有效",0,-e.r-66);
+  if(lockTarget===e){ctx.strokeStyle="#ffe066";ctx.lineWidth=3;ctx.beginPath();ctx.arc(0,0,e.r+13,0,Math.PI*2);ctx.stroke();}
+  ctx.restore();return true;
+}
 drawEnemy=function(e){
+  if(drawHigiriBoss(e))return;
+  if(drawHigiriEnemy(e))return;
   if(!e.flying)return drawEnemyGroundModel(e);
   ctx.save();ctx.globalAlpha=.30;ctx.fillStyle="#02050a";ctx.beginPath();ctx.ellipse(e.x,e.y+7,e.r*.82,e.r*.24,0,0,Math.PI*2);ctx.fill();ctx.restore();
   const groundY=e.y;e.y=groundY-(e.flightVisualHeight||e.flightHeight||24);drawEnemyGroundModel(e);e.y=groundY;
@@ -20027,7 +20299,8 @@ function drawPortraitBasedBattleModel(roleId,radius,direction,moving,weaponSwing
     4:{skin:"#e7d2c8",hair:"#111318",outer:"#17191d",outerShade:"#07080b",inner:"#eef1f4",innerShade:"#6d727b",accent:"#2a2e35",trim:"#ffffff",boot:"#111318",weapon:"#dfe6ef",edge:"#939aa5"},
     5:{skin:"#eed1c6",hair:"#d9e2ec",outer:"#29384a",outerShade:"#111a25",inner:"#d8e4ed",innerShade:"#637487",accent:"#78f0c3",trim:"#eaf7ff",boot:"#172330",weapon:"#bdebdc",edge:"#78f0c3"},
     6:{skin:"#eacdbf",hair:"#d8b16a",outer:"#315a78",outerShade:"#152b3d",inner:"#8fb8cd",innerShade:"#36576b",accent:"#5db8ff",trim:"#d9f2ff",boot:"#1b3040",weapon:"#dcebf4",edge:"#5db8ff"},
-    7:{skin:"#ead0c5",hair:"#161b23",outer:"#243741",outerShade:"#0d171d",inner:"#6b8791",innerShade:"#2a414a",accent:"#65e6ff",trim:"#d9fbff",boot:"#111c22",weapon:"#e7fbff",edge:"#65e6ff"}
+    7:{skin:"#ead0c5",hair:"#161b23",outer:"#243741",outerShade:"#0d171d",inner:"#6b8791",innerShade:"#2a414a",accent:"#65e6ff",trim:"#d9fbff",boot:"#111c22",weapon:"#e7fbff",edge:"#65e6ff"},
+    8:{skin:"#edcfbd",hair:"#6d3328",outer:"#5d3028",outerShade:"#271514",inner:"#d8a45e",innerShade:"#74462e",accent:"#ff704f",trim:"#ffe0a6",boot:"#30201b",weapon:"#ffcf7a",edge:"#ff936b"}
   };
   const p=presets[roleId];
   if(!p)return false;
@@ -20059,6 +20332,7 @@ function drawPortraitBasedBattleModel(roleId,radius,direction,moving,weaponSwing
   if(roleId===5){ctx.fillStyle="#eaf7ff";ctx.fillRect(-11,-10,22,4);ctx.fillStyle="#78f0c3";ctx.beginPath();ctx.arc(10,-5,3,0,Math.PI*2);ctx.fill();}
   if(roleId===6){ctx.fillStyle="#8ecdf1";ctx.beginPath();ctx.moveTo(-18,-8);ctx.lineTo(-9,-14);ctx.lineTo(-5,-3);ctx.lineTo(-17,3);ctx.closePath();ctx.fill();ctx.fillStyle="#d9f2ff";ctx.fillRect(11,-8,7,18);}
   if(roleId===7){ctx.strokeStyle="#65e6ff";ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(-8,-28);ctx.lineTo(-13,-34);ctx.moveTo(8,-28);ctx.lineTo(13,-34);ctx.stroke();ctx.fillStyle="#49636c";ctx.fillRect(-10,-28,20,4);}
+  if(roleId===8){ctx.fillStyle="#44241f";ctx.fillRect(-10,-27,20,5);ctx.fillStyle="#ff936b";ctx.beginPath();ctx.arc(7,-16,2.5,0,Math.PI*2);ctx.fill();ctx.strokeStyle="#ffe0a6";ctx.beginPath();ctx.arc(7,-16,4.5,0,Math.PI*2);ctx.stroke();}
   // Profession silhouettes: swordguard armor, support robes, caster mantle and leader coat tails.
   if(roleId===0){ctx.fillStyle="#5f2020";ctx.beginPath();ctx.moveTo(-19,-8);ctx.lineTo(-10,-13);ctx.lineTo(-7,-5);ctx.lineTo(-16,1);ctx.closePath();ctx.fill();ctx.strokeStyle="#d29a54";ctx.lineWidth=1.5;ctx.stroke();ctx.fillStyle="#2b3038";ctx.fillRect(9,-4,8,13);}
   if(roleId===1){ctx.fillStyle=p.outer;ctx.beginPath();ctx.moveTo(-15,-5);ctx.quadraticCurveTo(-29,2,-25,14);ctx.lineTo(-15,18);ctx.lineTo(-8,1);ctx.closePath();ctx.fill();ctx.beginPath();ctx.moveTo(13,-5);ctx.quadraticCurveTo(29,2,26,15);ctx.lineTo(16,18);ctx.lineTo(8,1);ctx.closePath();ctx.fill();ctx.strokeStyle="#74ffb7";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(-22,9);ctx.lineTo(-16,14);ctx.moveTo(22,9);ctx.lineTo(16,14);ctx.stroke();}
@@ -20068,6 +20342,7 @@ function drawPortraitBasedBattleModel(roleId,radius,direction,moving,weaponSwing
   if(roleId===5){ctx.fillStyle="#213648";ctx.beginPath();ctx.moveTo(-16,-6);ctx.lineTo(-20,19);ctx.lineTo(-7,23);ctx.lineTo(-2,5);ctx.closePath();ctx.fill();ctx.strokeStyle="#78f0c3";ctx.stroke();ctx.fillStyle="#eef8ff";ctx.fillRect(7,-2,8,15);}
   if(roleId===6){ctx.fillStyle="#234c68";ctx.beginPath();ctx.moveTo(-20,-4);ctx.lineTo(-25,16);ctx.lineTo(-13,23);ctx.lineTo(-5,4);ctx.closePath();ctx.fill();ctx.beginPath();ctx.moveTo(13,-7);ctx.lineTo(24,5);ctx.lineTo(22,20);ctx.lineTo(8,11);ctx.closePath();ctx.fill();}
   if(roleId===7){ctx.fillStyle="#13252d";ctx.beginPath();ctx.moveTo(-15,4);ctx.lineTo(-19,27);ctx.lineTo(-3,20);ctx.lineTo(0,8);ctx.closePath();ctx.fill();ctx.beginPath();ctx.moveTo(4,7);ctx.lineTo(18,26);ctx.lineTo(15,8);ctx.closePath();ctx.fill();ctx.strokeStyle="#65e6ff";ctx.stroke();}
+  if(roleId===8){ctx.fillStyle="#4a211c";ctx.beginPath();ctx.moveTo(-16,-6);ctx.quadraticCurveTo(-25,6,-20,24);ctx.lineTo(-7,18);ctx.lineTo(-2,2);ctx.closePath();ctx.fill();ctx.beginPath();ctx.moveTo(14,-6);ctx.quadraticCurveTo(24,7,19,23);ctx.lineTo(7,18);ctx.lineTo(2,2);ctx.closePath();ctx.fill();ctx.strokeStyle="#ff936b";ctx.lineWidth=1.2;ctx.stroke();ctx.fillStyle="#ffe0a6";ctx.fillRect(-3,-5,6,19);}
   // Fine seams, highlights and coat-edge lighting.
   ctx.strokeStyle=p.edge;ctx.globalAlpha=baseAlpha*.72;ctx.lineWidth=1.2;ctx.beginPath();ctx.moveTo(-16,-5);ctx.lineTo(-17,16);ctx.moveTo(11,-5);ctx.lineTo(14,17);ctx.stroke();
   ctx.strokeStyle="rgba(255,255,255,.38)";ctx.globalAlpha=baseAlpha;ctx.beginPath();ctx.moveTo(-7,-6);ctx.lineTo(-7,8);ctx.moveTo(6,-5);ctx.lineTo(7,7);ctx.stroke();
@@ -20080,6 +20355,7 @@ function drawPortraitBasedBattleModel(roleId,radius,direction,moving,weaponSwing
   else if(roleId===5){ctx.strokeStyle="#bdebdc";ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(dir*6,5);ctx.lineTo(dir*32,-7);ctx.stroke();ctx.fillStyle="#78f0c3";ctx.beginPath();ctx.arc(dir*34,-8,6,0,Math.PI*2);ctx.fill();ctx.fillStyle="#fff";ctx.fillRect(dir>0?30:-38,-10,8,4);}
   else if(roleId===6){ctx.fillStyle="#315a78";ctx.beginPath();ctx.arc(dir*22,1,15,0,Math.PI*2);ctx.fill();ctx.strokeStyle="#d9f2ff";ctx.lineWidth=3;ctx.stroke();ctx.fillStyle="#5db8ff";ctx.fillRect(dir>0?18:-25,-12,7,24);}
   else if(roleId===7){ctx.strokeStyle="#18262d";ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(dir*7,3);ctx.lineTo(dir*17,1);ctx.stroke();ctx.strokeStyle="#e7fbff";ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(dir*15,0);ctx.lineTo(dir*43,-5);ctx.stroke();ctx.strokeStyle="#65e6ff";ctx.lineWidth=1;ctx.moveTo(dir*19,-2);ctx.lineTo(dir*43,-7);ctx.stroke();}
+  else if(roleId===8){ctx.strokeStyle="#ffe0a6";ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(dir*7,5);ctx.lineTo(dir*28,-8);ctx.stroke();ctx.fillStyle="#ff704f";ctx.shadowColor="#ff704f";ctx.shadowBlur=12;ctx.beginPath();ctx.arc(dir*33,-11,7,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;ctx.strokeStyle="#ffcf7a";ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(dir*33,-11,11,0,Math.PI*2);ctx.stroke();}
   else{ctx.strokeStyle="#151820";ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(dir*8,2);ctx.lineTo(dir*17,1);ctx.stroke();ctx.strokeStyle=p.weapon;ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(dir*15,0);ctx.lineTo(dir*37,-3);ctx.stroke();ctx.strokeStyle=p.edge;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(dir*18,-2);ctx.lineTo(dir*36,-5);ctx.stroke();}
   ctx.restore();
   ctx.restore();return true;
@@ -20370,15 +20646,19 @@ function drawEffects(){
   }
   for(const p of projectiles){
     ctx.save();
-    ctx.fillStyle=p.fireProjectile?"#ff8a48":"#ff7777";
+    ctx.fillStyle=p.ghostProjectile?"#bda7ff":p.fireProjectile?"#ff8a48":"#ff7777";
     ctx.shadowBlur=12;
-    ctx.shadowColor=p.fireProjectile?"#ff5a28":"#ff3333";
+    ctx.shadowColor=p.ghostProjectile?"#8d78a8":p.fireProjectile?"#ff5a28":"#ff3333";
     ctx.beginPath();
     ctx.arc(p.x,p.y,7,0,Math.PI*2);
     ctx.fill();
     ctx.restore();
   }
   for(const t of texts){ctx.save();ctx.globalAlpha=t.life/t.max;ctx.fillStyle=t.color;ctx.font=t.big?"bold 30px Arial":"bold 22px Arial";ctx.textAlign="center";ctx.fillText(t.text,t.x,t.y);ctx.restore();}
+  if(daydreamIllusion&&window.PZHigiriVisual){
+    const elapsed=(daydreamIllusion.max-daydreamIllusion.timer)/60;
+    window.PZHigiriVisual.drawEffect(ctx,W,H,daydreamIllusion.type,elapsed,{x:player.x,y:player.y});
+  }
 }
 
 
@@ -20420,18 +20700,21 @@ function drawAchievementNotice(){
 
 function drawDaydreamBattleUI(){
   syncPlayerHpFromRole();ensureBattleRoleResources();const y=H-112;
-  ctx.save();ctx.fillStyle="rgba(5,8,17,.88)";ctx.fillRect(18,y,W-36,94);ctx.strokeStyle="rgba(155,124,255,.42)";ctx.strokeRect(18,y,W-36,94);
+  ctx.save();
+  // HIGIRI phase-one battle skin: washi/ink HUD only; combat values and input stay untouched.
+  ctx.fillStyle="rgba(18,16,14,.91)";ctx.fillRect(18,y,W-36,94);ctx.strokeStyle="rgba(216,207,184,.52)";ctx.lineWidth=2;ctx.strokeRect(18,y,W-36,94);
+  ctx.fillStyle="rgba(177,58,47,.82)";ctx.fillRect(18,y,6,94);ctx.fillStyle="rgba(216,207,184,.025)";for(let i=0;i<28;i++)ctx.fillRect(28+i*39,y+10+(i*17%72),2+(i%3),1);
   for(let i=0;i<team.length;i++){
     const role=team[i],x=34+i*112,active=role===player.role,max=roleMaxHpForBattle(role);
     const hp=clamp(Number(battleRoleHp[role])||0,0,max),energy=clamp(Number(battleRoleEnergy[role])||0,0,100),ultValue=clamp(Number(battleRoleUlt[role])||0,0,ULT_MAX);
     const down=hp<=0;
-    ctx.fillStyle=down?"rgba(35,38,48,.72)":active?"rgba(155,124,255,.24)":"rgba(255,255,255,.05)";ctx.fillRect(x,y+12,102,70);ctx.strokeStyle=down?"rgba(255,85,95,.46)":active?"#ffe066":"rgba(255,255,255,.18)";ctx.strokeRect(x,y+12,102,70);
+    ctx.fillStyle=down?"rgba(35,32,29,.72)":active?"rgba(177,58,47,.22)":"rgba(216,207,184,.045)";ctx.fillRect(x,y+12,102,70);ctx.strokeStyle=down?"rgba(177,58,47,.55)":active?"#d6a52b":"rgba(216,207,184,.20)";ctx.strokeRect(x,y+12,102,70);
     ctx.fillStyle=roles[role].color||"#7cc7ff";ctx.beginPath();ctx.arc(x+22,y+36,15,0,Math.PI*2);ctx.fill();ctx.fillStyle="#fff";ctx.font="bold 11px "+FONT_UI;ctx.textAlign="left";ctx.fillText(roleName(role),x+43,y+27);
-    drawBar(x+43,y+34,49,5,hp/max,"#ff4d5f");drawBar(x+43,y+43,49,4,energy/100,"#55d8ff");drawBar(x+43,y+51,49,4,ultValue/ULT_MAX,"#b47cff");
+    drawBar(x+43,y+34,49,5,hp/max,"#b13a2f");drawBar(x+43,y+43,49,4,energy/100,"#315a78");drawBar(x+43,y+51,49,4,ultValue/ULT_MAX,"#8d78a8");
     ctx.fillStyle=down?"#ff7886":"rgba(255,255,255,.58)";ctx.font="8px Arial";ctx.fillText(down?(language==="en"?"DOWN":"无法战斗"):(Math.floor(hp)+" HP"),x+43,y+66);
   }
-  ctx.fillStyle="rgba(255,255,255,.55)";ctx.font="11px "+FONT_UI;ctx.fillText((language==="en"?"Reconstruction Area ":"重现区域 ")+area+"/"+battleAreaLimit(),390,y+28);drawBar(390,y+39,300,10,player.hp/playerMaxHp(),"#ff4d5f");drawBar(390,y+56,300,10,player.energy/100,"#42d7ff");drawBar(390,y+73,300,10,player.ult/ULT_MAX,"#c35cff");
-  ctx.textAlign="right";ctx.fillStyle="#ffe066";ctx.font="bold 24px "+FONT_UI;ctx.fillText("COMBO "+combo,W-38,y+35);ctx.fillStyle="#fff";ctx.font="bold 30px Arial";ctx.fillText(combatRank,W-38,y+72);ctx.restore();
+  ctx.fillStyle="rgba(216,207,184,.62)";ctx.font="11px "+FONT_UI;ctx.fillText((language==="en"?"HIGIRI RECONSTRUCTION ":"日斬重现区域 ")+area+"/"+battleAreaLimit(),390,y+28);drawBar(390,y+39,300,10,player.hp/playerMaxHp(),"#b13a2f");drawBar(390,y+56,300,10,player.energy/100,"#315a78");drawBar(390,y+73,300,10,player.ult/ULT_MAX,"#8d78a8");
+  ctx.textAlign="right";ctx.fillStyle="#d6a52b";ctx.font="bold 20px "+FONT_UI;ctx.fillText((language==="en"?"CHAIN ":"连斩 ")+combo,W-38,y+34);ctx.fillStyle="#d8cfb8";ctx.font="bold 30px serif";ctx.fillText(combatRank,W-38,y+72);ctx.restore();
 }
 
 function abandonCurrentBattle(){
@@ -20683,6 +20966,32 @@ function drawChapter1AreaObjective(x=30,y=148,maxW=310){
 function drawUltimateOverlay(){ if(!ult.active)return; const r=roles[ult.role],t=ult.timer; ctx.save(); ctx.globalAlpha=t<16?t/16*.72:t>78?(1-(t-78)/18)*.72:.72; ctx.fillStyle="#000";ctx.fillRect(0,0,W,H);ctx.globalAlpha=1;ctx.fillStyle="#fff";ctx.font="bold 38px " + FONT_UI;ctx.textAlign="left";ctx.fillText("ULTIMATE",W*.48,H*.40);ctx.font="bold 24px " + FONT_UI;ctx.fillStyle=r.sub;ctx.fillText(roleLine(ult.role),W*.48,H*.48); if(t>42){const b=Math.min(1,(t-42)/18);ctx.strokeStyle=r.color;ctx.lineWidth=10;ctx.beginPath();ctx.moveTo(W*.18,H*.72);ctx.lineTo(W*(.18+.72*b),H*(.72-.50*b));ctx.stroke();} ctx.restore();}
 
 function drawBattleBackground(){
+  if(battleModeSource==="daydream"){
+    if(window.PZHigiriVisual){
+      window.PZHigiriVisual.drawScene(ctx,W,H,daydreamBattleConfig?.boss?"boss":"battle","gunjo");
+      return;
+    }
+    // Presentation only; movement bounds, projectiles and collision remain unchanged.
+    ctx.save();
+    const ink=ctx.createLinearGradient(0,0,0,H);
+    ink.addColorStop(0,"#20232c");ink.addColorStop(.48,"#34363a");ink.addColorStop(1,"#171819");
+    ctx.fillStyle=ink;ctx.fillRect(0,0,W,H);
+    ctx.fillStyle="rgba(216,207,184,.12)";ctx.beginPath();ctx.arc(W*.76,H*.24,42,0,Math.PI*2);ctx.fill();
+    for(let ridge=0;ridge<3;ridge++){
+      ctx.fillStyle=["#282b30","#22262b","#1d2226"][ridge];ctx.beginPath();ctx.moveTo(0,H*.53);
+      for(let x=0;x<=W+40;x+=40)ctx.lineTo(x,H*(.32+ridge*.055)+Math.sin(x*.008+ridge*2)*24+Math.sin(x*.021)*9);
+      ctx.lineTo(W,H*.56);ctx.lineTo(0,H*.56);ctx.closePath();ctx.fill();
+    }
+    const horizon=H*.5;
+    ctx.fillStyle="rgba(216,207,184,.045)";ctx.fillRect(0,horizon,W,H-horizon);
+    ctx.strokeStyle="rgba(216,207,184,.065)";ctx.lineWidth=1;
+    for(let i=1;i<7;i++){const y=horizon+(H-horizon)*(i*i/36);ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y+3);ctx.stroke();}
+    // Distant torii stays above the playable ground; it is not a new obstacle.
+    const tx=W*.77,ty=horizon-8;
+    ctx.fillStyle="rgba(177,58,47,.45)";ctx.fillRect(tx-48,ty-75,96,7);ctx.fillRect(tx-39,ty-61,78,5);
+    ctx.fillRect(tx-31,ty-61,7,61);ctx.fillRect(tx+24,ty-61,7,61);
+    ctx.restore();return;
+  }
   const name = stageBackgroundName(selectedStage) || mt("stageFallback");
   ctx.save();
   ctx.globalAlpha=.9;
@@ -20862,6 +21171,7 @@ function drawLowHealthEdgeWarning(){
   g=ctx.createLinearGradient(0,H,0,H-edge);g.addColorStop(0,`rgba(225,10,32,${alpha})`);g.addColorStop(1,"rgba(225,10,32,0)");ctx.fillStyle=g;ctx.fillRect(0,H-edge,W,edge);ctx.restore();
 }
 function drawBattle(){ const sx=chainSelect?0:(Math.random()-.5)*shake,sy=chainSelect?0:(Math.random()-.5)*shake*.7; ctx.save();ctx.translate(sx,sy); const bg=ctx.createLinearGradient(0,0,0,H);bg.addColorStop(0,"#15172a");bg.addColorStop(1,"#090a10");ctx.fillStyle=bg;ctx.fillRect(-50,-50,W+100,H+100); drawBattleBackground();
+  drawAdamField();
   drawGrid(); drawOperationBattleMechanics(); drawCrystalWarIndustryV8(); drawProjectAreaObjects(); drawBattleExploreObjects(); drawEffects(); const objs=enemies.filter(e=>e.alive).map(e=>({t:"e",y:e.y,e}));if(battleModeSource==="crystalWar"&&window.PZCrystalWar&&typeof window.PZCrystalWar.getRemotePlayers==="function")for(const member of window.PZCrystalWar.getRemotePlayers())objs.push({t:"remote",y:Number(member.y||0),member}); objs.push({t:"p",y:player.y}); objs.sort((a,b)=>a.y-b.y); for(const o of objs){if(o.t==="e")drawEnemy(o.e);else if(o.t==="remote")drawCrystalWarRemotePlayer(o.member);else drawPlayer();} drawBattleAreaExits(); if(areaCleared&&area<battleAreaLimit()&&!supportsStageExploration()){ctx.fillStyle="#ffe066";ctx.fillRect(W-42,110,22,H-160);ctx.fillStyle="#fff";ctx.font="bold 22px " + FONT_UI;ctx.textAlign="right";ctx.fillText(battleModeSource==="commission"?(language==="en"?"NEXT WAVE →":"下一波 →"):(language==="en"?"NEXT AREA →":"下一区域 →"),W-58,H/2);} if(flash>0){ctx.globalAlpha=flash/35;ctx.fillStyle="#fff";ctx.fillRect(-50,-50,W+100,H+100);ctx.globalAlpha=1;} ctx.restore(); drawUltimateOverlay(); drawKrosPhaseTransitionOverlay(); drawKrosIntroOverlay(); drawBossKrosTopBar(); drawCrystalColossusTopBar(); drawBattleUI(); drawLowHealthEdgeWarning(); drawBattleRewardNotices();drawCrystalWarBattleOverlaySafely(); if(centerTimer>0){ctx.fillStyle="#fff";ctx.textAlign="center";fitText(centerText,W-150,46,"bold",20);ctx.fillText(centerText,W/2,H*.43);}
   if(actionPromptTimer>0){
     ctx.save();
@@ -21684,7 +21994,7 @@ function archiveStoryData(){return[
   {title:["第二章 · 再次深入","Chapter 2 · Return"],summary:["小队再次深入异常区域，调查晶体扩张、撤离路线与不断变化的空间结构。","The squad returns to investigate crystal expansion, evacuation routes, and changing spatial structures."],keywords:["空间异常","撤离路线","晶体扩张"]},
   {title:["第三章 · 扩张","Chapter 3 · Expansion"],summary:["Project 4 的边界继续扩大。北区疏散线、媒体记录和雨云下的监测数据揭示新的危机。","Project 4 continues expanding. Northern evacuation lines, media records, and rain-cloud monitoring reveal a new crisis."],keywords:["北区疏散","扩张监测","小赖"]}
 ];}
-function archiveRoleData(id){const names={0:["凯恩","Kane"],1:["艾洛","Ailo"],2:["诺克斯","Nox"],3:["芙洛拉","Flora"],4:["隐者","Hermit"],5:["克洛伊","Chloe"],6:["阿贝其·富兰克琳","Abeqi Franklin"]},classes={0:["剑卫","Swordguard"],1:["法武","Arts Weapon"],2:["盾卫","Defender"],3:["法武","Arts Weapon"],4:["引领","Guide"],5:["协辅","Support"],6:["盾卫","Defender"]},mechanics={0:["连续斩击、第三段重击与火焰标记，适合维持近战压制。","Combo slashes, a heavy third hit, and flame marks sustain melee pressure."],1:["远程元素攻击与范围技能，负责安全距离输出和群体处理。","Ranged elemental attacks and area skills handle groups from safety."],2:["承受正面压力，通过防御、弹刀和护盾保护队伍。","Holds the front with defense, parries, and squad protection."],3:["冰属性群伤与冻结控制，可中断敌群行动并创造输出窗口。","Ice area damage and Freeze interrupt groups and create damage windows."],4:["根据主线成长的核心执行官，擅长切换节奏与衔接队伍机制。","A story-synced core operator who links team mechanics and tempo."],5:["为队友提供增益、连携条件与战场辅助。","Provides buffs, chain conditions, and battlefield utility."],6:["为全队提供护盾；终结技轰炸全场，并重置2次自动弹刀反击。","Grants squad shields; her ultimate bombards the field and resets two automatic counters."]};return{name:names[id]||[roleName(id),roleName(id)],className:classes[id]||[roleStyle(id),roleStyle(id)],mechanic:mechanics[id]||[roleStyle(id),roleStyle(id)],position:id===6?["前排承伤 / 团队护盾 / 反击","Frontline tank / squad shield / counter"]:id===3?["群体控制 / 法术输出","Crowd control / Arts damage"]:id===4?["队伍核心 / 机制引导","Team core / mechanic enabler"]:[roleStyle(id),roleStyle(id)]};}
+function archiveRoleData(id){const names={0:["凯恩","Kane"],1:["艾洛","Ailo"],2:["诺克斯","Nox"],3:["芙洛拉","Flora"],4:["隐者","Hermit"],5:["克洛伊","Chloe"],6:["阿贝其·富兰克琳","Abeqi Franklin"],7:["拉文","Raven"],8:["阿当","Adam"]},classes={0:["剑卫","Swordguard"],1:["法武","Arts Weapon"],2:["盾卫","Defender"],3:["法武","Arts Weapon"],4:["引领","Guide"],5:["协辅","Support"],6:["盾卫","Defender"],7:["击破","Breaker"],8:["辅助 / 法术副C","Support / Arts Sub-DPS"]},mechanics={0:["连续斩击、第三段重击与火焰标记，适合维持近战压制。","Combo slashes, a heavy third hit, and flame marks sustain melee pressure."],1:["远程元素攻击与范围技能，负责安全距离输出和群体处理。","Ranged elemental attacks and area skills handle groups from safety."],2:["承受正面压力，通过防御、弹刀和护盾保护队伍。","Holds the front with defense, parries, and squad protection."],3:["冰属性群伤与冻结控制，可中断敌群行动并创造输出窗口。","Ice area damage and Freeze interrupt groups and create damage windows."],4:["根据主线成长的核心执行官，擅长切换节奏与衔接队伍机制。","A story-synced core operator who links team mechanics and tempo."],5:["为队友提供增益、连携条件与战场辅助。","Provides buffs, chain conditions, and battlefield utility."],6:["为全队提供护盾；终结技轰炸全场，并重置2次自动弹刀反击。","Grants squad shields; her ultimate bombards the field and resets two automatic counters."],7:["高速突刺、破盾与聚怪，擅长创造击破窗口。","High-speed thrusts, shield breaking, and grouping create break windows."],8:["第五次物理攻击后转为5秒法术攻击；燃烧领域持续5秒，燃烧结束前不可刷新；终结技自身增伤20%。","After five Physical attacks, converts to Arts for 5s. The 5s field applies non-refreshable Burn; Ultimate grants 20% self damage."]};return{name:names[id]||[roleName(id),roleName(id)],className:classes[id]||[roleStyle(id),roleStyle(id)],mechanic:mechanics[id]||[roleStyle(id),roleStyle(id)],position:id===8?["辅助 / 法术副C","Support / Arts Sub-DPS"]:id===7?["击破 / 突刺 / 聚怪","Breaker / Thrust / Grouping"]:id===6?["前排承伤 / 团队护盾 / 反击","Frontline tank / squad shield / counter"]:id===3?["群体控制 / 法术输出","Crowd control / Arts damage"]:id===4?["队伍核心 / 机制引导","Team core / mechanic enabler"]:[roleStyle(id),roleStyle(id)]};}
 function archiveAnomalyData(){return[
  {title:["Project 4","Project 4"],body:["持续扩张的封锁区域。其内部道路、建筑和天气记录会发生不符合常理的变化。","An expanding exclusion zone whose roads, buildings, and weather records change unnaturally."]},
  {title:["晶体人","Crystal Humanoid"],body:["具有人形轮廓的晶体生命。会模仿战斗行为，并对特定核心频率产生回应。","A humanoid crystal life-form that imitates combat behavior and responds to core frequencies."]},
@@ -21701,7 +22011,8 @@ const ARCHIVE_COMBAT_RECORDS={
 4:{normal:["灰白刃式","Ash-White Form"],normalText:["以核心刃完成稳定连段，并根据主线成长获得更高的综合作战能力。","Uses the Core Blade for stable chains and gains broader combat ability through story progression."],skill:["边界切割","Boundary Sever"],skillText:["切开前方异常空间，对直线范围目标造成伤害与削韧。","Severs anomalous space ahead, damaging and staggering targets in a line."],ultimate:["灰白领域","Ash-White Domain"],ultimateText:["展开持续领域，对领域内敌人反复造成伤害，并连接队伍作战节奏。","Deploys a persistent field that repeatedly damages enemies and links squad tempo."]},
 5:{normal:["协同射击","Coordinated Fire"],normalText:["以中距离攻击协助队伍，稳定触发辅助效果。","Supports the squad with steady mid-range fire."],skill:["协辅矩阵","Support Matrix"],skillText:["部署辅助领域，为队友提供增益、恢复与连携条件。","Deploys a support field that grants buffs, recovery, and Chain conditions."],ultimate:["全域协同","Total Coordination"],ultimateText:["强化全队战斗循环，并在关键时刻维持队伍状态。","Strengthens the squad's combat loop and stabilizes the team during critical moments."]},
 6:{normal:["重盾击列","Heavy Shield Sequence"],normalText:["以较慢的重盾攻击推进，最后一段造成显著物理伤害与削韧。","A slower heavy-shield sequence whose final hit deals strong Physical damage and stagger."],skill:["阵线护盾","Line Shield"],skillText:["为全队赋予100点护盾。护盾以蓝色边框围绕生命条显示。","Grants every squad member a 100-point shield, shown as a blue frame around the HP bar."],ultimate:["坚守阵线","Hold the Line"],ultimateText:["轰炸全场敌人，为全队赋予400点护盾与伤害提升，并将阿贝其的反击次数重置为2次。受到攻击时反击会自动弹刀并伤害攻击者。","Bombards all enemies, grants the squad 400 Shield and a damage bonus, and resets Abeqi's two Counters. A Counter automatically parries an incoming attack and damages the attacker."]},
-7:{normal:["四式晶断","Crystal Sever Forms"],normalText:["四段太刀连击；第三段破盾提高20%，第四段由玩家拖拽长方形范围并控制方向后高速突刺。","Four katana strikes; hit three gains 20% shield break and hit four is a player-aimed rectangular thrust."],skill:["瞬身附斩","Phantom Possession"],skillText:["附身高血量目标自动连斩3秒，期间不可操作，结束后返回释放位置。","Possesses a high-HP target for three seconds of automatic slashes, then returns to the cast point."],ultimate:["阿米诺斯处刑式","Aminos Execution"],ultimateText:["锁定连斩2秒，归位聚怪挥砍3秒，随后进入10秒主动突刺状态；晶技能累计3次令敌人暴走并增伤10%。","Slashes a priority target for 2s, returns for a 3s pulling storm, then enters a 10s player-controlled Thrust State. Three Crystal casts enrage enemies for +10% damage."]}
+7:{normal:["四式晶断","Crystal Sever Forms"],normalText:["四段太刀连击；第三段破盾提高20%，第四段由玩家拖拽长方形范围并控制方向后高速突刺。","Four katana strikes; hit three gains 20% shield break and hit four is a player-aimed rectangular thrust."],skill:["瞬身附斩","Phantom Possession"],skillText:["附身高血量目标自动连斩3秒，期间不可操作，结束后返回释放位置。","Possesses a high-HP target for three seconds of automatic slashes, then returns to the cast point."],ultimate:["阿米诺斯处刑式","Aminos Execution"],ultimateText:["锁定连斩2秒，归位聚怪挥砍3秒，随后进入10秒主动突刺状态；晶技能累计3次令敌人暴走并增伤10%。","Slashes a priority target for 2s, returns for a 3s pulling storm, then enters a 10s player-controlled Thrust State. Three Crystal casts enrage enemies for +10% damage."]},
+8:{normal:["术式转换","Formula Conversion"],normalText:["基础攻击为物理伤害；累计5次后转为法术伤害5秒，结束后重新累计。","Attacks deal Physical damage; after five hits they convert to Arts for 5s, then reset."],skill:["燃烧领域","Burning Field"],skillText:["生成持续5秒的领域。燃烧持续2秒，结束前不可刷新；领域视觉额外保留3秒但不再造成伤害。","Creates a 5s field. Burn lasts 2s and cannot refresh; visuals linger 3s without damage."],ultimate:["热能增幅","Thermal Amplification"],ultimateText:["阿当自身伤害提高20%，持续10秒，不附加额外机制。","Increases Adam's damage by 20% for 10s with no additional mechanic."]}
 };
 function archiveStorySource(ch){if(ch===0)return language==="en"?window.PZ_CHAPTER0_STORY_EN:window.PZ_CHAPTER0_STORY_ZH;if(ch===1)return language==="en"?window.PZ_CHAPTER1_STORY_EN:window.PZ_CHAPTER1_STORY_ZH;if(ch===2)return language==="en"?window.PZ_CHAPTER2_STORY_EN:window.PZ_CHAPTER2_STORY_ZH;const a=language==="en"?window.PZ_CHAPTER3_PART1_STORY_EN:window.PZ_CHAPTER3_PART1_STORY_ZH,b=language==="en"?window.PZ_CHAPTER3_PART2_STORY_EN:window.PZ_CHAPTER3_PART2_STORY_ZH;return Object.assign({},a||{},b||{});}
 function archiveStoryLines(ch){const src=archiveStorySource(ch)||{},out=[];Object.keys(src).sort((a,b)=>(+a||0)-(+b||0)).forEach(stage=>{out.push({heading:(language==="en"?"STAGE ":"关卡 ")+stage});for(const line of src[stage]||[]){if(Array.isArray(line))out.push({speaker:String(line[0]||""),text:String(line[1]||"")});else if(line&&typeof line==="object")out.push({speaker:String(line.speaker||line.name||""),text:String(line.text||line.content||"")});}});return out;}
@@ -21721,7 +22032,8 @@ const ARCHIVE_IDENTITY_RECORDS={
   4:{identity:["异常核心共鸣者","Anomaly Core Resonator"],affiliation:["Project 4 联合调查队","Project 4 Joint Investigation Team"],profession:["引领者 / 核心刃使用者","Guide / Core-Blade User"],status:["重点观察 · 主线行动人员","Under Observation · Story Operations"]},
   5:{identity:["协同作战执行官","Coordinated Operations Executor"],affiliation:["雷文哈多综合支援组","Ravenhado Integrated Support Unit"],profession:["职业协辅 / 战场增益与恢复","Professional Support / Buffs and Recovery"],status:["现役 · 小队支援席","Active · Squad Support"]},
   6:{identity:["重装防线执行官","Heavy Defensive-Line Executor"],affiliation:["雷文哈多防卫体系","Ravenhado Defense Service"],profession:["职业盾卫 / 团队护盾与反击","Professional Defender / Shields and Counters"],status:["现役 · 前线防卫","Active · Frontline Defense"]},
-  7:{identity:["S级晶属性执行官","S-Rank Crystal Executor"],affiliation:["雷文哈多高速击破编队","Ravenhado Rapid Break Unit"],profession:["职业击破 / 太刀突刺与破甲","Professional Breaker / Katana Thrust and Armor Break"],status:["常驻现役 · 阿米诺斯之刃适配者","Active Permanent Roster · Blade of Aminos User"]}
+  7:{identity:["S级晶属性执行官","S-Rank Crystal Executor"],affiliation:["雷文哈多高速击破编队","Ravenhado Rapid Break Unit"],profession:["职业击破 / 太刀突刺与破甲","Professional Breaker / Katana Thrust and Armor Break"],status:["常驻现役 · 阿米诺斯之刃适配者","Active Permanent Roster · Blade of Aminos User"]},
+  8:{identity:["C级执行官","C-Rank Executor"],affiliation:["雷文哈多综合支援组","Ravenhado Integrated Support Unit"],profession:["辅助 / 法术副C","Support / Arts Sub-DPS"],status:["新旅程支援人员","New Journey Support Roster"]}
 };
 const drawArchiveEntryDetailBeforeIdentity=drawArchiveEntryDetail;
 drawArchiveEntryDetail=function(){
@@ -21730,7 +22042,8 @@ drawArchiveEntryDetail=function(){
   ctx.fillStyle="#050914";ctx.fillRect(0,0,W,H);drawBtn(language==="en"?"Back to Archive":"返回档案","ESC",42,28,180,42,false,"#fff");
   ctx.fillStyle="rgba(255,255,255,.035)";ctx.fillRect(38,90,330,530);ctx.strokeStyle=col;ctx.lineWidth=2;ctx.strokeRect(38,90,330,530);drawExecutorArt(id,50,102,306,506,true);
   const x=400,tx=v=>language==="en"?v[1]:v[0];ctx.fillStyle=col;ctx.font="bold 12px "+FONT_UI;ctx.fillText(language==="en"?"EXECUTOR ARCHIVE / IDENTITY & COMBAT":"执行官档案 / 身份与作战记录",x,64);ctx.fillStyle="#fff";ctx.font="bold 32px "+FONT_UI;ctx.fillText(tx(d.name),x,104);
-  const facts=[[language==="en"?"IDENTITY":"身份",identity.identity],[language==="en"?"AFFILIATION":"所属",identity.affiliation],[language==="en"?"PROFESSION":"职业",identity.profession],[language==="en"?"STATUS":"状态",identity.status]];
+  const trustPair=["信任度 "+(Number(charData[id]?.trust)||0).toFixed(1)+"%","Trust "+(Number(charData[id]?.trust)||0).toFixed(1)+"%"];
+  const facts=[[language==="en"?"IDENTITY":"身份",identity.identity],[language==="en"?"AFFILIATION":"所属",identity.affiliation],[language==="en"?"PROFESSION":"职业",identity.profession],[language==="en"?"STATUS / TRUST":"状态 / 信任度",[identity.status[0]+" · "+trustPair[0],identity.status[1]+" · "+trustPair[1]]]];
   facts.forEach((row,i)=>{const y=126+i*34;ctx.fillStyle="rgba(255,255,255,.055)";ctx.fillRect(x,y,672,28);ctx.fillStyle="rgba(255,255,255,.42)";ctx.font="bold 9px "+FONT_UI;ctx.fillText(row[0],x+12,y+18);ctx.fillStyle="#fff";ctx.font="bold 10px "+FONT_UI;ctx.fillText(tx(row[1]),x+118,y+18);});
   const blocks=[[combat.normal,combat.normalText,"A / "+(language==="en"?"NORMAL ATTACK":"普通攻击")],[combat.skill,combat.skillText,"E / "+(language==="en"?"SKILL":"技能")],[combat.ultimate,combat.ultimateText,"Q / "+(language==="en"?"ULTIMATE":"终结技")],[[language==="en"?"Core Mechanism":"核心机制",language==="en"?"Core Mechanism":"核心机制"],d.mechanic,language==="en"?"TACTICAL ROLE":"机制与定位"]];
   blocks.forEach((b,i)=>{const y=276+i*83;ctx.fillStyle="rgba(255,255,255,.045)";ctx.fillRect(x,y,672,72);ctx.strokeStyle=i===3?col:"rgba(255,255,255,.12)";ctx.strokeRect(x,y,672,72);ctx.fillStyle=i===2?"#ffe066":col;ctx.font="bold 9px "+FONT_UI;ctx.fillText(b[2],x+12,y+17);ctx.fillStyle="#fff";ctx.font="bold 13px "+FONT_UI;ctx.fillText(tx(b[0]),x+12,y+39);ctx.font="10px "+FONT_UI;archiveWrap(tx(b[1]),x+184,y+23,466,15,"rgba(255,255,255,.68)");});

@@ -2,8 +2,8 @@
   "use strict";
 
   const VERSION_URL="version.json";
-  const LOCAL_VERSION="49.33.3";
-  const LOCAL_BUILD="2026091602-pc-raven-fx-tuning";
+  const LOCAL_VERSION="49.33.6";
+  const LOCAL_BUILD="20261017-pc-higiri-layer-r13";
   const FILE_RUNTIME=location.protocol==="file:";
   const BUILD_KEY="pz_runtime_build";
   const VERSION_KEY="pz_runtime_version";
@@ -23,8 +23,8 @@
   const REQUIRED_GAME="game.js";
   const OPTIONAL_AFTER_GAME=[
     "game_match3.js","game_quality_update.js","game_patrol.js",
-    "game_side_story.js","game_daydream.js","game_daydream_title.js",
-    "game_crystal_war.js"
+    "game_side_story.js","game_daydream.js","game_daydream_title.js","game_daydream_higiri_art.js",
+    "game_higiri_visuals.js","game_crystal_war.js"
   ];
 
   const screen=document.getElementById("bootScreen");
